@@ -2,7 +2,14 @@
 
 import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
-import type { Edge, Node } from "@xyflow/react";
+import {
+  type Edge,
+  type Node,
+  type Connection,
+  useNodesState,
+  useEdgesState,
+  addEdge,
+} from "@xyflow/react";
 import { StoryCanvas } from "@/components/cinema/story-canvas";
 import {
   TimelineScrubber,
@@ -37,6 +44,12 @@ import {
 import { SlateLabel } from "@/components/cinema/slate-label";
 import { Button } from "@/components/ui/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Film,
   Sparkles,
   Bot,
@@ -52,6 +65,10 @@ import {
   Globe2,
   Layers,
   Volume2,
+  Users2,
+  Flame,
+  RotateCcw,
+  Video,
 } from "lucide-react";
 import type { ShowrunnerMessage } from "@/lib/agent-service";
 
@@ -138,65 +155,66 @@ Emergency amber sirens pulse in vacuum silence. Debris drifts through the corrid
 
 COMMANDER VANCE (50s, battle-hardened, tethered to the guide rail) pulls himself towards the airlock manual override console.
 
-ENGINEER RAY (20s, flight suit damp with sweat) clutches a manual seal kit, eyes fixed on the depressurizing inner hatch.
-
 VANCE
-Ray! The manual purge wasn't an electrical fault. Someone entered the primary override sequence from this console.
+Airlock Three seal integrity compromised. Manual override switch flipped from the inside. Ray, report your station!
+
+ENGINEER RAY (30s, frantic breathing into comms headset) clings to the environmental monitoring terminal.
 
 RAY
-I just got here, Vance! I was in hydroponics when the alarms tripped.
+I'm at hydroponics, Commander! The readouts are glitching out. It wasn't me!
 
 VANCE
-Hydroponics is locked behind Bulkhead C. That door has been sealed since 0600. Why were your override codes entered at 00:22:00?!
+(checking the digital biometric console)
+Biometric signature at zero-two-hundred: Ray, David J. Don't lie to me while oxygen is dropping. What did you open?!
 
 RAY
-(swallowing hard, voice trembling)
-Because if I didn't vent that compartment... whatever was growing inside would have reached life support.`,
+Commander... what came through the vents wasn't air.`,
     characters: [
       {
         name: "Vance",
-        archetype: "Station commander, by-the-book, hyper-vigilant",
-        speechStyle: "authoritative, sharp, commanding",
+        archetype: "Commander, uncompromising, protective of ship survival",
+        speechStyle: "authoritative, military, blunt",
         subtextRatio: "low",
       },
       {
         name: "Ray",
-        archetype: "Flight engineer, terrified, hiding an infection outbreak",
-        speechStyle: "stammering, defensive, desperate",
-        subtextRatio: "high",
+        archetype: "Engineer, terrified, hiding an encounter with an unknown specimen",
+        speechStyle: "stammering, evasive, desperate",
+        subtextRatio: "extreme",
       },
     ],
     initialEvents: [
-      { atSeconds: 15 * 60, characterName: "Vance", eventType: "known_fact" as const },
-      { atSeconds: 20 * 60, characterName: "Ray", eventType: "known_fact" as const },
-      { atSeconds: 22 * 60, characterName: "Vance", eventType: "unaware_of" as const },
-      { atSeconds: 45 * 60, characterName: "Vance", eventType: "known_fact" as const },
+      { atSeconds: 12 * 60, characterName: "Vance", eventType: "known_fact" as const },
+      { atSeconds: 22 * 60, characterName: "Ray", eventType: "known_fact" as const },
+      { atSeconds: 35 * 60, characterName: "Vance", eventType: "unaware_of" as const },
+      { atSeconds: 48 * 60, characterName: "Ray", eventType: "known_fact" as const },
+      { atSeconds: 70 * 60, characterName: "Vance", eventType: "known_fact" as const },
     ],
   },
 ];
 
-type StudioTab = "hotseat" | "showrunner" | "screenplay" | "deck";
-type DeckSubTab = "blocking" | "tension" | "precedents" | "stripboard";
+type StudioTab = "hotseat" | "showrunner" | "chemistry" | "screenplay" | "deck";
+type DeckSubTab = "blocking" | "tension" | "territory" | "stripboard";
 
-export default function StudioProjectPage() {
-  const router = useRouter();
+export default function StudioPage() {
   const params = useParams();
-  const urlProjectId = typeof params.projectId === "string" ? params.projectId : "vault-heist-demo";
+  const router = useRouter();
+  const rawProjectId = (params?.projectId as string) || "vault-heist-demo";
 
-  // Find preset or default
-  const matchedPreset = PRESET_SCENARIOS.find((p) => p.id === urlProjectId) || PRESET_SCENARIOS[0];
+  const matchedPreset =
+    PRESET_SCENARIOS.find((p) => p.id === rawProjectId) || PRESET_SCENARIOS[0];
 
-  // Project & Slate State
-  const [projectId, setProjectId] = React.useState(urlProjectId);
+  // Core Production State
+  const [projectId, setProjectId] = React.useState(rawProjectId);
   const [projectTitle, setProjectTitle] = React.useState(matchedPreset.title);
   const [premiseInput, setPremiseInput] = React.useState(matchedPreset.premise);
-
-  // Script & Scene State
   const [sceneTitle, setSceneTitle] = React.useState(matchedPreset.sceneTitle);
   const [sceneSummary, setSceneSummary] = React.useState(matchedPreset.sceneSummary);
   const [screenplayText, setScreenplayText] = React.useState(matchedPreset.script);
   const [characters, setCharacters] = React.useState(matchedPreset.characters);
-  const [activeCharacterName, setActiveCharacterName] = React.useState(matchedPreset.characters[0].name);
+  const [activeCharacterName, setActiveCharacterName] = React.useState<string>(
+    matchedPreset.characters[0]?.name || "Marcus"
+  );
 
   // Timeline & Interrogation State
   const [timeSeconds, setTimeSeconds] = React.useState(34 * 60);
@@ -204,11 +222,18 @@ export default function StudioProjectPage() {
   const [knownFacts, setKnownFacts] = React.useState<KnowledgeFact[]>([]);
   const [hotSeatTurns, setHotSeatTurns] = React.useState<HotSeatTurn[]>([]);
 
-  // Showrunner Central AI Chat State
+  // Showrunner Chat State
   const [showrunnerMessages, setShowrunnerMessages] = React.useState<ShowrunnerMessage[]>([]);
   const [isShowrunnerThinking, setIsShowrunnerThinking] = React.useState(false);
 
-  // UI Navigation, Deck Sub-tabs & Modals
+  // Chemistry Bench State
+  const [chemistryScenario, setChemistryScenario] = React.useState(
+    "Stuck in a broken service elevator with a ticking 2-minute security countdown"
+  );
+  const [chemistrySceneOutput, setChemistrySceneOutput] = React.useState<string>("");
+  const [isChemistryRunning, setIsChemistryRunning] = React.useState(false);
+
+  // UI Navigation & Modals
   const [activeTab, setActiveTab] = React.useState<StudioTab>("hotseat");
   const [deckSubTab, setDeckSubTab] = React.useState<DeckSubTab>("blocking");
   const [newProjectOpen, setNewProjectOpen] = React.useState(false);
@@ -216,18 +241,6 @@ export default function StudioProjectPage() {
   const [multiverseOpen, setMultiverseOpen] = React.useState(false);
   const [scriptViewerOpen, setScriptViewerOpen] = React.useState(false);
   const [showTableRead, setShowTableRead] = React.useState(false);
-
-  // Micro-interaction: Insert dialogue from Hot Seat into Script Draft
-  const handleInsertIntoScript = (characterName: string, dialogue: string) => {
-    const formatted = `\n\n${characterName.toUpperCase()}\n(interrogation alternate)\n${dialogue}\n`;
-    setScreenplayText((prev) => prev + formatted);
-  };
-
-  // Micro-interaction: Apply Multiverse Take
-  const handleApplyTake = (take: MultiverseTake) => {
-    setScreenplayText(take.scriptSnippet);
-    setSceneSummary(take.synopsis);
-  };
 
   // Pipeline Status & Logs
   const [isGenerating, setIsGenerating] = React.useState(false);
@@ -256,7 +269,7 @@ export default function StudioProjectPage() {
     []
   );
 
-  // Query ClickHouse Knowledge State for active character at current timestamp
+  // Query ClickHouse Knowledge State
   const fetchKnowledge = React.useCallback(
     async (pid: string, charName: string, seconds: number) => {
       const timecode = formatTimecode(seconds);
@@ -312,26 +325,20 @@ export default function StudioProjectPage() {
     }
   }, []);
 
-  // Update knowledge state when scrubbing or switching characters
   React.useEffect(() => {
     fetchKnowledge(projectId, activeCharacterName, timeSeconds);
   }, [projectId, activeCharacterName, timeSeconds, fetchKnowledge]);
 
-  // Load Preset Scenario
-  const handleSelectPreset = (preset: (typeof PRESET_SCENARIOS)[0]) => {
-    router.push(`/studio/${preset.id}`);
+  // Dialogue Insertion Micro-Interaction
+  const handleInsertIntoScript = (characterName: string, dialogue: string) => {
+    const formatted = `\n\n${characterName.toUpperCase()}\n(interrogation alternate)\n${dialogue}\n`;
+    setScreenplayText((prev) => prev + formatted);
   };
 
-  // Launch New Production from Modal
-  const handleCreateNewProject = async (data: NewProjectFormData) => {
-    const newPid = `project-${Date.now().toString(36)}`;
-    setProjectId(newPid);
-    setProjectTitle(data.title);
-    setPremiseInput(`${data.logline} (Tone: ${data.genre}${data.characters ? `, Characters: ${data.characters}` : ""})`);
-    setHotSeatTurns([]);
-    setShowrunnerMessages([]);
-
-    await runFullPipeline(newPid, data.logline);
+  // Multiverse Take Application
+  const handleApplyTake = (take: MultiverseTake) => {
+    setScreenplayText(take.scriptSnippet);
+    setSceneSummary(take.synopsis);
   };
 
   // Run Script Generation & Sharding Pipeline
@@ -473,163 +480,519 @@ export default function StudioProjectPage() {
     }
   };
 
-  // Suggested Questions for Hot Seat
-  const suggestedQuestions = React.useMemo(() => {
-    if (activeCharacterName === "Marcus") {
-      if (timeSeconds < 45 * 60) {
-        return [
-          "Do you know who has the vault keys?",
-          "Did Elena mention the vault code to you?",
-          "Are you nervous about the atmospheric vents?",
-        ];
-      }
-      return [
-        "Do you know who has the vault keys now?",
-        "Did Elena betray the crew?",
-        "What was inside the lockbox?",
-      ];
-    }
-    if (activeCharacterName === "Elena") {
-      return [
-        "Why won't you tell Marcus where the keys are?",
-        "What is your plan for the atmospheric vents?",
-        "Do you trust Marcus with the bag?",
-      ];
-    }
-    return [
-      "What is your current objective?",
-      "Who else is in the room with you?",
-      "Do you know what happened outside?",
-    ];
-  }, [activeCharacterName, timeSeconds]);
-
-  // Construct React Flow Graph Nodes
-  const nodes: Node[] = React.useMemo(() => {
-    const list: Node[] = [
-      {
-        id: "inspiration-node",
-        type: "inspiration",
-        position: { x: 0, y: 120 },
-        data: {
-          title: premiseInput.slice(0, 48) + "...",
-          state: isGenerating ? "generating" : "ready",
-        },
-      },
-      {
-        id: "scene-node",
-        type: "scene",
-        position: { x: 340, y: 0 },
-        data: {
-          title: sceneTitle,
-          state: isGenerating ? "generating" : "ready",
-          summary: sceneSummary,
-          characterCount: characters.length,
-          onViewScript: () => setScriptViewerOpen(true),
-        },
-      },
-      {
-        id: "storyboard-node",
-        type: "storyboard",
-        position: { x: 340, y: 220 },
-        data: {
-          prompt:
-            projectId === "vault-heist-demo"
-              ? "Low-angle master shot of Marcus kneeling by open safety boxes under cyan auxiliary glow; Elena stands cold in foreground shadow."
-              : "Zero-G perspective of Commander Vance floating towards the fogged airlock hatch as warning strobes pulse.",
-          shotType: "2.39:1 Anamorphic Scope",
-          lighting:
-            projectId === "vault-heist-demo"
-              ? "Cyan neon & deep shadows"
-              : "Amber hazard strobe",
-        },
-      },
-      {
-        id: "floorplan-node",
-        type: "floorplan",
-        position: { x: 340, y: 440 },
-        data: {
-          sceneTitle,
-          cameraCount: 3,
-          onOpenDeck: () => {
-            setActiveTab("deck");
-            setDeckSubTab("blocking");
-          },
-        },
-      },
-    ];
-
-    characters.forEach((char, index) => {
-      const yPos = -90 + index * 110;
-      list.push({
-        id: `char-${char.name.toLowerCase()}`,
-        type: "character",
-        position: { x: 720, y: yPos },
-        data: {
-          name: char.name,
-          archetype: char.archetype,
-          state: isGenerating ? "generating" : "ready",
-          isSelected: activeCharacterName === char.name,
-        },
+  // Chemistry Test Execution
+  const handleRunChemistry = async () => {
+    setIsChemistryRunning(true);
+    try {
+      const res = await fetch("/api/character/chemistry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          char_a_name: "Marcus",
+          char_a_dna: "Tense getaway driver, Willem Dafoe cadence, staccato, paranoid",
+          char_b_name: "Elena",
+          char_b_dna: "Mastermind syndicate broker, 70% Hans Landa, chilling calm",
+          scenario: chemistryScenario,
+        }),
       });
-    });
+      if (res.ok) {
+        const data = await res.json();
+        setChemistrySceneOutput(data.micro_scene);
+        setActiveTab("chemistry");
+      }
+    } catch (err) {
+      console.error("Chemistry test failed:", err);
+    } finally {
+      setIsChemistryRunning(false);
+    }
+  };
 
-    return list;
-  }, [
-    premiseInput,
-    isGenerating,
+  // -------------------------------------------------------------
+  // INITIAL BLUEPRINT NODE GRAPH SETUP (The True Virtual Backlot)
+  // -------------------------------------------------------------
+  const initialNodes: Node[] = React.useMemo(() => [
+    // 1. YouTube Reference Clip
+    {
+      id: "node-clip-1",
+      type: "clip",
+      position: { x: -380, y: -40 },
+      data: {
+        title: "Michael Mann Lighting Study",
+        url: "youtube.com/watch?v=heat-1995",
+        timestampRange: "02:14 - 03:45",
+        lightingStyle: "Low-key chiaroscuro, sodium-vapor halo, cyan night kick",
+        palette: ["#0b132b", "#1c2541", "#3a506b", "#e09f3e", "#d62828"],
+        pacing: "Deliberate slow-burn with sudden kinetic explosions",
+      },
+    },
+    // 2. Plot Seed Idea Note
+    {
+      id: "node-note-1",
+      type: "note",
+      position: { x: -380, y: 220 },
+      data: {
+        noteType: "Plot Seed",
+        content: "Marcus suspects Elena tampered with the sub-level exit locker before the vault sirens cycled.",
+        audioDuration: "01:14",
+      },
+    },
+
+    // 3. Modular Character Lab: Marcus Vance Sub-nodes
+    {
+      id: "node-actor-marcus",
+      type: "actor",
+      position: { x: -380, y: 440 },
+      data: {
+        actorName: "Willem Dafoe Comp",
+        roleReference: "The Lighthouse (erratic, unblinking intensity)",
+        vocalWeight: "Breathless, staccato, gravelly",
+        energyProfile: "Cornered animal on edge",
+      },
+    },
+    {
+      id: "node-dial-marcus",
+      type: "personality",
+      position: { x: -380, y: 640 },
+      data: {
+        presetName: "Rust Cohle + Zuckerberg",
+        confidence: 45,
+        speed: 80,
+        subtext: 70,
+      },
+    },
+    {
+      id: "node-quirks-marcus",
+      type: "quirks",
+      position: { x: -380, y: 860 },
+      data: {
+        tics: ["Fidgets with silver zippo", "Avoids direct eye contact when panicked"],
+      },
+    },
+    // Marcus Core Node
+    {
+      id: "node-core-marcus",
+      type: "characterCore",
+      position: { x: 40, y: 460 },
+      data: {
+        name: "Marcus",
+        archetype: "Getaway driver, loyal but rattles easily under pressure",
+        objective: "Locate missing vault bypass keys before vents cycle",
+        actorComp: "Willem Dafoe",
+        dialsSummary: "Speed 80% · Subtext 70%",
+        onOpenHotSeat: () => {
+          setActiveCharacterName("Marcus");
+          setActiveTab("hotseat");
+        },
+      },
+    },
+
+    // 4. Modular Character Lab: Elena Sub-nodes
+    {
+      id: "node-actor-elena",
+      type: "actor",
+      position: { x: -380, y: 1040 },
+      data: {
+        actorName: "Florence Pugh / Cate Blanchett",
+        roleReference: "Tár (surgical, cold, predatory stillness)",
+        vocalWeight: "Chillingly measured, whisper-sharp",
+        energyProfile: "In control, withholding deadly secrets",
+      },
+    },
+    {
+      id: "node-dial-elena",
+      type: "personality",
+      position: { x: -380, y: 1240 },
+      data: {
+        presetName: "70% Hans Landa + 30% Kendall Roy",
+        confidence: 95,
+        speed: 30,
+        subtext: 95,
+      },
+    },
+    // Elena Core Node
+    {
+      id: "node-core-elena",
+      type: "characterCore",
+      position: { x: 40, y: 1060 },
+      data: {
+        name: "Elena",
+        archetype: "Mastermind syndicate broker, calculated and unblinking",
+        objective: "Hold Marcus in place until syndicate extraction window arrives",
+        actorComp: "Florence Pugh",
+        dialsSummary: "Confidence 95% · Subtext 95%",
+        onOpenHotSeat: () => {
+          setActiveCharacterName("Elena");
+          setActiveTab("hotseat");
+        },
+      },
+    },
+
+    // 5. Chemistry Bench Sandbox Node
+    {
+      id: "node-chemistry-1",
+      type: "chemistry",
+      position: { x: 480, y: 800 },
+      data: {
+        scenario: chemistryScenario,
+        onRunChemistry: handleRunChemistry,
+      },
+    },
+
+    // 6. Narrative: Scene Master Node
+    {
+      id: "node-scene-1",
+      type: "scene",
+      position: { x: 480, y: 80 },
+      data: {
+        title: sceneTitle,
+        slugline: "INT. UNDERGROUND VAULT - NIGHT",
+        stakes: "Elena conceals bypass keys while Marcus tears through canvas bag in panic.",
+        state: isGenerating ? "generating" : "ready",
+        characterCount: 2,
+        hasStyleRef: true,
+        onGenerateDraft: () => runFullPipeline(projectId, premiseInput),
+        onViewScript: () => setScriptViewerOpen(true),
+      },
+    },
+
+    // 7. Narrative: Screenplay Draft Node
+    {
+      id: "node-script-1",
+      type: "script",
+      position: { x: 920, y: 80 },
+      data: {
+        title: "Master Screenplay Draft v2",
+        previewText: screenplayText,
+        wordCount: 384,
+        onViewScript: () => setScriptViewerOpen(true),
+      },
+    },
+
+    // 8. Visual & Production Suite Nodes
+    {
+      id: "node-storyboard-1",
+      type: "storyboard",
+      position: { x: 1360, y: -80 },
+      data: {
+        prompt: "2.39:1 low-angle anamorphic shot of Marcus kneeling over open canvas bag; Elena stands silhouette in foreground.",
+        shotType: "2.39:1 Anamorphic Scope",
+        lighting: "Cyan auxiliary neon & heavy shadows",
+      },
+    },
+    {
+      id: "node-floorplan-1",
+      type: "floorplan",
+      position: { x: 1360, y: 160 },
+      data: {
+        sceneTitle,
+        cameraCount: 3,
+        onOpenDeck: () => {
+          setActiveTab("deck");
+          setDeckSubTab("blocking");
+        },
+      },
+    },
+    {
+      id: "node-tension-1",
+      type: "tensionCurve",
+      position: { x: 1360, y: 380 },
+      data: {
+        peakTension: 92,
+        hasWarning: false,
+        onOpenDeck: () => {
+          setActiveTab("deck");
+          setDeckSubTab("tension");
+        },
+      },
+    },
+    {
+      id: "node-tableread-1",
+      type: "tableRead",
+      position: { x: 1360, y: 600 },
+      data: {
+        voiceCount: 3,
+        onOpenPlayer: () => setShowTableRead(true),
+      },
+    },
+    {
+      id: "node-market-1",
+      type: "market",
+      position: { x: 1360, y: 820 },
+      data: {
+        globalScore: 79,
+        topTerritory: "North America (86%) & South Korea (83%)",
+        onOpenHeatmap: () => {
+          setActiveTab("deck");
+          setDeckSubTab("territory");
+        },
+      },
+    },
+  ], [
     sceneTitle,
-    sceneSummary,
-    characters,
-    activeCharacterName,
+    screenplayText,
+    isGenerating,
     projectId,
+    premiseInput,
+    chemistryScenario,
   ]);
 
-  // Construct React Flow Edges
-  const edges: Edge[] = React.useMemo(() => {
-    const list: Edge[] = [
-      {
-        id: "e-insp-scene",
-        source: "inspiration-node",
-        target: "scene-node",
-        className: isGenerating ? "generating" : "",
-      },
-      {
-        id: "e-scene-storyboard",
-        source: "scene-node",
-        target: "storyboard-node",
-        className: isGenerating ? "generating" : "",
-      },
-      {
-        id: "e-scene-floorplan",
-        source: "scene-node",
-        target: "floorplan-node",
-        className: isGenerating ? "generating" : "",
-      },
-    ];
+  const initialEdges: Edge[] = React.useMemo(() => [
+    // Marcus trait wiring
+    { id: "e-act-marcus", source: "node-actor-marcus", target: "node-core-marcus", targetHandle: "actor_ref" },
+    { id: "e-dial-marcus", source: "node-dial-marcus", target: "node-core-marcus", targetHandle: "personality" },
+    { id: "e-quirk-marcus", source: "node-quirks-marcus", target: "node-core-marcus", targetHandle: "quirks" },
 
-    characters.forEach((char) => {
-      list.push({
-        id: `e-scene-${char.name.toLowerCase()}`,
-        source: "scene-node",
-        target: `char-${char.name.toLowerCase()}`,
-        className: isGenerating ? "generating" : "",
-      });
-    });
+    // Elena trait wiring
+    { id: "e-act-elena", source: "node-actor-elena", target: "node-core-elena", targetHandle: "actor_ref" },
+    { id: "e-dial-elena", source: "node-dial-elena", target: "node-core-elena", targetHandle: "personality" },
 
-    return list;
-  }, [characters, isGenerating]);
+    // Chemistry bench wiring
+    { id: "e-chem-a", source: "node-core-marcus", target: "node-chemistry-1", targetHandle: "char_a" },
+    { id: "e-chem-b", source: "node-core-elena", target: "node-chemistry-1", targetHandle: "char_b" },
 
-  // Handle clicking on character nodes in the graph
+    // Scene master inputs
+    { id: "e-clip-scene", source: "node-clip-1", target: "node-scene-1", targetHandle: "style_ref" },
+    { id: "e-note-scene", source: "node-note-1", target: "node-scene-1", targetHandle: "plot_seed" },
+    { id: "e-marcus-scene", source: "node-core-marcus", target: "node-scene-1", targetHandle: "character_in" },
+    { id: "e-elena-scene", source: "node-core-elena", target: "node-scene-1", targetHandle: "character_in" },
+
+    // Scene to Script
+    { id: "e-scene-script", source: "node-scene-1", target: "node-script-1", targetHandle: "script_in" },
+
+    // Script to Production outputs
+    { id: "e-script-storyboard", source: "node-script-1", target: "node-storyboard-1", targetHandle: "script_in" },
+    { id: "e-script-floorplan", source: "node-script-1", target: "node-floorplan-1", targetHandle: "script_in" },
+    { id: "e-script-tension", source: "node-script-1", target: "node-tension-1", targetHandle: "script_in" },
+    { id: "e-script-tableread", source: "node-script-1", target: "node-tableread-1", targetHandle: "script_in" },
+    { id: "e-script-market", source: "node-script-1", target: "node-market-1", targetHandle: "script_in" },
+  ], []);
+
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+
+  // Allow user to draw new connections between nodes
+  const onConnect = React.useCallback(
+    (connection: Connection) => setEdges((eds) => addEdge(connection, eds)),
+    [setEdges]
+  );
+
+  // Spawner for new blueprint nodes on canvas
+  const handleAddBlueprintNode = (type: string) => {
+    const id = `node-${type}-${Date.now().toString(36)}`;
+    const randomOffset = Math.floor(Math.random() * 80);
+    const pos = { x: 200 + randomOffset, y: 200 + randomOffset };
+
+    let newNode: Node;
+    switch (type) {
+      case "clip":
+        newNode = {
+          id,
+          type: "clip",
+          position: pos,
+          data: {
+            title: "Custom YouTube Reference",
+            url: "youtube.com/watch?v=custom",
+            timestampRange: "01:00 - 02:30",
+            lightingStyle: "Extracted golden hour contrast",
+            palette: ["#ffb703", "#fb8500", "#023047"],
+            pacing: "Moderate",
+          },
+        };
+        break;
+      case "note":
+        newNode = {
+          id,
+          type: "note",
+          position: pos,
+          data: {
+            noteType: "Brainstorm Note",
+            content: "Add a sudden power failure before the protagonist reaches the safe.",
+          },
+        };
+        break;
+      case "actor":
+        newNode = {
+          id,
+          type: "actor",
+          position: pos,
+          data: {
+            actorName: "New Actor Comp",
+            roleReference: "Iconic Film Reference",
+            vocalWeight: "Deep, gravelly",
+            energyProfile: "Method actor intensity",
+          },
+        };
+        break;
+      case "personality":
+        newNode = {
+          id,
+          type: "personality",
+          position: pos,
+          data: {
+            presetName: "Custom Dial Set",
+            confidence: 70,
+            speed: 50,
+            subtext: 65,
+          },
+        };
+        break;
+      case "quirks":
+        newNode = {
+          id,
+          type: "quirks",
+          position: pos,
+          data: {
+            tics: ["Constantly glances at wristwatch", "Taps fingers against holster"],
+          },
+        };
+        break;
+      case "characterCore":
+        newNode = {
+          id,
+          type: "characterCore",
+          position: pos,
+          data: {
+            name: "New Hero",
+            archetype: "Reluctant protagonist",
+            objective: "Survive the night",
+            onOpenHotSeat: () => {
+              setActiveCharacterName("New Hero");
+              setActiveTab("hotseat");
+            },
+          },
+        };
+        break;
+      case "scene":
+        newNode = {
+          id,
+          type: "scene",
+          position: pos,
+          data: {
+            title: "New Scene Master",
+            slugline: "EXT. INDUSTRIAL COMPLEX - DAWN",
+            stakes: "A standoff where negotiations break down.",
+            state: "ready",
+          },
+        };
+        break;
+      case "script":
+        newNode = {
+          id,
+          type: "script",
+          position: pos,
+          data: {
+            title: "New Screenplay Draft",
+            previewText: "INT. UNKNOWN LOCATION - CONTINUOUS\n\nA shadow moves across the doorway...",
+            wordCount: 150,
+            onViewScript: () => setScriptViewerOpen(true),
+          },
+        };
+        break;
+      case "chemistry":
+        newNode = {
+          id,
+          type: "chemistry",
+          position: pos,
+          data: {
+            scenario: "Two strangers trapped in an interrogation holding cell",
+            onRunChemistry: handleRunChemistry,
+          },
+        };
+        break;
+      case "storyboard":
+        newNode = {
+          id,
+          type: "storyboard",
+          position: pos,
+          data: {
+            prompt: "Cinematic wide establishing shot under heavy rain and neon glow.",
+            shotType: "2.39:1 Anamorphic Scope",
+          },
+        };
+        break;
+      case "floorplan":
+        newNode = {
+          id,
+          type: "floorplan",
+          position: pos,
+          data: {
+            sceneTitle: "Custom Blocking",
+            cameraCount: 3,
+            onOpenDeck: () => {
+              setActiveTab("deck");
+              setDeckSubTab("blocking");
+            },
+          },
+        };
+        break;
+      case "tensionCurve":
+        newNode = {
+          id,
+          type: "tensionCurve",
+          position: pos,
+          data: {
+            peakTension: 85,
+            onOpenDeck: () => {
+              setActiveTab("deck");
+              setDeckSubTab("tension");
+            },
+          },
+        };
+        break;
+      case "tableRead":
+        newNode = {
+          id,
+          type: "tableRead",
+          position: pos,
+          data: {
+            voiceCount: 2,
+            onOpenPlayer: () => setShowTableRead(true),
+          },
+        };
+        break;
+      case "market":
+        newNode = {
+          id,
+          type: "market",
+          position: pos,
+          data: {
+            globalScore: 82,
+            topTerritory: "North America & East Asia",
+            onOpenHeatmap: () => {
+              setActiveTab("deck");
+              setDeckSubTab("territory");
+            },
+          },
+        };
+        break;
+      default:
+        return;
+    }
+
+    setNodes((nds) => [...nds, newNode]);
+  };
+
+  // Node Clicking Handlers
   const handleNodeClick = (_: React.MouseEvent, node: Node) => {
-    if (node.type === "character") {
+    if (node.type === "characterCore") {
       const charName = (node.data as { name: string }).name;
       setActiveCharacterName(charName);
       setActiveTab("hotseat");
-    } else if (node.type === "scene") {
-      setActiveTab("screenplay");
+    } else if (node.type === "scene" || node.type === "script") {
+      setScriptViewerOpen(true);
     } else if (node.type === "floorplan") {
       setActiveTab("deck");
       setDeckSubTab("blocking");
+    } else if (node.type === "tensionCurve") {
+      setActiveTab("deck");
+      setDeckSubTab("tension");
+    } else if (node.type === "market") {
+      setActiveTab("deck");
+      setDeckSubTab("territory");
+    } else if (node.type === "tableRead") {
+      setShowTableRead(true);
+    } else if (node.type === "chemistry") {
+      setActiveTab("chemistry");
     }
   };
 
@@ -641,421 +1004,383 @@ export default function StudioProjectPage() {
           <Button
             variant="ghost"
             size="sm"
-            className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
             onClick={() => router.push("/")}
+            className="text-muted-foreground hover:text-foreground -ml-2"
           >
-            <ArrowLeft className="h-3.5 w-3.5" />
+            <ArrowLeft className="h-4 w-4 mr-1" />
             Slate Hub
           </Button>
-          <span className="text-border">/</span>
+
+          <div className="h-4 w-[1px] bg-border" />
+
           <div className="flex items-center gap-2">
             <Film className="h-4 w-4 text-accent" />
-            <SlateLabel>{projectTitle}</SlateLabel>
-            <ChevronRight className="h-3 w-3 text-muted-foreground" />
-            <span className="text-xs text-muted-foreground font-mono">{sceneTitle}</span>
-          </div>
-        </div>
-
-        {/* Center: Live Generation Stage Status */}
-        {isGenerating && (
-          <div className="flex items-center gap-2 px-3 py-1 rounded-full border border-accent/40 bg-accent/10 text-accent text-xs animate-pulse">
-            <Sparkles className="h-3.5 w-3.5 animate-spin" />
-            <span>{generationStage}</span>
-          </div>
-        )}
-
-        {/* Right: Presets & New Project Launcher */}
-        <div className="flex items-center gap-2">
-          <div className="hidden lg:flex items-center gap-1 bg-secondary/50 p-1 rounded-lg border border-border">
-            <span className="text-[10px] uppercase font-semibold text-muted-foreground px-2">
-              Presets:
+            <span className="font-heading text-sm font-bold text-foreground">
+              {projectTitle}
             </span>
-            {PRESET_SCENARIOS.map((preset) => (
+          </div>
+
+          <div className="flex items-center gap-1.5 ml-2">
+            {PRESET_SCENARIOS.map((p) => (
               <button
-                key={preset.id}
+                key={p.id}
                 type="button"
-                onClick={() => handleSelectPreset(preset)}
-                className={`px-2 py-0.5 rounded text-xs transition-colors ${
-                  projectId === preset.id
-                    ? "bg-card text-foreground font-semibold shadow-sm border border-border"
-                    : "text-muted-foreground hover:text-foreground"
+                onClick={() => router.push(`/studio/${p.id}`)}
+                className={`rounded px-2 py-0.5 text-xs font-mono transition-colors ${
+                  projectId === p.id
+                    ? "bg-accent/20 text-accent border border-accent/40"
+                    : "text-muted-foreground hover:bg-secondary"
                 }`}
               >
-                {preset.title}
+                {p.title}
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Action Controls */}
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setScriptViewerOpen(true)}
+            className="gap-1.5 text-xs border-border/80 hover:bg-secondary"
+          >
+            <FileText className="h-3.5 w-3.5 text-accent" />
+            <span>Screenplay</span>
+          </Button>
 
           <Button
             size="sm"
             variant="outline"
-            className="h-8 text-xs gap-1.5 border-border hover:bg-secondary"
+            onClick={() => setShowTableRead(true)}
+            className="gap-1.5 text-xs border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10"
+          >
+            <Volume2 className="h-3.5 w-3.5" />
+            <span>Table Read</span>
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
             onClick={() => setMultiverseOpen(true)}
+            className="gap-1.5 text-xs border-border/80 hover:bg-secondary"
           >
-            <Clapperboard className="h-3.5 w-3.5 text-accent" />
-            Multiverse Takes
+            <Shuffle className="h-3.5 w-3.5 text-purple-400" />
+            <span>Alternate Takes</span>
           </Button>
 
           <Button
             size="sm"
             variant="outline"
-            className="h-8 text-xs gap-1.5 border-border hover:bg-secondary"
             onClick={() => setFusionOpen(true)}
+            className="gap-1.5 text-xs border-accent/30 text-accent hover:bg-accent/10"
           >
-            <Shuffle className="h-3.5 w-3.5 text-accent" />
-            Film Fusion
+            <Sparkles className="h-3.5 w-3.5" />
+            <span>Film Fusion</span>
           </Button>
 
           <Button
             size="sm"
-            className="h-8 text-xs gap-1.5 bg-accent text-accent-foreground hover:bg-accent/90"
             onClick={() => setNewProjectOpen(true)}
+            className="gap-1.5 text-xs bg-accent text-accent-foreground hover:bg-accent/90"
           >
             <Plus className="h-3.5 w-3.5" />
-            New Film Slate
+            <span>New Slate</span>
           </Button>
         </div>
       </header>
 
-      {/* Main Studio Grid */}
-      <div className="flex-1 grid grid-cols-1 overflow-hidden lg:grid-cols-[1fr_440px] p-3 gap-3">
-        {/* Left: Interactive Story Canvas & Timeline Scrubber */}
-        <div className="flex flex-col gap-3 min-h-0 overflow-hidden">
-          {/* React Flow Story Graph */}
-          <div className="flex-1 min-h-0 relative">
-            <StoryCanvas
-              nodes={nodes}
-              edges={edges}
-              onNodeClick={handleNodeClick}
-              onNodesChange={() => {}}
-              onEdgesChange={() => {}}
-              onConnect={() => {}}
-            />
+      {/* Main Canvas Workspace with Unreal Blueprint Node Network */}
+      <div className="relative flex-1 overflow-hidden bg-background">
+        <StoryCanvas
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          onNodeClick={handleNodeClick}
+          onAddNode={handleAddBlueprintNode}
+        />
+      </div>
 
-            {/* Quick Character Picker Overlay */}
-            <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5 rounded-lg border border-border bg-card/90 backdrop-blur p-1.5 shadow-md">
-              <span className="text-[10px] text-muted-foreground uppercase font-semibold px-1">
-                Active Actor:
-              </span>
-              {characters.map((char) => (
-                <button
-                  key={char.name}
-                  type="button"
-                  onClick={() => {
-                    setActiveCharacterName(char.name);
-                    setActiveTab("hotseat");
-                  }}
-                  className={`px-2 py-0.5 rounded text-xs transition-all ${
-                    activeCharacterName === char.name
-                      ? "bg-accent text-accent-foreground font-semibold shadow-sm"
-                      : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-                  }`}
-                >
-                  {char.name}
-                </button>
-              ))}
-            </div>
+      {/* Unified Cinema Dock (Bottom Workspace) */}
+      <div className="flex h-80 shrink-0 flex-col border-t border-border bg-card/95 backdrop-blur">
+        {/* Navigation Strip */}
+        <div className="flex h-10 shrink-0 items-center justify-between border-b border-border px-4 bg-secondary/30">
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setActiveTab("hotseat")}
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
+                activeTab === "hotseat"
+                  ? "bg-accent text-accent-foreground shadow-sm"
+                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+              }`}
+            >
+              <UserCheck className="h-3.5 w-3.5" />
+              <span>Interrogation Chamber ({activeCharacterName})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("showrunner")}
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
+                activeTab === "showrunner"
+                  ? "bg-accent text-accent-foreground shadow-sm"
+                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+              }`}
+            >
+              <Bot className="h-3.5 w-3.5" />
+              <span>Showrunner AI Co-Pilot</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("chemistry")}
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
+                activeTab === "chemistry"
+                  ? "bg-rose-500 text-white shadow-sm"
+                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+              }`}
+            >
+              <Users2 className="h-3.5 w-3.5 text-rose-400" />
+              <span>Dream Casting Bench</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("deck")}
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
+                activeTab === "deck"
+                  ? "bg-accent text-accent-foreground shadow-sm"
+                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+              }`}
+            >
+              <Layers className="h-3.5 w-3.5" />
+              <span>Director's Deck Suite</span>
+            </button>
           </div>
 
-          {/* Persistent Timeline Scrubber */}
-          <div className="rounded-xl border border-border bg-card p-3.5 shadow-sm shrink-0">
-            <TimelineScrubber
-              durationSeconds={DURATION_SECONDS}
-              value={timeSeconds}
-              onChange={(s) => setTimeSeconds(s)}
-              events={events}
-            />
-
-            {/* Story Beat Quick-Jumps */}
-            <div className="mt-2.5 flex items-center justify-between text-xs text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
-                  Story Beats:
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setTimeSeconds(28 * 60)}
-                  className="rounded px-1.5 py-0.5 text-[11px] border border-border hover:border-accent hover:text-accent font-mono transition-colors"
-                >
-                  00:28:00 (Pre-Vault)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTimeSeconds(34 * 60)}
-                  className={`rounded px-1.5 py-0.5 text-[11px] border font-mono transition-colors ${
-                    timeSeconds === 34 * 60
-                      ? "border-accent bg-accent/10 text-accent font-semibold"
-                      : "border-border hover:border-accent hover:text-accent"
-                  }`}
-                >
-                  00:34:00 (The Missing Keys)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTimeSeconds(52 * 60)}
-                  className={`rounded px-1.5 py-0.5 text-[11px] border font-mono transition-colors ${
-                    timeSeconds === 52 * 60
-                      ? "border-accent bg-accent/10 text-accent font-semibold"
-                      : "border-border hover:border-accent hover:text-accent"
-                  }`}
-                >
-                  00:52:00 (The Betrayal)
-                </button>
-              </div>
-
-              <span className="font-mono text-[11px] text-muted-foreground hidden sm:inline">
-                ClickHouse filtered by `WHERE timestamp &lt;= {formatTimecode(timeSeconds)}`
-              </span>
-            </div>
+          {/* ClickHouse Live Status Badge */}
+          <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground">
+            <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>ClickHouse Sub-ms Time-Gate Active</span>
           </div>
         </div>
 
-        {/* Right: Unified Cinema Dock (Screenplay | Showrunner AI | Hot Seat) */}
-        <div className="flex flex-col min-h-0 overflow-hidden rounded-xl border border-border bg-card">
-          {/* Tab Navigation Header */}
-          <div className="flex items-center justify-between border-b border-border p-2 bg-secondary/30">
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setActiveTab("hotseat")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  activeTab === "hotseat"
-                    ? "bg-card text-foreground font-semibold border border-border shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <UserCheck className="h-3.5 w-3.5 text-accent" />
-                <span>Hot Seat ({activeCharacterName})</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab("showrunner")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  activeTab === "showrunner"
-                    ? "bg-card text-foreground font-semibold border border-border shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Bot className="h-3.5 w-3.5 text-accent" />
-                <span>Showrunner AI</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab("screenplay")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  activeTab === "screenplay"
-                    ? "bg-card text-foreground font-semibold border border-border shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <FileText className="h-3.5 w-3.5 text-accent" />
-                <span>Screenplay</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab("deck")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  activeTab === "deck"
-                    ? "bg-card text-foreground font-semibold border border-border shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Sliders className="h-3.5 w-3.5 text-accent" />
-                <span>Director&apos;s Deck</span>
-              </button>
+        {/* Tab 1: Timeline Scrubber & Hot Seat Interrogation */}
+        {activeTab === "hotseat" && (
+          <div className="flex flex-1 flex-col overflow-hidden">
+            <div className="border-b border-border/50 px-4 py-2 bg-background/50">
+              <TimelineScrubber
+                durationSeconds={DURATION_SECONDS}
+                value={timeSeconds}
+                onChange={setTimeSeconds}
+                events={events}
+              />
             </div>
-          </div>
-
-          {/* Tab Content 1: Hot Seat Interrogation */}
-          {activeTab === "hotseat" && (
-            <div className="flex-1 min-h-0 flex flex-col">
+            <div className="flex-1 overflow-hidden p-2">
               <HotSeatChat
                 characterName={activeCharacterName}
                 characterArchetype={activeCharacter?.archetype}
                 currentTimecode={formatTimecode(timeSeconds)}
-                knownFacts={knownFacts}
                 turns={hotSeatTurns}
+                knownFacts={knownFacts}
                 onSend={handleAskHotSeat}
-                onInsertIntoScript={handleInsertIntoScript}
                 isAsking={isAsking}
-                suggestedQuestions={suggestedQuestions}
-                className="h-full border-none rounded-none"
+                onInsertIntoScript={handleInsertIntoScript}
+                suggestedQuestions={[
+                  "Do you know who has the vault bypass keys?",
+                  "Why won't you turn around and look at me?",
+                  "Where were you when the security alarms triggered?",
+                ]}
               />
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Tab Content 2: Showrunner Central AI Chat */}
-          {activeTab === "showrunner" && (
-            <div className="flex-1 min-h-0 flex flex-col">
-              <ShowrunnerChat
-                messages={showrunnerMessages}
-                onSendMessage={handleSendShowrunner}
-                isThinking={isShowrunnerThinking}
-                className="h-full border-none rounded-none"
-              />
-            </div>
-          )}
+        {/* Tab 2: Showrunner AI Co-Pilot */}
+        {activeTab === "showrunner" && (
+          <div className="flex-1 overflow-hidden p-3">
+            <ShowrunnerChat
+              messages={showrunnerMessages}
+              isThinking={isShowrunnerThinking}
+              onSendMessage={handleSendShowrunner}
+              suggestedPrompts={[
+                "Critique the dramatic irony at Minute 34",
+                "Suggest subtext revisions for Elena's dialogue",
+                "Query ClickHouse box-office precedents for heist twists",
+              ]}
+            />
+          </div>
+        )}
 
-          {/* Tab Content 3: Screenplay Reader */}
-          {activeTab === "screenplay" && (
-            <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-              <div className="flex items-center justify-between border-b border-border px-4 py-2.5 bg-secondary/20">
-                <div>
-                  <SlateLabel>Production Draft</SlateLabel>
-                  <span className="text-xs font-medium block">{sceneTitle}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant={showTableRead ? "secondary" : "outline"}
-                    className="h-7 text-xs gap-1.5"
-                    onClick={() => setShowTableRead((s) => !s)}
-                  >
-                    <Volume2 className="h-3 w-3 text-accent" />
-                    {showTableRead ? "Hide Table Read" : "Audio Table Read"}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-xs"
-                    onClick={() => setScriptViewerOpen(true)}
-                  >
-                    Full Screen
-                  </Button>
-                </div>
+        {/* Tab 3: Dream Casting Chemistry Bench */}
+        {activeTab === "chemistry" && (
+          <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="font-heading text-sm font-bold text-foreground flex items-center gap-2">
+                  <Flame className="h-4 w-4 text-rose-500" />
+                  Impromptu Dynamic Friction Sandbox (Marcus vs Elena)
+                </h4>
+                <p className="text-xs text-muted-foreground">
+                  Tests how two contrasting character DNAs and vocal cadences clash under pressure.
+                </p>
               </div>
+              <Button
+                size="sm"
+                onClick={handleRunChemistry}
+                disabled={isChemistryRunning}
+                className="bg-rose-500 hover:bg-rose-600 text-white font-semibold"
+              >
+                {isChemistryRunning ? "Generating Micro-Scene..." : "Run Chemistry Test"}
+              </Button>
+            </div>
 
-              {/* Collapsible Audio Table Read Simulation */}
-              {showTableRead && (
-                <div className="p-3 border-b border-border bg-secondary/10">
-                  <TableReadPlayer screenplayText={screenplayText} />
-                </div>
+            <div className="flex gap-3">
+              <input
+                type="text"
+                value={chemistryScenario}
+                onChange={(e) => setChemistryScenario(e.target.value)}
+                placeholder="Enter an environmental conflict scenario..."
+                className="flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-xs text-foreground font-mono"
+              />
+            </div>
+
+            {chemistrySceneOutput ? (
+              <div className="rounded-lg border border-border bg-background/80 p-3 font-mono text-xs leading-relaxed text-foreground whitespace-pre-wrap max-h-48 overflow-y-auto shadow-inner">
+                {chemistrySceneOutput}
+              </div>
+            ) : (
+              <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-border/80 p-6 text-center text-xs text-muted-foreground">
+                Click &ldquo;Run Chemistry Test&rdquo; to simulate an impromptu 1-page friction scene between Marcus and Elena.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab 4: Director's Deck Suite */}
+        {activeTab === "deck" && (
+          <div className="flex flex-1 flex-col overflow-hidden">
+            <div className="flex items-center gap-2 border-b border-border px-4 py-1.5 bg-secondary/20">
+              <button
+                type="button"
+                onClick={() => setDeckSubTab("blocking")}
+                className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+                  deckSubTab === "blocking"
+                    ? "bg-accent text-accent-foreground"
+                    : "text-muted-foreground hover:bg-secondary"
+                }`}
+              >
+                2D Camera Blocking
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeckSubTab("tension")}
+                className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+                  deckSubTab === "tension"
+                    ? "bg-accent text-accent-foreground"
+                    : "text-muted-foreground hover:bg-secondary"
+                }`}
+              >
+                3-Act Tension Curve
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeckSubTab("territory")}
+                className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+                  deckSubTab === "territory"
+                    ? "bg-accent text-accent-foreground"
+                    : "text-muted-foreground hover:bg-secondary"
+                }`}
+              >
+                Territory Box Office
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeckSubTab("stripboard")}
+                className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+                  deckSubTab === "stripboard"
+                    ? "bg-accent text-accent-foreground"
+                    : "text-muted-foreground hover:bg-secondary"
+                }`}
+              >
+                Production Stripboard
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-3">
+              {deckSubTab === "blocking" && <FloorPlanView sceneTitle={sceneTitle} />}
+              {deckSubTab === "tension" && (
+                <TensionCurveView
+                  currentTimeSeconds={timeSeconds}
+                  onScrubTime={setTimeSeconds}
+                  projectId={projectId}
+                />
               )}
-
-              <div className="flex-1 overflow-y-auto p-5 font-mono text-xs leading-relaxed whitespace-pre-wrap selection:bg-accent/30 selection:text-accent-foreground text-foreground/90 bg-background/50">
-                {screenplayText}
-              </div>
+              {deckSubTab === "territory" && (
+                <TerritoryHeatmapView
+                  projectTitle={projectTitle}
+                  genre={matchedPreset.genre}
+                />
+              )}
+              {deckSubTab === "stripboard" && (
+                <StripboardView
+                  projectTitle={projectTitle}
+                  characters={characters}
+                  projectId={projectId}
+                />
+              )}
             </div>
-          )}
-
-          {/* Tab Content 4: Director's Deck & Advanced Pre-Production Suite */}
-          {activeTab === "deck" && (
-            <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-              {/* Deck Sub-navigation */}
-              <div className="flex items-center gap-1.5 border-b border-border px-3 py-2 bg-secondary/20">
-                <button
-                  type="button"
-                  onClick={() => setDeckSubTab("blocking")}
-                  className={`px-2.5 py-1 rounded text-xs transition-colors ${
-                    deckSubTab === "blocking"
-                      ? "bg-card font-semibold text-foreground border border-border shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  📐 2D Floor Plan
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDeckSubTab("tension")}
-                  className={`px-2.5 py-1 rounded text-xs transition-colors ${
-                    deckSubTab === "tension"
-                      ? "bg-card font-semibold text-foreground border border-border shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  📈 Tension Curve
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDeckSubTab("precedents")}
-                  className={`px-2.5 py-1 rounded text-xs transition-colors ${
-                    deckSubTab === "precedents"
-                      ? "bg-card font-semibold text-foreground border border-border shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  🌍 Precedents &amp; Box Office
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDeckSubTab("stripboard")}
-                  className={`px-2.5 py-1 rounded text-xs transition-colors ${
-                    deckSubTab === "stripboard"
-                      ? "bg-card font-semibold text-foreground border border-border shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  📋 Stripboard
-                </button>
-              </div>
-
-              {/* Sub-tab view body */}
-              <div className="flex-1 overflow-y-auto p-3 bg-background/50">
-                {deckSubTab === "blocking" && (
-                  <FloorPlanView sceneTitle={sceneTitle} characters={characters} />
-                )}
-                {deckSubTab === "tension" && (
-                  <TensionCurveView
-                    currentTimeSeconds={timeSeconds}
-                    onScrubTime={(s) => setTimeSeconds(s)}
-                    projectId={projectId}
-                  />
-                )}
-                {deckSubTab === "precedents" && (
-                  <TerritoryHeatmapView
-                    projectTitle={projectTitle}
-                    genre={matchedPreset.genre}
-                  />
-                )}
-                {deckSubTab === "stripboard" && (
-                  <StripboardView
-                    projectTitle={projectTitle}
-                    characters={characters}
-                    projectId={projectId}
-                  />
-                )}
-              </div>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
-      {/* Bottom: ClickHouse Query Inspector */}
-      <div className="px-3 pb-2 shrink-0">
-        <ClickHouseInspector logs={queryLogs} lastSql={lastSql} />
-      </div>
+      {/* Floating ClickHouse Live Inspector (Bottom Right) */}
+      <ClickHouseInspector logs={queryLogs} lastSql={lastSql} />
 
-      {/* New Project Setup Dialog */}
-      <NewProjectDialog
-        open={newProjectOpen}
-        onOpenChange={setNewProjectOpen}
-        onSubmit={handleCreateNewProject}
-        isSubmitting={isGenerating}
-      />
-
-      {/* Full-Screen Screenplay Dialog */}
+      {/* Modals & Dialogs */}
       <ScreenplayDialog
         open={scriptViewerOpen}
         onOpenChange={setScriptViewerOpen}
         title={sceneTitle}
-        summary={sceneSummary}
         screenplayText={screenplayText}
       />
 
-      {/* Film Fusion Crossover Dialog */}
+      <Dialog open={showTableRead} onOpenChange={setShowTableRead}>
+        <DialogContent className="max-w-2xl bg-card border-border p-6 text-foreground">
+          <DialogHeader>
+            <DialogTitle className="font-heading text-lg font-bold">
+              Audio Table Read — Multi-Speaker Rehearsal
+            </DialogTitle>
+          </DialogHeader>
+          <TableReadPlayer screenplayText={screenplayText} />
+        </DialogContent>
+      </Dialog>
+
+      <MultiverseTakesDialog
+        open={multiverseOpen}
+        onOpenChange={setMultiverseOpen}
+        onApplyTake={handleApplyTake}
+      />
+
       <FilmFusionDialog
         open={fusionOpen}
         onOpenChange={setFusionOpen}
       />
 
-      {/* Multiverse Alternate Takes Studio Dialog */}
-      <MultiverseTakesDialog
-        open={multiverseOpen}
-        onOpenChange={setMultiverseOpen}
-        onApplyTake={handleApplyTake}
+      <NewProjectDialog
+        open={newProjectOpen}
+        onOpenChange={setNewProjectOpen}
+        onSubmit={async (data) => {
+          const newPid = `project-${Date.now().toString(36)}`;
+          setProjectId(newPid);
+          setProjectTitle(data.title);
+          setPremiseInput(data.logline);
+          await runFullPipeline(newPid, data.logline);
+        }}
       />
     </div>
   );

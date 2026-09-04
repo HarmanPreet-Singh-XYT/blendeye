@@ -10,7 +10,6 @@ from google.adk import Agent
 
 from app.config import get_settings
 
-
 INSTRUCTION = """
 You are the lead Showrunner and Script Doctor in an elite Hollywood writers' room.
 You are collaborating with a Director / Screenwriter on their feature screenplay.

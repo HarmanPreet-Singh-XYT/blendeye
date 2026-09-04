@@ -7,6 +7,7 @@ character objectives and an integrated ClickHouse story_events timeline.
 from __future__ import annotations
 
 from typing import Literal
+
 from google.adk import Agent
 from pydantic import BaseModel, Field
 

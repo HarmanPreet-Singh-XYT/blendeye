@@ -267,6 +267,30 @@ export default function FilmHubLandingPage() {
               </p>
             </div>
           </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+            <div className="p-5 rounded-xl border border-cyan-500/30 bg-cyan-500/5 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-cyan-400 font-mono text-xs uppercase font-bold">Unreal-Style Node Network</span>
+                <Badge variant="outline" className="text-[10px] border-cyan-500/30 text-cyan-300">14 Node Types</Badge>
+              </div>
+              <h3 className="font-heading text-base font-semibold">Visual Backlot Canvas</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Drag, drop, and wire modular nodes like in Unreal Engine: YouTube reference clips with timecodes, idea notes, scenes, scripts, storyboards, 2D floor plans, tension curves, and ClickHouse global market heatmaps.
+              </p>
+            </div>
+
+            <div className="p-5 rounded-xl border border-rose-500/30 bg-rose-500/5 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-rose-400 font-mono text-xs uppercase font-bold">Modular Character Lab</span>
+                <Badge variant="outline" className="text-[10px] border-rose-500/30 text-rose-300">DNA Blender</Badge>
+              </div>
+              <h3 className="font-heading text-base font-semibold">Actor Comps &amp; Personality Dials</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Decouple character identities into swappable sub-nodes: Actor Legacy comps, Confidence &amp; Sarcasm sliders, behavioral quirks, and live impromptu 1-page chemistry tests.
+              </p>
+            </div>
+          </div>
         </section>
 
         {/* Technical Architecture Breakdown */}

@@ -4,7 +4,17 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import fusion, hot_seat, script, sharding, showrunner
+from app.routers import (
+    character_lab,
+    fusion,
+    hot_seat,
+    location_scout,
+    market_viability,
+    script,
+    sharding,
+    showrunner,
+    style_extractor,
+)
 
 
 @asynccontextmanager
@@ -44,6 +54,10 @@ app.include_router(sharding.router)
 app.include_router(hot_seat.router)
 app.include_router(showrunner.router)
 app.include_router(fusion.router)
+app.include_router(character_lab.router)
+app.include_router(style_extractor.router)
+app.include_router(location_scout.router)
+app.include_router(market_viability.router)
 
 
 @app.get("/health")

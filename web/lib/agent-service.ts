@@ -239,5 +239,134 @@ export function getPrecedents(genre: string = "") {
   return getJson<PrecedentItem[]>(`/showrunner/precedents${query}`);
 }
 
+export interface CharacterSynthesizeRequest {
+  name: string;
+  base_archetype: string;
+  dream_actor: string;
+  personality_dials?: Record<string, unknown>;
+  behavioral_tics?: string[];
+  additional_notes?: string;
+}
+
+export interface CharacterSynthesizeResponse {
+  name: string;
+  archetype: string;
+  bio: string;
+  dream_actor_comp: string;
+  speech_style: string;
+  subtext_ratio: string;
+  flaw_and_blindspot: string;
+  behavioral_tics: string[];
+  suggested_tts_voice: string;
+}
+
+export function synthesizeCharacter(req: CharacterSynthesizeRequest) {
+  return postJson<CharacterSynthesizeResponse>("/character/synthesize", req);
+}
+
+export interface ChemistryTestRequest {
+  char_a_name: string;
+  char_a_dna: string;
+  char_b_name: string;
+  char_b_dna: string;
+  scenario?: string;
+}
+
+export interface ChemistryTestResponse {
+  scenario: string;
+  micro_scene: string;
+}
+
+export function testChemistry(req: ChemistryTestRequest) {
+  return postJson<ChemistryTestResponse>("/character/chemistry", req);
+}
+
+export interface TuneDialogueRequest {
+  character_name: string;
+  speech_style: string;
+  subtext_ratio: string;
+  raw_dialogue: string;
+}
+
+export interface TuneDialogueResponse {
+  character_name: string;
+  tuned_dialogue: string;
+}
+
+export function tuneDialogue(req: TuneDialogueRequest) {
+  return postJson<TuneDialogueResponse>("/character/tune_dialogue", req);
+}
+
+export interface StyleExtractRequest {
+  video_url: string;
+  timestamp_range?: string;
+  genre?: string;
+  director_notes?: string;
+}
+
+export interface StyleExtractResponse {
+  visual_palette: string[];
+  lighting_style: string;
+  camera_motion: string;
+  editing_rhythm: string;
+  sound_and_acoustics: string;
+  imagen3_prompt: string;
+}
+
+export function extractStyle(req: StyleExtractRequest) {
+  return postJson<StyleExtractResponse>("/style/extract", req);
+}
+
+export interface LocationScoutRequest {
+  scene_description: string;
+  characters?: string[];
+  genre?: string;
+}
+
+export interface PrecedentComp {
+  film: string;
+  director: string;
+  scene_comparison: string;
+  lens_and_blocking_technique: string;
+}
+
+export interface CameraPackage {
+  cam_a: string;
+  cam_b: string;
+  cam_c: string;
+}
+
+export interface LocationScoutResponse {
+  film_precedents: PrecedentComp[];
+  location_aesthetic: string;
+  practical_lighting: string;
+  camera_package: CameraPackage;
+  imagen3_prompt: string;
+}
+
+export function scoutLocation(req: LocationScoutRequest) {
+  return postJson<LocationScoutResponse>("/location/scout", req);
+}
+
+export interface TerritoryScore {
+  country_code: string;
+  country_name: string;
+  market_fit_score: number;
+  commercial_appetite: string;
+  cultural_friction: string;
+  actionable_fix: string;
+}
+
+export interface MarketPredictResponse {
+  overall_global_score: number;
+  territories: TerritoryScore[];
+  clickhouse_query_executed: string;
+}
+
+export function predictMarket(genre: string, logline: string) {
+  return postJson<MarketPredictResponse>("/market/predict", { genre, logline });
+}
+
+
 
 
