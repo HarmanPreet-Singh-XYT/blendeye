@@ -16,9 +16,14 @@ interface ScriptLine {
 interface TableReadPlayerProps {
   screenplayText: string;
   className?: string;
+  hideHeader?: boolean;
 }
 
-export function TableReadPlayer({ screenplayText, className }: TableReadPlayerProps) {
+export function TableReadPlayer({
+  screenplayText,
+  className,
+  hideHeader = false,
+}: TableReadPlayerProps) {
   const [isPlaying, setIsPlaying] = React.useState(false);
   const [currentIndex, setCurrentIndex] = React.useState<number>(0);
   const [speechRate, setSpeechRate] = React.useState<number>(1.0);
@@ -184,36 +189,38 @@ export function TableReadPlayer({ screenplayText, className }: TableReadPlayerPr
   return (
     <div className={`flex flex-col rounded-xl border border-border bg-card p-4 space-y-3.5 ${className ?? ""}`}>
       {/* Header & Controls Bar */}
-      <div className="flex items-center justify-between border-b border-border pb-3">
-        <div className="space-y-0.5">
-          <div className="flex items-center gap-2">
-            <Volume2 className="h-4 w-4 text-accent" />
-            <SlateLabel>Audio Table Read · Multi-Voice Simulation</SlateLabel>
+      {!hideHeader && (
+        <div className="flex items-center justify-between border-b border-border pb-3">
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-2">
+              <Volume2 className="h-4 w-4 text-accent" />
+              <SlateLabel>Audio Table Read · Multi-Voice Simulation</SlateLabel>
+            </div>
+            <span className="text-xs text-muted-foreground">
+              Synchronized actor voice synthesis for script rhythm &amp; cadence testing
+            </span>
           </div>
-          <span className="text-xs text-muted-foreground">
-            Synchronized actor voice synthesis for script rhythm &amp; cadence testing
-          </span>
-        </div>
 
-        {/* Speed Selector */}
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => setSpeechRate((r) => (r === 1.0 ? 1.25 : 1.0))}
-            className="font-mono text-[11px] px-2 py-1 rounded border border-border bg-secondary/40 hover:bg-secondary text-muted-foreground hover:text-foreground"
-          >
-            {speechRate}x
-          </button>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-7 w-7 p-0 text-muted-foreground"
-            onClick={() => setIsMuted((m) => !m)}
-          >
-            {isMuted ? <VolumeX className="h-3.5 w-3.5 text-destructive" /> : <Volume2 className="h-3.5 w-3.5" />}
-          </Button>
+          {/* Speed Selector */}
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setSpeechRate((r) => (r === 1.0 ? 1.25 : 1.0))}
+              className="font-mono text-[11px] px-2 py-1 rounded border border-border bg-secondary/40 hover:bg-secondary text-muted-foreground hover:text-foreground"
+            >
+              {speechRate}x
+            </button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 w-7 p-0 text-muted-foreground"
+              onClick={() => setIsMuted((m) => !m)}
+            >
+              {isMuted ? <VolumeX className="h-3.5 w-3.5 text-destructive" /> : <Volume2 className="h-3.5 w-3.5" />}
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Main Transport Controls */}
       <div className="flex items-center justify-between rounded-lg border border-border bg-secondary/25 p-2.5">
@@ -260,8 +267,8 @@ export function TableReadPlayer({ screenplayText, className }: TableReadPlayerPr
           </Button>
         </div>
 
-        {/* Audio Waveform Speaking Animation */}
-        <div className="flex items-center gap-1.5 font-mono text-[11px]">
+        {/* Audio Waveform Speaking Animation & Controls */}
+        <div className="flex items-center gap-2 font-mono text-[11px]">
           {isPlaying ? (
             <div className="flex items-center gap-0.5 h-4">
               <span className="w-1 bg-accent rounded-full animate-[bounce_0.6s_infinite_100ms] h-3" />
@@ -273,9 +280,28 @@ export function TableReadPlayer({ screenplayText, className }: TableReadPlayerPr
           ) : (
             <span className="text-muted-foreground">Ready</span>
           )}
-          <span className="text-muted-foreground ml-2">
+          <span className="text-muted-foreground">
             Line {currentIndex + 1} / {lines.length}
           </span>
+          {hideHeader && (
+            <div className="flex items-center gap-1 ml-2 border-l border-border pl-2">
+              <button
+                type="button"
+                onClick={() => setSpeechRate((r) => (r === 1.0 ? 1.25 : 1.0))}
+                className="font-mono text-[10px] px-1.5 py-0.5 rounded border border-border bg-card hover:bg-secondary text-muted-foreground hover:text-foreground"
+              >
+                {speechRate}x
+              </button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 w-6 p-0 text-muted-foreground"
+                onClick={() => setIsMuted((m) => !m)}
+              >
+                {isMuted ? <VolumeX className="h-3 w-3 text-destructive" /> : <Volume2 className="h-3 w-3" />}
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 

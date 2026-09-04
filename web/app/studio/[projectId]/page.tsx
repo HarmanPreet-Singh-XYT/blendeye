@@ -48,12 +48,14 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
+import { usePanelRef } from "react-resizable-panels";
 import { StudioInspector } from "@/components/cinema/studio-inspector";
 import {
   Film,
@@ -777,6 +779,23 @@ export default function StudioPage() {
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
+  const inspectorPanelRef = usePanelRef();
+
+  const toggleSidebar = React.useCallback(() => {
+    const panel = inspectorPanelRef.current;
+    if (!panel) {
+      setIsSidebarOpen((prev) => !prev);
+      return;
+    }
+    if (panel.isCollapsed()) {
+      panel.expand();
+      setIsSidebarOpen(true);
+    } else {
+      panel.collapse();
+      setIsSidebarOpen(false);
+    }
+  }, [inspectorPanelRef]);
+
   const [selectedNode, setSelectedNode] = React.useState<Node | null>(() => initialNodes[5] || initialNodes[0] || null);
 
   const handleUpdateNodeData = React.useCallback(
@@ -1001,7 +1020,10 @@ export default function StudioPage() {
   // Node Clicking Handlers
   const handleNodeClick = (_: React.MouseEvent, node: Node) => {
     setSelectedNode(node);
-    if (!isSidebarOpen) setIsSidebarOpen(true);
+    if (inspectorPanelRef.current?.isCollapsed()) {
+      inspectorPanelRef.current.expand();
+      setIsSidebarOpen(true);
+    }
     if (node.type === "characterCore") {
       const charName = (node.data as { name: string }).name;
       setActiveCharacterName(charName);
@@ -1095,7 +1117,7 @@ export default function StudioPage() {
           <Button
             size="sm"
             variant={isSidebarOpen ? "secondary" : "outline"}
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            onClick={toggleSidebar}
             className="gap-1.5 text-xs border-border/80 text-foreground"
             title="Toggle Studio Inspector Sidebar"
           >
@@ -1115,13 +1137,13 @@ export default function StudioPage() {
       </header>
 
       {/* Resizable Studio Layout (Canvas, Inspector Sidebar & Cinema Dock) */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 min-h-0 h-full relative overflow-hidden">
         <ResizablePanelGroup orientation="vertical" className="h-full w-full">
           {/* Top Panel: Canvas + Resizable Inspector Sidebar */}
           <ResizablePanel defaultSize={65} minSize={25} maxSize={88} className="relative">
             <ResizablePanelGroup orientation="horizontal" className="h-full w-full">
               {/* Left Panel: React Flow Story Canvas */}
-              <ResizablePanel defaultSize={isSidebarOpen ? 75 : 100} minSize={40}>
+              <ResizablePanel defaultSize={72} minSize={35}>
                 <div className="relative h-full w-full overflow-hidden bg-background">
                   <StoryCanvas
                     nodes={nodes}
@@ -1136,33 +1158,44 @@ export default function StudioPage() {
               </ResizablePanel>
 
               {/* Vertical Separator Handle between Canvas and Sidebar */}
-              {isSidebarOpen && (
-                <>
-                  <ResizableHandle withHandle />
-                  <ResizablePanel defaultSize={25} minSize={18} maxSize={50}>
-                    <StudioInspector
-                      selectedNode={selectedNode}
-                      nodes={nodes}
-                      onSelectNode={(nodeId) => {
-                        const found = nodes.find((n) => n.id === nodeId);
-                        if (found) setSelectedNode(found);
-                      }}
-                      onUpdateNodeData={handleUpdateNodeData}
-                      onOpenHotSeat={(charName) => {
-                        setActiveCharacterName(charName);
-                        setActiveTab("hotseat");
-                      }}
-                      onOpenScriptReader={() => setScriptViewerOpen(true)}
-                      onOpenDeck={(subTab) => {
-                        setActiveTab("deck");
-                        setDeckSubTab(subTab);
-                      }}
-                      onOpenTableRead={() => setShowTableRead(true)}
-                      onClose={() => setIsSidebarOpen(false)}
-                    />
-                  </ResizablePanel>
-                </>
-              )}
+              <ResizableHandle withHandle />
+
+              {/* Right Panel: Studio Parameter Inspector Sidebar */}
+              <ResizablePanel
+                panelRef={inspectorPanelRef}
+                collapsible={true}
+                collapsedSize={0}
+                defaultSize={28}
+                minSize={18}
+                maxSize={48}
+                onResize={(panelSize) => {
+                  setIsSidebarOpen(panelSize.asPercentage > 2);
+                }}
+              >
+                <StudioInspector
+                  selectedNode={selectedNode}
+                  nodes={nodes}
+                  onSelectNode={(nodeId) => {
+                    const found = nodes.find((n) => n.id === nodeId);
+                    if (found) setSelectedNode(found);
+                  }}
+                  onUpdateNodeData={handleUpdateNodeData}
+                  onOpenHotSeat={(charName) => {
+                    setActiveCharacterName(charName);
+                    setActiveTab("hotseat");
+                  }}
+                  onOpenScriptReader={() => setScriptViewerOpen(true)}
+                  onOpenDeck={(subTab) => {
+                    setActiveTab("deck");
+                    setDeckSubTab(subTab);
+                  }}
+                  onOpenTableRead={() => setShowTableRead(true)}
+                  onClose={() => {
+                    inspectorPanelRef.current?.collapse();
+                    setIsSidebarOpen(false);
+                  }}
+                />
+              </ResizablePanel>
             </ResizablePanelGroup>
           </ResizablePanel>
 
@@ -1418,12 +1451,22 @@ export default function StudioPage() {
 
       <Dialog open={showTableRead} onOpenChange={setShowTableRead}>
         <DialogContent className="max-w-2xl bg-card border-border p-6 text-foreground">
-          <DialogHeader>
-            <DialogTitle className="font-heading text-lg font-bold">
-              Audio Table Read — Multi-Speaker Rehearsal
-            </DialogTitle>
+          <DialogHeader className="pb-2">
+            <div className="flex items-center gap-2">
+              <Volume2 className="h-5 w-5 text-accent" />
+              <DialogTitle className="font-heading text-lg font-bold">
+                Audio Table Read — Multi-Speaker Rehearsal
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Synchronized actor voice synthesis for script rhythm &amp; cadence testing.
+            </DialogDescription>
           </DialogHeader>
-          <TableReadPlayer screenplayText={screenplayText} />
+          <TableReadPlayer
+            screenplayText={screenplayText}
+            className="border-0 bg-transparent p-0"
+            hideHeader
+          />
         </DialogContent>
       </Dialog>
 

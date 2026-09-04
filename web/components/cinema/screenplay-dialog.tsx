@@ -43,7 +43,11 @@ export function ScreenplayDialog({
 
         {/* Audio Table Read Player Bar */}
         <div className="p-4 border-b border-border bg-secondary/15">
-          <TableReadPlayer screenplayText={screenplayText} />
+          <TableReadPlayer
+            screenplayText={screenplayText}
+            className="border-0 bg-transparent p-0"
+            hideHeader
+          />
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 bg-background font-mono text-sm leading-relaxed whitespace-pre-wrap selection:bg-accent/30 selection:text-accent-foreground text-foreground/90">
