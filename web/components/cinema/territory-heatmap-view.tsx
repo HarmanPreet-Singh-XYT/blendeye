@@ -3,7 +3,8 @@
 import * as React from "react";
 import { SlateLabel } from "@/components/cinema/slate-label";
 import { Badge } from "@/components/ui/badge";
-import { Globe2, DollarSign, BarChart3, Database, Award } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Globe2, DollarSign, BarChart3, Database, Award, Sparkles, RefreshCw, TrendingUp, AlertTriangle } from "lucide-react";
 
 interface Territory {
   code: string;
@@ -14,27 +15,60 @@ interface Territory {
   color: string;
 }
 
-interface PrecedentFilm {
-  title: string;
-  year: number;
-  genre: string;
-  budget: string;
-  boxOffice: string;
-  asymmetryScore: number;
-  retention: string;
+interface MarketTerritoryPrediction {
+  country_code: string;
+  country_name: string;
+  market_fit_score: number;
+  commercial_appetite: string;
+  cultural_friction: string;
+  actionable_fix: string;
+}
+
+interface MarketPredictionData {
+  overall_global_score?: number;
+  territories?: MarketTerritoryPrediction[];
+  clickhouse_query_executed?: string;
 }
 
 interface TerritoryHeatmapViewProps {
   projectTitle: string;
   genre?: string;
+  logline?: string;
   className?: string;
 }
 
 export function TerritoryHeatmapView({
   projectTitle,
   genre = "Heist / Crime Thriller",
+  logline,
   className,
 }: TerritoryHeatmapViewProps) {
+  const [isPredicting, setIsPredicting] = React.useState(false);
+  const [predictionData, setPredictionData] = React.useState<MarketPredictionData | null>(null);
+
+  const handleRunMarketPredict = async () => {
+    if (isPredicting) return;
+    setIsPredicting(true);
+    try {
+      const res = await fetch("/api/market/predict", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          genre: genre || "Heist Thriller",
+          logline: logline || projectTitle,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPredictionData(data);
+      }
+    } catch (err) {
+      console.error("Market predict error:", err);
+    } finally {
+      setIsPredicting(false);
+    }
+  };
+
   const territories: Territory[] = [
     {
       code: "NA",
@@ -109,9 +143,24 @@ export function TerritoryHeatmapView({
             ClickHouse precedent distribution &amp; audience market projection
           </span>
         </div>
-        <div className="flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground bg-secondary/40 px-2 py-1 rounded border border-border">
-          <Database className="h-3 w-3 text-accent" />
-          <span>cinematic_precedents</span>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            onClick={handleRunMarketPredict}
+            disabled={isPredicting}
+            className="text-xs h-7 gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white"
+          >
+            {isPredicting ? (
+              <RefreshCw className="h-3 w-3 animate-spin" />
+            ) : (
+              <Sparkles className="h-3 w-3" />
+            )}
+            <span>{isPredicting ? "Predicting..." : "Run AI Market Viability"}</span>
+          </Button>
+          <div className="flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground bg-secondary/40 px-2 py-1 rounded border border-border">
+            <Database className="h-3 w-3 text-accent" />
+            <span>cinematic_precedents</span>
+          </div>
         </div>
       </div>
 
@@ -169,6 +218,68 @@ export function TerritoryHeatmapView({
           </div>
         </div>
       </div>
+
+      {/* AI Market Viability Analysis Results */}
+      {predictionData && (
+        <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/5 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-emerald-400" />
+              <span className="text-xs font-bold text-foreground">
+                Autonomous Box Office & Cultural Fit Intelligence
+              </span>
+            </div>
+            {predictionData.overall_global_score !== undefined && (
+              <Badge className="bg-emerald-600 text-white font-mono text-xs font-bold">
+                {predictionData.overall_global_score}/100 Global Market Fit
+              </Badge>
+            )}
+          </div>
+
+          {predictionData.territories && predictionData.territories.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 pt-1">
+              {predictionData.territories.map((t) => (
+                <div
+                  key={t.country_code}
+                  className="rounded-lg border border-border bg-card/80 p-3 flex flex-col justify-between text-xs space-y-2 shadow-sm"
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-foreground font-mono">
+                        {t.country_code} · {t.country_name}
+                      </span>
+                      <span className="font-mono font-bold text-accent">
+                        {t.market_fit_score}% Fit
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-snug">
+                      {t.commercial_appetite}
+                    </p>
+                  </div>
+
+                  <div className="space-y-1.5 pt-1.5 border-t border-border/40 text-[11px]">
+                    <div className="text-rose-400 flex items-start gap-1">
+                      <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" />
+                      <span className="leading-tight">{t.cultural_friction}</span>
+                    </div>
+                    <div className="text-emerald-400 flex items-start gap-1">
+                      <Sparkles className="h-3 w-3 shrink-0 mt-0.5" />
+                      <span className="leading-tight">{t.actionable_fix}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {predictionData.clickhouse_query_executed && (
+            <div className="rounded bg-background/80 p-2 font-mono text-[10px] text-muted-foreground border border-border/50 truncate">
+              <span className="text-accent font-semibold">ClickHouse SQL: </span>
+              {predictionData.clickhouse_query_executed}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ClickHouse Precedent Benchmark Table */}
       <div className="space-y-2">

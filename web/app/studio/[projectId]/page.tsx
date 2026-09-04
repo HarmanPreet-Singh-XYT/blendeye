@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   type Edge,
   type Node,
@@ -22,6 +22,7 @@ import {
   type KnowledgeFact,
 } from "@/components/cinema/hot-seat-chat";
 import { ShowrunnerChat } from "@/components/cinema/showrunner-chat";
+import { MarkdownRenderer } from "@/components/cinema/markdown-renderer";
 import {
   NewProjectDialog,
   type NewProjectFormData,
@@ -57,6 +58,7 @@ import {
 } from "@/components/ui/resizable";
 import { usePanelRef } from "react-resizable-panels";
 import { StudioInspector } from "@/components/cinema/studio-inspector";
+import { cn } from "@/lib/utils";
 import {
   Film,
   Sparkles,
@@ -64,142 +66,39 @@ import {
   UserCheck,
   FileText,
   Plus,
-  ChevronRight,
   ArrowLeft,
   Shuffle,
-  Clapperboard,
   Sliders,
-  Activity,
-  Globe2,
   Layers,
   Volume2,
   Users2,
   Flame,
-  RotateCcw,
-  Video,
+  Square,
+  Rows,
+  PanelBottom,
+  PanelBottomClose,
+  PanelBottomOpen,
+  Maximize2,
+  Minimize2,
+  RefreshCw,
+  Loader2,
 } from "lucide-react";
 import type { ShowrunnerMessage } from "@/lib/agent-service";
+import {
+  getAllProjects,
+  getProjectById,
+  saveProject,
+  createNewProjectEntry,
+  buildProjectNodesAndEdges,
+  type ProjectData,
+  type ProjectCharacter,
+  type NodeCallbacks,
+  SEED_PROJECTS,
+} from "@/lib/project-store";
 
 const DURATION_SECONDS = 90 * 60; // 90 min feature runtime
 
-export const PRESET_SCENARIOS = [
-  {
-    id: "vault-heist-demo",
-    title: "The Vault Heist",
-    genre: "Heist / Crime Thriller",
-    premise:
-      "A heist crew breaches an underground vault, but Marcus realizes the exit keys are missing and Elena is hiding something.",
-    sceneTitle: "The Vault — Scene 04",
-    sceneSummary:
-      "Marcus searches his vest for the sub-level keys. Elena refuses to make eye contact while Teo watches the perimeter corridor.",
-    script: `INT. UNDERGROUND VAULT - NIGHT
-
-Thick reinforced steel. Blue auxiliary emergency lights hum.
-
-MARCUS (30s, nervous sweat soaking his collar) kneels before the primary lockboxes, hands frantically tearing through an olive canvas gear bag.
-
-MARCUS
-They're not here. Elena. The bypass keys. They're not in the bag.
-
-ELENA (40s, tailored dark coat, chillingly calm) stands over the electronic vault timer display. She doesn't turn around.
-
-ELENA
-Check the side pouch, Marcus.
-
-MARCUS
-I checked the pouch! I checked it twice! You were the last one at the service tunnel staging locker. Tell me you didn't leave them.
-
-ELENA
-(turning slowly, stone-faced)
-We have six minutes until the atmospheric vents cycle. Panic won't unlock that steel door.
-
-MARCUS
-(standing up, voice cracking)
-You're not answering me. Where are the keys, Elena?!
-
-ELENA
-Exactly where they need to be.`,
-    characters: [
-      {
-        name: "Marcus",
-        archetype: "Getaway driver, loyal but rattles easily under pressure",
-        speechStyle: "terse, breathless, defensive",
-        subtextRatio: "high",
-      },
-      {
-        name: "Elena",
-        archetype: "Mastermind, calculated, concealing a private syndicate deal",
-        speechStyle: "measured, icy, dismissive",
-        subtextRatio: "extreme",
-      },
-      {
-        name: "Teo",
-        archetype: "Perimeter muscle, stationed outside by the tunnel",
-        speechStyle: "casual, street-smart, impatient",
-        subtextRatio: "low",
-      },
-    ],
-    initialEvents: [
-      { atSeconds: 25 * 60, characterName: "Marcus", eventType: "known_fact" as const },
-      { atSeconds: 28 * 60, characterName: "Marcus", eventType: "known_fact" as const },
-      { atSeconds: 34 * 60, characterName: "Marcus", eventType: "unaware_of" as const },
-      { atSeconds: 34 * 60, characterName: "Elena", eventType: "known_fact" as const },
-      { atSeconds: 52 * 60, characterName: "Marcus", eventType: "known_fact" as const },
-      { atSeconds: 61 * 60, characterName: "Teo", eventType: "location" as const },
-    ],
-  },
-  {
-    id: "space-airlock-demo",
-    title: "Deep Space Airlock",
-    genre: "Sci-Fi / Space Horror",
-    premise:
-      "In deep space, oxygen pressure drops in Module 4. Commander Vance discovers the purge valve was manually overridden from inside.",
-    sceneTitle: "Module 4 Airlock — Scene 02",
-    sceneSummary:
-      "Vance interrogates Engineer Ray as pressure drops. Ray insists he was in hydroponics, but the access log says otherwise.",
-    script: `INT. ORBITAL RESEARCH MODULE - ZERO GRAVITY
-
-Emergency amber sirens pulse in vacuum silence. Debris drifts through the corridor.
-
-COMMANDER VANCE (50s, battle-hardened, tethered to the guide rail) pulls himself towards the airlock manual override console.
-
-VANCE
-Airlock Three seal integrity compromised. Manual override switch flipped from the inside. Ray, report your station!
-
-ENGINEER RAY (30s, frantic breathing into comms headset) clings to the environmental monitoring terminal.
-
-RAY
-I'm at hydroponics, Commander! The readouts are glitching out. It wasn't me!
-
-VANCE
-(checking the digital biometric console)
-Biometric signature at zero-two-hundred: Ray, David J. Don't lie to me while oxygen is dropping. What did you open?!
-
-RAY
-Commander... what came through the vents wasn't air.`,
-    characters: [
-      {
-        name: "Vance",
-        archetype: "Commander, uncompromising, protective of ship survival",
-        speechStyle: "authoritative, military, blunt",
-        subtextRatio: "low",
-      },
-      {
-        name: "Ray",
-        archetype: "Engineer, terrified, hiding an encounter with an unknown specimen",
-        speechStyle: "stammering, evasive, desperate",
-        subtextRatio: "extreme",
-      },
-    ],
-    initialEvents: [
-      { atSeconds: 12 * 60, characterName: "Vance", eventType: "known_fact" as const },
-      { atSeconds: 22 * 60, characterName: "Ray", eventType: "known_fact" as const },
-      { atSeconds: 35 * 60, characterName: "Vance", eventType: "unaware_of" as const },
-      { atSeconds: 48 * 60, characterName: "Ray", eventType: "known_fact" as const },
-      { atSeconds: 70 * 60, characterName: "Vance", eventType: "known_fact" as const },
-    ],
-  },
-];
+export const PRESET_SCENARIOS = SEED_PROJECTS;
 
 type StudioTab = "hotseat" | "showrunner" | "chemistry" | "screenplay" | "deck";
 type DeckSubTab = "blocking" | "tension" | "territory" | "stripboard";
@@ -207,26 +106,38 @@ type DeckSubTab = "blocking" | "tension" | "territory" | "stripboard";
 export default function StudioPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const rawProjectId = (params?.projectId as string) || "vault-heist-demo";
+  const shouldAutoRunPipeline = searchParams?.get("pipeline") === "1";
 
-  const matchedPreset =
-    PRESET_SCENARIOS.find((p) => p.id === rawProjectId) || PRESET_SCENARIOS[0];
+  // Load project from persistent store (or seed presets)
+  const initialProject = React.useMemo(() => {
+    return getProjectById(rawProjectId) || SEED_PROJECTS[0];
+  }, [rawProjectId]);
 
   // Core Production State
-  const [projectId, setProjectId] = React.useState(rawProjectId);
-  const [projectTitle, setProjectTitle] = React.useState(matchedPreset.title);
-  const [premiseInput, setPremiseInput] = React.useState(matchedPreset.premise);
-  const [sceneTitle, setSceneTitle] = React.useState(matchedPreset.sceneTitle);
-  const [sceneSummary, setSceneSummary] = React.useState(matchedPreset.sceneSummary);
-  const [screenplayText, setScreenplayText] = React.useState(matchedPreset.script);
-  const [characters, setCharacters] = React.useState(matchedPreset.characters);
+  const [projectId, setProjectId] = React.useState(initialProject.id);
+  const [projectTitle, setProjectTitle] = React.useState(initialProject.title);
+  const [genre, setGenre] = React.useState(initialProject.genre);
+  const [premiseInput, setPremiseInput] = React.useState(initialProject.premise);
+  const [sceneTitle, setSceneTitle] = React.useState(initialProject.sceneTitle);
+  const [sceneSummary, setSceneSummary] = React.useState(initialProject.sceneSummary);
+  const [screenplayText, setScreenplayText] = React.useState(initialProject.screenplayText);
+  const [characters, setCharacters] = React.useState<ProjectCharacter[]>(initialProject.characters);
   const [activeCharacterName, setActiveCharacterName] = React.useState<string>(
-    matchedPreset.characters[0]?.name || "Marcus"
+    initialProject.characters[0]?.name || "Marcus"
   );
+
+  // Slates list for navigation
+  const [allProjects, setAllProjects] = React.useState<ProjectData[]>([]);
+
+  React.useEffect(() => {
+    setAllProjects(getAllProjects());
+  }, [projectId]);
 
   // Timeline & Interrogation State
   const [timeSeconds, setTimeSeconds] = React.useState(34 * 60);
-  const [events, setEvents] = React.useState<StoryEventMarker[]>(matchedPreset.initialEvents);
+  const [events, setEvents] = React.useState<StoryEventMarker[]>(initialProject.initialEvents || []);
   const [knownFacts, setKnownFacts] = React.useState<KnowledgeFact[]>([]);
   const [hotSeatTurns, setHotSeatTurns] = React.useState<HotSeatTurn[]>([]);
 
@@ -337,23 +248,143 @@ export default function StudioPage() {
     fetchKnowledge(projectId, activeCharacterName, timeSeconds);
   }, [projectId, activeCharacterName, timeSeconds, fetchKnowledge]);
 
+  React.useEffect(() => {
+    fetchProjectEvents(projectId);
+  }, [projectId, fetchProjectEvents]);
+
   // Dialogue Insertion Micro-Interaction
   const handleInsertIntoScript = (characterName: string, dialogue: string) => {
     const formatted = `\n\n${characterName.toUpperCase()}\n(interrogation alternate)\n${dialogue}\n`;
-    setScreenplayText((prev) => prev + formatted);
+    setScreenplayText((prev) => {
+      const updated = prev + formatted;
+      saveCurrentProject({ screenplayText: updated });
+      return updated;
+    });
   };
 
-  // Multiverse Take Application
-  const handleApplyTake = (take: MultiverseTake) => {
-    setScreenplayText(take.scriptSnippet);
-    setSceneSummary(take.synopsis);
+  // Helper to persist current state
+  const saveCurrentProject = React.useCallback(
+    (partial?: Partial<ProjectData>) => {
+      const proj: ProjectData = {
+        id: projectId,
+        title: projectTitle,
+        genre: genre,
+        premise: premiseInput,
+        sceneTitle: sceneTitle,
+        sceneSummary: sceneSummary,
+        screenplayText: screenplayText,
+        characters: characters,
+        initialEvents: events,
+        createdAt: initialProject.createdAt,
+        updatedAt: Date.now(),
+        isCustom: initialProject.isCustom,
+        ...partial,
+      };
+      saveProject(proj);
+      setAllProjects(getAllProjects());
+    },
+    [
+      projectId,
+      projectTitle,
+      genre,
+      premiseInput,
+      sceneTitle,
+      sceneSummary,
+      screenplayText,
+      characters,
+      events,
+      initialProject,
+    ]
+  );
+
+  // Chemistry Test Execution
+  const handleRunChemistry = async () => {
+    setIsChemistryRunning(true);
+    const charA = characters[0] || { name: "Lead", archetype: "Protagonist" };
+    const charB = characters[1] || characters[0] || { name: "Counterpart", archetype: "Antagonist" };
+
+    try {
+      const res = await fetch("/api/character/chemistry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          char_a_name: charA.name,
+          char_a_dna: `${charA.name}: ${charA.archetype}, ${charA.speechStyle || "naturalistic"}`,
+          char_b_name: charB.name,
+          char_b_dna: `${charB.name}: ${charB.archetype}, ${charB.speechStyle || "measured"}`,
+          scenario: chemistryScenario,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setChemistrySceneOutput(data.micro_scene);
+        setActiveTab("chemistry");
+      }
+    } catch (err) {
+      console.error("Chemistry test failed:", err);
+    } finally {
+      setIsChemistryRunning(false);
+    }
   };
+
+  // Dynamic Blueprint Node Callbacks
+  const nodeCallbacks: NodeCallbacks = React.useMemo(
+    () => ({
+      onOpenHotSeat: (charName: string) => {
+        setActiveCharacterName(charName);
+        setActiveTab("hotseat");
+      },
+      onGenerateDraft: () => {
+        runFullPipeline(projectId, premiseInput);
+      },
+      onViewScript: () => {
+        setScriptViewerOpen(true);
+      },
+      onOpenDeck: (subTab) => {
+        setActiveTab("deck");
+        setDeckSubTab(subTab);
+      },
+      onOpenTableRead: () => {
+        setShowTableRead(true);
+      },
+      onOpenHeatmap: () => {
+        setActiveTab("deck");
+        setDeckSubTab("territory");
+      },
+      onRunChemistry: () => {
+        handleRunChemistry();
+      },
+    }),
+    [projectId, premiseInput]
+  );
+
+  // Generate initial React Flow nodes & edges directly from project data
+  const initialGraph = React.useMemo(() => {
+    return buildProjectNodesAndEdges(initialProject, nodeCallbacks, isGenerating);
+  }, [initialProject, nodeCallbacks, isGenerating]);
+
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialGraph.nodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initialGraph.edges);
+
+  // Update nodes and edges whenever project graph needs re-sync
+  const syncGraphWithProject = React.useCallback(
+    (proj: ProjectData) => {
+      const { nodes: newNodes, edges: newEdges } = buildProjectNodesAndEdges(
+        proj,
+        nodeCallbacks,
+        false
+      );
+      setNodes(newNodes);
+      setEdges(newEdges);
+    },
+    [nodeCallbacks, setNodes, setEdges]
+  );
 
   // Run Script Generation & Sharding Pipeline
   const runFullPipeline = async (pid: string, premise: string) => {
     setIsGenerating(true);
     try {
-      setGenerationStage("Drafting Master Screenplay (Gemini 3.7)...");
+      setGenerationStage("Drafting Master Screenplay (Gemini 3.7 Flash)...");
       const scriptRes = await fetch("/api/script/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -376,11 +407,23 @@ export default function StudioPage() {
       if (!shardRes.ok) throw new Error("Perspective sharding failed");
       const shardData = await shardRes.json();
 
-      if (shardData.scene_title) setSceneTitle(shardData.scene_title);
-      if (shardData.scene_summary) setSceneSummary(shardData.scene_summary);
+      const newSceneTitle = shardData.scene_title || `${projectTitle} — Scene 01`;
+      const newSceneSummary = shardData.scene_summary || premise;
+      setSceneTitle(newSceneTitle);
+      setSceneSummary(newSceneSummary);
+
+      let newCharacters: ProjectCharacter[] = characters;
       if (Array.isArray(shardData.characters) && shardData.characters.length > 0) {
-        setCharacters(shardData.characters);
-        setActiveCharacterName(shardData.characters[0].name);
+        newCharacters = shardData.characters.map((c: any) => ({
+          name: c.name,
+          archetype: c.archetype,
+          speechStyle: c.speech_style || "naturalistic",
+          subtextRatio: c.subtext_ratio || "high",
+          actorComp: `${c.name} Comp`,
+          objective: "Confront the central crisis",
+        }));
+        setCharacters(newCharacters);
+        setActiveCharacterName(newCharacters[0].name);
       }
 
       logClickHouseQuery(
@@ -391,6 +434,24 @@ export default function StudioPage() {
 
       setGenerationStage("Finalizing Timeline & Syncing Graph...");
       await fetchProjectEvents(pid);
+
+      const updatedProject: ProjectData = {
+        id: pid,
+        title: projectTitle,
+        genre: genre,
+        premise: premise,
+        sceneTitle: newSceneTitle,
+        sceneSummary: newSceneSummary,
+        screenplayText: generatedScript,
+        characters: newCharacters,
+        initialEvents: events,
+        createdAt: initialProject.createdAt,
+        updatedAt: Date.now(),
+        isCustom: true,
+      };
+
+      saveProject(updatedProject);
+      syncGraphWithProject(updatedProject);
       setActiveTab("hotseat");
     } catch (err) {
       console.error("Pipeline failed:", err);
@@ -399,6 +460,88 @@ export default function StudioPage() {
       setGenerationStage("");
     }
   };
+
+  // Re-shard script after user edits
+  const handleReshardScript = async (newScript: string) => {
+    setIsGenerating(true);
+    setGenerationStage("Re-sharding Perspectives with Gemini 3.7 & ClickHouse...");
+    try {
+      const shardRes = await fetch("/api/sharding/shard", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId,
+          screenplayText: newScript,
+        }),
+      });
+      if (!shardRes.ok) throw new Error("Perspective sharding failed");
+      const shardData = await shardRes.json();
+
+      if (shardData.scene_title) setSceneTitle(shardData.scene_title);
+      if (shardData.scene_summary) setSceneSummary(shardData.scene_summary);
+
+      let updatedChars = characters;
+      if (Array.isArray(shardData.characters) && shardData.characters.length > 0) {
+        updatedChars = shardData.characters.map((c: any) => ({
+          name: c.name,
+          archetype: c.archetype,
+          speechStyle: c.speech_style || "naturalistic",
+          subtextRatio: c.subtext_ratio || "moderate",
+          actorComp: `${c.name} Comp`,
+          objective: "Resolve scene conflict",
+        }));
+        setCharacters(updatedChars);
+        setActiveCharacterName(updatedChars[0].name);
+      }
+
+      setScreenplayText(newScript);
+
+      const updatedProject: ProjectData = {
+        id: projectId,
+        title: projectTitle,
+        genre: genre,
+        premise: premiseInput,
+        sceneTitle: shardData.scene_title || sceneTitle,
+        sceneSummary: shardData.scene_summary || sceneSummary,
+        screenplayText: newScript,
+        characters: updatedChars,
+        initialEvents: events,
+        createdAt: initialProject.createdAt,
+        updatedAt: Date.now(),
+        isCustom: true,
+      };
+
+      saveProject(updatedProject);
+      syncGraphWithProject(updatedProject);
+
+      logClickHouseQuery(
+        `INSERT INTO story_events VALUES (${shardData.events_written} events committed)`,
+        "insert",
+        12
+      );
+      await fetchProjectEvents(projectId);
+    } catch (err) {
+      console.error("Resharding failed:", err);
+    } finally {
+      setIsGenerating(false);
+      setGenerationStage("");
+    }
+  };
+
+  // Multiverse Take Application with automatic ClickHouse re-sharding
+  const handleApplyTake = async (take: MultiverseTake) => {
+    setScreenplayText(take.scriptSnippet);
+    setSceneSummary(take.synopsis);
+    saveCurrentProject({ screenplayText: take.scriptSnippet, sceneSummary: take.synopsis });
+    await handleReshardScript(take.scriptSnippet);
+  };
+
+  // Trigger auto pipeline if navigated with ?pipeline=1 or brand new empty custom project
+  React.useEffect(() => {
+    if (shouldAutoRunPipeline || (initialProject.isCustom && !initialProject.screenplayText)) {
+      runFullPipeline(initialProject.id, initialProject.premise);
+    }
+  }, [shouldAutoRunPipeline]);
 
   // Interrogate Character in Hot Seat
   const handleAskHotSeat = async (question: string) => {
@@ -488,298 +631,35 @@ export default function StudioPage() {
     }
   };
 
-  // Chemistry Test Execution
-  const handleRunChemistry = async () => {
-    setIsChemistryRunning(true);
-    try {
-      const res = await fetch("/api/character/chemistry", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          char_a_name: "Marcus",
-          char_a_dna: "Tense getaway driver, Willem Dafoe cadence, staccato, paranoid",
-          char_b_name: "Elena",
-          char_b_dna: "Mastermind syndicate broker, 70% Hans Landa, chilling calm",
-          scenario: chemistryScenario,
-        }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setChemistrySceneOutput(data.micro_scene);
-        setActiveTab("chemistry");
-      }
-    } catch (err) {
-      console.error("Chemistry test failed:", err);
-    } finally {
-      setIsChemistryRunning(false);
-    }
-  };
-
-  // -------------------------------------------------------------
-  // INITIAL BLUEPRINT NODE GRAPH SETUP (The True Virtual Backlot)
-  // -------------------------------------------------------------
-  const initialNodes: Node[] = React.useMemo(() => [
-    // 1. YouTube Reference Clip
-    {
-      id: "node-clip-1",
-      type: "clip",
-      position: { x: -380, y: -40 },
-      data: {
-        title: "Michael Mann Lighting Study",
-        url: "youtube.com/watch?v=heat-1995",
-        timestampRange: "02:14 - 03:45",
-        lightingStyle: "Low-key chiaroscuro, sodium-vapor halo, cyan night kick",
-        palette: ["#0b132b", "#1c2541", "#3a506b", "#e09f3e", "#d62828"],
-        pacing: "Deliberate slow-burn with sudden kinetic explosions",
-      },
-    },
-    // 2. Plot Seed Idea Note
-    {
-      id: "node-note-1",
-      type: "note",
-      position: { x: -380, y: 220 },
-      data: {
-        noteType: "Plot Seed",
-        content: "Marcus suspects Elena tampered with the sub-level exit locker before the vault sirens cycled.",
-        audioDuration: "01:14",
-      },
-    },
-
-    // 3. Modular Character Lab: Marcus Vance Sub-nodes
-    {
-      id: "node-actor-marcus",
-      type: "actor",
-      position: { x: -380, y: 440 },
-      data: {
-        actorName: "Willem Dafoe Comp",
-        roleReference: "The Lighthouse (erratic, unblinking intensity)",
-        vocalWeight: "Breathless, staccato, gravelly",
-        energyProfile: "Cornered animal on edge",
-      },
-    },
-    {
-      id: "node-dial-marcus",
-      type: "personality",
-      position: { x: -380, y: 640 },
-      data: {
-        presetName: "Rust Cohle + Zuckerberg",
-        confidence: 45,
-        speed: 80,
-        subtext: 70,
-      },
-    },
-    {
-      id: "node-quirks-marcus",
-      type: "quirks",
-      position: { x: -380, y: 860 },
-      data: {
-        tics: ["Fidgets with silver zippo", "Avoids direct eye contact when panicked"],
-      },
-    },
-    // Marcus Core Node
-    {
-      id: "node-core-marcus",
-      type: "characterCore",
-      position: { x: 40, y: 460 },
-      data: {
-        name: "Marcus",
-        archetype: "Getaway driver, loyal but rattles easily under pressure",
-        objective: "Locate missing vault bypass keys before vents cycle",
-        actorComp: "Willem Dafoe",
-        dialsSummary: "Speed 80% · Subtext 70%",
-        onOpenHotSeat: () => {
-          setActiveCharacterName("Marcus");
-          setActiveTab("hotseat");
-        },
-      },
-    },
-
-    // 4. Modular Character Lab: Elena Sub-nodes
-    {
-      id: "node-actor-elena",
-      type: "actor",
-      position: { x: -380, y: 1040 },
-      data: {
-        actorName: "Florence Pugh / Cate Blanchett",
-        roleReference: "Tár (surgical, cold, predatory stillness)",
-        vocalWeight: "Chillingly measured, whisper-sharp",
-        energyProfile: "In control, withholding deadly secrets",
-      },
-    },
-    {
-      id: "node-dial-elena",
-      type: "personality",
-      position: { x: -380, y: 1240 },
-      data: {
-        presetName: "70% Hans Landa + 30% Kendall Roy",
-        confidence: 95,
-        speed: 30,
-        subtext: 95,
-      },
-    },
-    // Elena Core Node
-    {
-      id: "node-core-elena",
-      type: "characterCore",
-      position: { x: 40, y: 1060 },
-      data: {
-        name: "Elena",
-        archetype: "Mastermind syndicate broker, calculated and unblinking",
-        objective: "Hold Marcus in place until syndicate extraction window arrives",
-        actorComp: "Florence Pugh",
-        dialsSummary: "Confidence 95% · Subtext 95%",
-        onOpenHotSeat: () => {
-          setActiveCharacterName("Elena");
-          setActiveTab("hotseat");
-        },
-      },
-    },
-
-    // 5. Chemistry Bench Sandbox Node
-    {
-      id: "node-chemistry-1",
-      type: "chemistry",
-      position: { x: 480, y: 800 },
-      data: {
-        scenario: chemistryScenario,
-        onRunChemistry: handleRunChemistry,
-      },
-    },
-
-    // 6. Narrative: Scene Master Node
-    {
-      id: "node-scene-1",
-      type: "scene",
-      position: { x: 480, y: 80 },
-      data: {
-        title: sceneTitle,
-        slugline: "INT. UNDERGROUND VAULT - NIGHT",
-        stakes: "Elena conceals bypass keys while Marcus tears through canvas bag in panic.",
-        state: isGenerating ? "generating" : "ready",
-        characterCount: 2,
-        hasStyleRef: true,
-        onGenerateDraft: () => runFullPipeline(projectId, premiseInput),
-        onViewScript: () => setScriptViewerOpen(true),
-      },
-    },
-
-    // 7. Narrative: Screenplay Draft Node
-    {
-      id: "node-script-1",
-      type: "script",
-      position: { x: 920, y: 80 },
-      data: {
-        title: "Master Screenplay Draft v2",
-        previewText: screenplayText,
-        wordCount: 384,
-        onViewScript: () => setScriptViewerOpen(true),
-      },
-    },
-
-    // 8. Visual & Production Suite Nodes
-    {
-      id: "node-storyboard-1",
-      type: "storyboard",
-      position: { x: 1360, y: -80 },
-      data: {
-        prompt: "2.39:1 low-angle anamorphic shot of Marcus kneeling over open canvas bag; Elena stands silhouette in foreground.",
-        shotType: "2.39:1 Anamorphic Scope",
-        lighting: "Cyan auxiliary neon & heavy shadows",
-      },
-    },
-    {
-      id: "node-floorplan-1",
-      type: "floorplan",
-      position: { x: 1360, y: 160 },
-      data: {
-        sceneTitle,
-        cameraCount: 3,
-        onOpenDeck: () => {
-          setActiveTab("deck");
-          setDeckSubTab("blocking");
-        },
-      },
-    },
-    {
-      id: "node-tension-1",
-      type: "tensionCurve",
-      position: { x: 1360, y: 380 },
-      data: {
-        peakTension: 92,
-        hasWarning: false,
-        onOpenDeck: () => {
-          setActiveTab("deck");
-          setDeckSubTab("tension");
-        },
-      },
-    },
-    {
-      id: "node-tableread-1",
-      type: "tableRead",
-      position: { x: 1360, y: 600 },
-      data: {
-        voiceCount: 3,
-        onOpenPlayer: () => setShowTableRead(true),
-      },
-    },
-    {
-      id: "node-market-1",
-      type: "market",
-      position: { x: 1360, y: 820 },
-      data: {
-        globalScore: 79,
-        topTerritory: "North America (86%) & South Korea (83%)",
-        onOpenHeatmap: () => {
-          setActiveTab("deck");
-          setDeckSubTab("territory");
-        },
-      },
-    },
-  ], [
-    sceneTitle,
-    screenplayText,
-    isGenerating,
-    projectId,
-    premiseInput,
-    chemistryScenario,
-  ]);
-
-  const initialEdges: Edge[] = React.useMemo(() => [
-    // Marcus trait wiring
-    { id: "e-act-marcus", source: "node-actor-marcus", target: "node-core-marcus", targetHandle: "actor_ref" },
-    { id: "e-dial-marcus", source: "node-dial-marcus", target: "node-core-marcus", targetHandle: "personality" },
-    { id: "e-quirk-marcus", source: "node-quirks-marcus", target: "node-core-marcus", targetHandle: "quirks" },
-
-    // Elena trait wiring
-    { id: "e-act-elena", source: "node-actor-elena", target: "node-core-elena", targetHandle: "actor_ref" },
-    { id: "e-dial-elena", source: "node-dial-elena", target: "node-core-elena", targetHandle: "personality" },
-
-    // Chemistry bench wiring
-    { id: "e-chem-a", source: "node-core-marcus", target: "node-chemistry-1", targetHandle: "char_a" },
-    { id: "e-chem-b", source: "node-core-elena", target: "node-chemistry-1", targetHandle: "char_b" },
-
-    // Scene master inputs
-    { id: "e-clip-scene", source: "node-clip-1", target: "node-scene-1", targetHandle: "style_ref" },
-    { id: "e-note-scene", source: "node-note-1", target: "node-scene-1", targetHandle: "plot_seed" },
-    { id: "e-marcus-scene", source: "node-core-marcus", target: "node-scene-1", targetHandle: "character_in" },
-    { id: "e-elena-scene", source: "node-core-elena", target: "node-scene-1", targetHandle: "character_in" },
-
-    // Scene to Script
-    { id: "e-scene-script", source: "node-scene-1", target: "node-script-1", targetHandle: "script_in" },
-
-    // Script to Production outputs
-    { id: "e-script-storyboard", source: "node-script-1", target: "node-storyboard-1", targetHandle: "script_in" },
-    { id: "e-script-floorplan", source: "node-script-1", target: "node-floorplan-1", targetHandle: "script_in" },
-    { id: "e-script-tension", source: "node-script-1", target: "node-tension-1", targetHandle: "script_in" },
-    { id: "e-script-tableread", source: "node-script-1", target: "node-tableread-1", targetHandle: "script_in" },
-    { id: "e-script-market", source: "node-script-1", target: "node-market-1", targetHandle: "script_in" },
-  ], []);
-
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
-
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
   const inspectorPanelRef = usePanelRef();
+  const topPanelRef = usePanelRef();
+  const bottomPanelRef = usePanelRef();
+  const [layoutMode, setLayoutMode] = React.useState<"split" | "canvas-only" | "dock-only">("split");
+
+  const setViewMode = React.useCallback(
+    (mode: "split" | "canvas-only" | "dock-only") => {
+      setLayoutMode(mode);
+      if (mode === "canvas-only") {
+        bottomPanelRef.current?.collapse();
+        inspectorPanelRef.current?.collapse();
+        setIsSidebarOpen(false);
+        topPanelRef.current?.expand();
+        topPanelRef.current?.resize("100%");
+      } else if (mode === "dock-only") {
+        topPanelRef.current?.collapse();
+        bottomPanelRef.current?.expand();
+        bottomPanelRef.current?.resize("100%");
+      } else {
+        // "split"
+        topPanelRef.current?.expand();
+        bottomPanelRef.current?.expand();
+        topPanelRef.current?.resize("65%");
+        bottomPanelRef.current?.resize("35%");
+      }
+    },
+    [topPanelRef, bottomPanelRef, inspectorPanelRef]
+  );
 
   const toggleSidebar = React.useCallback(() => {
     const panel = inspectorPanelRef.current;
@@ -796,8 +676,9 @@ export default function StudioPage() {
     }
   }, [inspectorPanelRef]);
 
-  const [selectedNode, setSelectedNode] = React.useState<Node | null>(() => initialNodes[5] || initialNodes[0] || null);
+  const [selectedNode, setSelectedNode] = React.useState<Node | null>(() => nodes[5] || nodes[0] || null);
 
+  // Two-way synchronization between inspector edits and project state
   const handleUpdateNodeData = React.useCallback(
     (nodeId: string, newData: Record<string, unknown>) => {
       setNodes((nds) =>
@@ -811,8 +692,47 @@ export default function StudioPage() {
       setSelectedNode((prev) =>
         prev && prev.id === nodeId ? { ...prev, data: { ...prev.data, ...newData } } : prev
       );
+
+      // Two-way synchronization with Project State
+      if (nodeId.startsWith("node-core-")) {
+        const charName = (newData.name as string) || "";
+        const charArchetype = (newData.archetype as string) || "";
+        const charObj = (newData.objective as string) || "";
+        if (charName || charArchetype || charObj) {
+          setCharacters((prevChars) => {
+            const updated = prevChars.map((c) => {
+              if (`node-core-${c.name.toLowerCase()}` === nodeId) {
+                return {
+                  ...c,
+                  name: charName || c.name,
+                  archetype: charArchetype || c.archetype,
+                  objective: charObj || c.objective,
+                };
+              }
+              return c;
+            });
+            saveCurrentProject({ characters: updated });
+            return updated;
+          });
+          if (charName) setActiveCharacterName(charName);
+        }
+      } else if (nodeId === "node-scene-1") {
+        if (newData.title) {
+          setSceneTitle(newData.title as string);
+          saveCurrentProject({ sceneTitle: newData.title as string });
+        }
+        if (newData.stakes) {
+          setSceneSummary(newData.stakes as string);
+          saveCurrentProject({ sceneSummary: newData.stakes as string });
+        }
+      } else if (nodeId === "node-script-1") {
+        if (newData.previewText) {
+          setScreenplayText(newData.previewText as string);
+          saveCurrentProject({ screenplayText: newData.previewText as string });
+        }
+      }
     },
-    [setNodes]
+    [saveCurrentProject, setNodes]
   );
 
   // Allow user to draw new connections between nodes
@@ -835,12 +755,12 @@ export default function StudioPage() {
           type: "clip",
           position: pos,
           data: {
-            title: "Custom YouTube Reference",
-            url: "youtube.com/watch?v=custom",
+            title: "Custom Aesthetic Study",
+            url: "cinematic-reference.mp4",
             timestampRange: "01:00 - 02:30",
             lightingStyle: "Extracted golden hour contrast",
             palette: ["#ffb703", "#fb8500", "#023047"],
-            pacing: "Moderate",
+            pacing: "Moderate slow-burn",
           },
         };
         break;
@@ -906,6 +826,14 @@ export default function StudioPage() {
             },
           },
         };
+        setCharacters((prev) => [
+          ...prev,
+          {
+            name: "New Hero",
+            archetype: "Reluctant protagonist",
+            objective: "Survive the night",
+          },
+        ]);
         break;
       case "scene":
         newNode = {
@@ -950,8 +878,9 @@ export default function StudioPage() {
           type: "storyboard",
           position: pos,
           data: {
-            prompt: "Cinematic wide establishing shot under heavy rain and neon glow.",
+            prompt: `2.39:1 low-angle dramatic shot of the scene with high-contrast volumetric illumination.`,
             shotType: "2.39:1 Anamorphic Scope",
+            lighting: "Chiaroscuro key lighting",
           },
         };
         break;
@@ -961,7 +890,7 @@ export default function StudioPage() {
           type: "floorplan",
           position: pos,
           data: {
-            sceneTitle: "Custom Blocking",
+            sceneTitle: sceneTitle || "Production Set Master",
             cameraCount: 3,
             onOpenDeck: () => {
               setActiveTab("deck");
@@ -976,7 +905,8 @@ export default function StudioPage() {
           type: "tensionCurve",
           position: pos,
           data: {
-            peakTension: 85,
+            actCount: 3,
+            currentSeconds: timeSeconds,
             onOpenDeck: () => {
               setActiveTab("deck");
               setDeckSubTab("tension");
@@ -990,8 +920,8 @@ export default function StudioPage() {
           type: "tableRead",
           position: pos,
           data: {
-            voiceCount: 2,
-            onOpenPlayer: () => setShowTableRead(true),
+            screenplayText: screenplayText,
+            onOpenTableRead: () => setScriptViewerOpen(true),
           },
         };
         break;
@@ -1001,9 +931,8 @@ export default function StudioPage() {
           type: "market",
           position: pos,
           data: {
-            globalScore: 82,
-            topTerritory: "North America & East Asia",
-            onOpenHeatmap: () => {
+            genre: genre,
+            onOpenDeck: () => {
               setActiveTab("deck");
               setDeckSubTab("territory");
             },
@@ -1015,31 +944,33 @@ export default function StudioPage() {
     }
 
     setNodes((nds) => [...nds, newNode]);
+    setSelectedNode(newNode);
   };
 
-  // Node Clicking Handlers
-  const handleNodeClick = (_: React.MouseEvent, node: Node) => {
-    setSelectedNode(node);
-    if (inspectorPanelRef.current?.isCollapsed()) {
-      inspectorPanelRef.current.expand();
-      setIsSidebarOpen(true);
-    }
-    if (node.type === "characterCore") {
-      const charName = (node.data as { name: string }).name;
-      setActiveCharacterName(charName);
-    }
-  };
+  // Node Selection in Inspector
+  const handleNodeClick = React.useCallback(
+    (_: React.MouseEvent, node: Node) => {
+      setSelectedNode(node);
+      const panel = inspectorPanelRef.current;
+      if (panel && panel.isCollapsed()) {
+        panel.expand();
+        setIsSidebarOpen(true);
+      }
+    },
+    [inspectorPanelRef]
+  );
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground select-none">
-      {/* Top Production Bar */}
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4 bg-card/70 backdrop-blur">
+    <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground selection:bg-accent/30 selection:text-accent-foreground">
+      {/* Studio Header Bar */}
+      <header className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-card/95 px-3 backdrop-blur select-none z-20">
+        {/* Left: Slate Identity & Switcher */}
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => router.push("/")}
-            className="text-muted-foreground hover:text-foreground -ml-2"
+            className="h-8 text-xs text-muted-foreground hover:text-foreground -ml-1"
           >
             <ArrowLeft className="h-4 w-4 mr-1" />
             Slate Hub
@@ -1049,20 +980,21 @@ export default function StudioPage() {
 
           <div className="flex items-center gap-2">
             <Film className="h-4 w-4 text-accent" />
-            <span className="font-heading text-sm font-bold text-foreground">
+            <span className="font-heading text-sm font-bold text-foreground max-w-[200px] truncate">
               {projectTitle}
             </span>
           </div>
 
-          <div className="flex items-center gap-1.5 ml-2">
-            {PRESET_SCENARIOS.map((p) => (
+          {/* Dynamic Slate Switcher from localStorage & presets */}
+          <div className="flex items-center gap-1.5 ml-2 overflow-x-auto max-w-[400px]">
+            {allProjects.map((p) => (
               <button
                 key={p.id}
                 type="button"
                 onClick={() => router.push(`/studio/${p.id}`)}
-                className={`rounded px-2 py-0.5 text-xs font-mono transition-colors ${
+                className={`rounded px-2 py-0.5 text-xs font-mono transition-colors whitespace-nowrap ${
                   projectId === p.id
-                    ? "bg-accent/20 text-accent border border-accent/40"
+                    ? "bg-accent/20 text-accent border border-accent/40 font-semibold"
                     : "text-muted-foreground hover:bg-secondary"
                 }`}
               >
@@ -1074,6 +1006,54 @@ export default function StudioPage() {
 
         {/* Action Controls */}
         <div className="flex items-center gap-2">
+          {/* Layout View Switcher */}
+          <div className="flex items-center rounded-lg border border-border/80 bg-secondary/40 p-0.5 mr-1 shadow-sm">
+            <button
+              type="button"
+              onClick={() => setViewMode("canvas-only")}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all cursor-pointer",
+                layoutMode === "canvas-only"
+                  ? "bg-accent text-accent-foreground shadow-sm font-semibold"
+                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+              )}
+              title="Canvas Only (Hide other panels)"
+            >
+              <Square className="h-3.5 w-3.5" />
+              <span className="hidden xl:inline">Canvas Only</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setViewMode("split")}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all cursor-pointer",
+                layoutMode === "split"
+                  ? "bg-accent text-accent-foreground shadow-sm font-semibold"
+                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+              )}
+              title="Split View (Canvas + Bottom Cinema Dock)"
+            >
+              <Rows className="h-3.5 w-3.5" />
+              <span className="hidden xl:inline">Split View</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setViewMode("dock-only")}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all cursor-pointer",
+                layoutMode === "dock-only"
+                  ? "bg-accent text-accent-foreground shadow-sm font-semibold"
+                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+              )}
+              title="Bottom Panel Only (Full Cinema Dock)"
+            >
+              <PanelBottom className="h-3.5 w-3.5" />
+              <span className="hidden xl:inline">Bottom Panel</span>
+            </button>
+          </div>
+
           <Button
             size="sm"
             variant="outline"
@@ -1136,11 +1116,31 @@ export default function StudioPage() {
         </div>
       </header>
 
-      {/* Resizable Studio Layout (Canvas, Inspector Sidebar & Cinema Dock) */}
-      <div className="flex-1 min-h-0 h-full relative overflow-hidden">
+      {/* Resizable Studio Layout */}
+      <div className="flex-1 min-h-0 relative overflow-hidden">
         <ResizablePanelGroup orientation="vertical" className="h-full w-full">
           {/* Top Panel: Canvas + Resizable Inspector Sidebar */}
-          <ResizablePanel defaultSize="65%" minSize="25%" maxSize="85%" className="relative">
+          <ResizablePanel
+            panelRef={topPanelRef}
+            collapsible={true}
+            collapsedSize="0%"
+            defaultSize="65%"
+            minSize="0%"
+            maxSize="100%"
+            className="relative"
+            onResize={(panelSize) => {
+              if (panelSize.asPercentage <= 2) {
+                setLayoutMode("dock-only");
+              } else {
+                const bottomSize = bottomPanelRef.current?.getSize()?.asPercentage;
+                if (bottomSize !== undefined && bottomSize <= 2) {
+                  setLayoutMode("canvas-only");
+                } else if (layoutMode === "dock-only") {
+                  setLayoutMode("split");
+                }
+              }
+            }}
+          >
             <ResizablePanelGroup orientation="horizontal" className="h-full w-full">
               {/* Left Panel: React Flow Story Canvas */}
               <ResizablePanel defaultSize="72%" minSize="35%">
@@ -1154,6 +1154,21 @@ export default function StudioPage() {
                     onNodeClick={handleNodeClick}
                     onAddNode={handleAddBlueprintNode}
                   />
+
+                  {/* Canvas Only Quick Restore Pill */}
+                  {layoutMode === "canvas-only" && (
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setViewMode("split")}
+                        className="flex items-center gap-2 rounded-full border border-border/80 bg-card/95 px-4 py-2 text-xs font-semibold text-foreground shadow-2xl backdrop-blur hover:bg-secondary hover:border-accent transition-all cursor-pointer"
+                      >
+                        <PanelBottomOpen className="h-4 w-4 text-accent" />
+                        <span>Open Cinema Dock</span>
+                        <span className="text-[10px] text-muted-foreground font-mono">({activeCharacterName})</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               </ResizablePanel>
 
@@ -1203,7 +1218,27 @@ export default function StudioPage() {
           <ResizableHandle withHandle />
 
           {/* Bottom Panel: Resizable Cinema Dock */}
-          <ResizablePanel defaultSize="35%" minSize="15%" maxSize="75%" className="flex flex-col overflow-hidden bg-card/95 backdrop-blur border-t border-border">
+          <ResizablePanel
+            panelRef={bottomPanelRef}
+            collapsible={true}
+            collapsedSize="0%"
+            defaultSize="35%"
+            minSize="0%"
+            maxSize="100%"
+            className="flex flex-col overflow-hidden bg-card/95 backdrop-blur border-t border-border"
+            onResize={(panelSize) => {
+              if (panelSize.asPercentage <= 2) {
+                setLayoutMode("canvas-only");
+              } else {
+                const topSize = topPanelRef.current?.getSize()?.asPercentage;
+                if (topSize !== undefined && topSize <= 2) {
+                  setLayoutMode("dock-only");
+                } else if (layoutMode === "canvas-only") {
+                  setLayoutMode("split");
+                }
+              }
+            }}
+          >
             {/* Navigation Strip */}
             <div className="flex h-10 shrink-0 items-center justify-between border-b border-border px-4 bg-secondary/30">
               <div className="flex items-center gap-1">
@@ -1256,29 +1291,93 @@ export default function StudioPage() {
                   }`}
                 >
                   <Layers className="h-3.5 w-3.5" />
-                  <span>Director's Deck Suite</span>
+                  <span>Director&apos;s Deck Suite</span>
                 </button>
               </div>
 
-              {/* ClickHouse Live Status Badge */}
-              <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground">
-                <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span>ClickHouse Sub-ms Time-Gate Active</span>
+              {/* Status Badge & Dock View Controls */}
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground">
+                  <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="hidden md:inline">ClickHouse Sub-ms Time-Gate Active</span>
+                </div>
+
+                <div className="h-3.5 w-[1px] bg-border" />
+
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode(layoutMode === "dock-only" ? "split" : "dock-only")}
+                    className={cn(
+                      "flex items-center gap-1 rounded px-2 py-0.5 text-xs transition-colors cursor-pointer",
+                      layoutMode === "dock-only"
+                        ? "bg-accent/20 text-accent font-medium border border-accent/40"
+                        : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                    )}
+                    title={layoutMode === "dock-only" ? "Restore Split View" : "Maximize Bottom Panel (Hide Canvas)"}
+                  >
+                    {layoutMode === "dock-only" ? (
+                      <>
+                        <Minimize2 className="h-3.5 w-3.5" />
+                        <span className="text-[11px]">Restore</span>
+                      </>
+                    ) : (
+                      <>
+                        <Maximize2 className="h-3.5 w-3.5" />
+                        <span className="text-[11px]">Maximize</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("canvas-only")}
+                    className="flex items-center gap-1 rounded px-2 py-0.5 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors cursor-pointer"
+                    title="Hide Bottom Panel (Canvas Only)"
+                  >
+                    <PanelBottomClose className="h-3.5 w-3.5" />
+                    <span className="text-[11px]">Hide</span>
+                  </button>
+                </div>
               </div>
             </div>
 
             {/* Tab 1: Timeline Scrubber & Hot Seat Interrogation */}
             {activeTab === "hotseat" && (
-              <div className="flex flex-1 flex-col overflow-hidden">
-                <div className="border-b border-border/50 px-4 py-2 bg-background/50">
-                  <TimelineScrubber
-                    durationSeconds={DURATION_SECONDS}
-                    value={timeSeconds}
-                    onChange={setTimeSeconds}
-                    events={events}
-                  />
+              <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
+                <div className="border-b border-border/50 px-4 py-2 bg-background/50 shrink-0 flex items-center justify-between gap-4">
+                  <div className="flex-1">
+                    <TimelineScrubber
+                      durationSeconds={DURATION_SECONDS}
+                      value={timeSeconds}
+                      onChange={setTimeSeconds}
+                      events={events}
+                    />
+                  </div>
+
+                  {/* Character Quick Switcher */}
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className="text-[10px] uppercase font-mono text-muted-foreground mr-1 hidden sm:inline">
+                      Interrogate:
+                    </span>
+                    {characters.map((c) => (
+                      <button
+                        key={c.name}
+                        type="button"
+                        onClick={() => setActiveCharacterName(c.name)}
+                        className={`rounded px-2.5 py-1 text-xs font-semibold transition-all ${
+                          activeCharacterName === c.name
+                            ? "bg-accent text-accent-foreground shadow-xs"
+                            : "bg-secondary/40 text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {c.name}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className="flex-1 overflow-hidden p-2">
+
+                <div className="flex-1 min-h-0 overflow-hidden p-2 flex flex-col">
                   <HotSeatChat
                     characterName={activeCharacterName}
                     characterArchetype={activeCharacter?.archetype}
@@ -1289,10 +1388,11 @@ export default function StudioPage() {
                     isAsking={isAsking}
                     onInsertIntoScript={handleInsertIntoScript}
                     suggestedQuestions={[
-                      "Do you know who has the vault bypass keys?",
-                      "Why won't you turn around and look at me?",
-                      "Where were you when the security alarms triggered?",
+                      `What are you hiding right now at minute ${Math.round(timeSeconds / 60)}?`,
+                      "Why won't you turn around and answer directly?",
+                      "Where were you when the situation compromised?",
                     ]}
+                    className="h-full w-full"
                   />
                 </div>
               </div>
@@ -1300,44 +1400,56 @@ export default function StudioPage() {
 
             {/* Tab 2: Showrunner AI Co-Pilot */}
             {activeTab === "showrunner" && (
-              <div className="flex-1 overflow-hidden p-3">
+              <div className="flex-1 min-h-0 overflow-hidden p-2 flex flex-col">
                 <ShowrunnerChat
                   messages={showrunnerMessages}
                   isThinking={isShowrunnerThinking}
                   onSendMessage={handleSendShowrunner}
                   suggestedPrompts={[
-                    "Critique the dramatic irony at Minute 34",
-                    "Suggest subtext revisions for Elena's dialogue",
-                    "Query ClickHouse box-office precedents for heist twists",
+                    `Analyze dramatic tension for ${projectTitle}`,
+                    `Suggest subtext improvements for ${activeCharacterName}'s dialogue`,
+                    "Query ClickHouse box-office precedents for this premise",
                   ]}
+                  className="h-full w-full"
                 />
               </div>
             )}
 
             {/* Tab 3: Dream Casting Chemistry Bench */}
             {activeTab === "chemistry" && (
-              <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
-                <div className="flex items-center justify-between">
+              <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-3">
+                <div className="flex items-center justify-between shrink-0">
                   <div>
                     <h4 className="font-heading text-sm font-bold text-foreground flex items-center gap-2">
                       <Flame className="h-4 w-4 text-rose-500" />
-                      Impromptu Dynamic Friction Sandbox (Marcus vs Elena)
+                      Dynamic Friction Sandbox ({characters[0]?.name || "Lead"} vs{" "}
+                      {characters[1]?.name || "Counterpart"})
                     </h4>
                     <p className="text-xs text-muted-foreground">
-                      Tests how two contrasting character DNAs and vocal cadences clash under pressure.
+                      Simulates how two contrasting character vocal profiles and secrets clash in an unexpected situation.
                     </p>
                   </div>
                   <Button
                     size="sm"
                     onClick={handleRunChemistry}
                     disabled={isChemistryRunning}
-                    className="bg-rose-500 hover:bg-rose-600 text-white font-semibold"
+                    className="bg-rose-500 hover:bg-rose-600 text-white font-semibold gap-1.5"
                   >
-                    {isChemistryRunning ? "Generating Micro-Scene..." : "Run Chemistry Test"}
+                    {isChemistryRunning ? (
+                      <>
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                        <span>Simulating Scene...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-3.5 w-3.5" />
+                        <span>Run Chemistry Test</span>
+                      </>
+                    )}
                   </Button>
                 </div>
 
-                <div className="flex gap-3">
+                <div className="flex gap-3 shrink-0">
                   <input
                     type="text"
                     value={chemistryScenario}
@@ -1348,12 +1460,13 @@ export default function StudioPage() {
                 </div>
 
                 {chemistrySceneOutput ? (
-                  <div className="rounded-lg border border-border bg-background/80 p-3 font-mono text-xs leading-relaxed text-foreground whitespace-pre-wrap max-h-48 overflow-y-auto shadow-inner">
-                    {chemistrySceneOutput}
+                  <div className="flex-1 min-h-0 rounded-lg border border-border bg-background/80 p-4 font-mono text-xs leading-relaxed text-foreground overflow-y-auto shadow-inner">
+                    <MarkdownRenderer content={chemistrySceneOutput} />
                   </div>
                 ) : (
                   <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-border/80 p-6 text-center text-xs text-muted-foreground">
-                    Click &ldquo;Run Chemistry Test&rdquo; to simulate an impromptu 1-page friction scene between Marcus and Elena.
+                    Click &ldquo;Run Chemistry Test&rdquo; to simulate an impromptu friction scene between{" "}
+                    {characters[0]?.name || "Lead"} and {characters[1]?.name || "Counterpart"}.
                   </div>
                 )}
               </div>
@@ -1361,8 +1474,8 @@ export default function StudioPage() {
 
             {/* Tab 4: Director's Deck Suite */}
             {activeTab === "deck" && (
-              <div className="flex flex-1 flex-col overflow-hidden">
-                <div className="flex items-center gap-2 border-b border-border px-4 py-1.5 bg-secondary/20">
+              <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
+                <div className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-1.5 bg-secondary/20">
                   <button
                     type="button"
                     onClick={() => setDeckSubTab("blocking")}
@@ -1383,7 +1496,7 @@ export default function StudioPage() {
                         : "text-muted-foreground hover:bg-secondary"
                     }`}
                   >
-                    3-Act Tension Curve
+                    Tension &amp; Pacing Curve
                   </button>
                   <button
                     type="button"
@@ -1409,25 +1522,31 @@ export default function StudioPage() {
                   </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-3">
-                  {deckSubTab === "blocking" && <FloorPlanView sceneTitle={sceneTitle} />}
+                <div className="flex-1 min-h-0 overflow-y-auto p-4">
+                  {deckSubTab === "blocking" && (
+                    <FloorPlanView sceneTitle={sceneTitle} characters={characters} />
+                  )}
                   {deckSubTab === "tension" && (
                     <TensionCurveView
                       currentTimeSeconds={timeSeconds}
                       onScrubTime={setTimeSeconds}
                       projectId={projectId}
+                      characters={characters}
+                      events={events}
                     />
                   )}
                   {deckSubTab === "territory" && (
                     <TerritoryHeatmapView
+                      genre={genre}
                       projectTitle={projectTitle}
-                      genre={matchedPreset.genre}
+                      logline={premiseInput}
                     />
                   )}
                   {deckSubTab === "stripboard" && (
                     <StripboardView
                       projectTitle={projectTitle}
                       characters={characters}
+                      screenplayText={screenplayText}
                       projectId={projectId}
                     />
                   )}
@@ -1438,24 +1557,32 @@ export default function StudioPage() {
         </ResizablePanelGroup>
       </div>
 
-      {/* Floating ClickHouse Live Inspector (Bottom Right) */}
+      {/* Persistent Bottom ClickHouse Live Inspector */}
       <ClickHouseInspector logs={queryLogs} lastSql={lastSql} />
 
-      {/* Modals & Dialogs */}
+      {/* Screenplay Reader & Editor Modal */}
       <ScreenplayDialog
         open={scriptViewerOpen}
         onOpenChange={setScriptViewerOpen}
         title={sceneTitle}
+        summary={sceneSummary}
         screenplayText={screenplayText}
+        onSaveScript={(newScript) => {
+          setScreenplayText(newScript);
+          saveCurrentProject({ screenplayText: newScript });
+        }}
+        onReshard={handleReshardScript}
+        isResharding={isGenerating}
       />
 
+      {/* Audio Table Read Modal */}
       <Dialog open={showTableRead} onOpenChange={setShowTableRead}>
-        <DialogContent className="max-w-2xl bg-card border-border p-6 text-foreground">
-          <DialogHeader className="pb-2">
+        <DialogContent className="max-w-2xl bg-card border-border p-5">
+          <DialogHeader>
             <div className="flex items-center gap-2">
-              <Volume2 className="h-5 w-5 text-accent" />
-              <DialogTitle className="font-heading text-lg font-bold">
-                Audio Table Read — Multi-Speaker Rehearsal
+              <Volume2 className="h-4 w-4 text-cyan-400" />
+              <DialogTitle className="text-base font-heading">
+                Multi-Voice Audio Table Read · {sceneTitle}
               </DialogTitle>
             </div>
             <DialogDescription className="text-xs text-muted-foreground">
@@ -1470,28 +1597,85 @@ export default function StudioPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Multiverse Alternate Takes Modal */}
       <MultiverseTakesDialog
         open={multiverseOpen}
         onOpenChange={setMultiverseOpen}
         onApplyTake={handleApplyTake}
+        projectTitle={projectTitle}
+        characters={characters}
+        screenplayText={screenplayText}
       />
 
+      {/* Film Fusion Crossover Modal */}
       <FilmFusionDialog
         open={fusionOpen}
         onOpenChange={setFusionOpen}
+        onFusionComplete={() => {
+          setAllProjects(getAllProjects());
+        }}
       />
 
+      {/* New Project Slate Creation Dialog */}
       <NewProjectDialog
         open={newProjectOpen}
         onOpenChange={setNewProjectOpen}
         onSubmit={async (data) => {
-          const newPid = `project-${Date.now().toString(36)}`;
-          setProjectId(newPid);
-          setProjectTitle(data.title);
-          setPremiseInput(data.logline);
-          await runFullPipeline(newPid, data.logline);
+          const newProject = createNewProjectEntry({
+            title: data.title,
+            logline: data.logline,
+            genre: data.genre,
+            characters: data.characters,
+          });
+          setProjectId(newProject.id);
+          setProjectTitle(newProject.title);
+          setGenre(newProject.genre);
+          setPremiseInput(newProject.premise);
+          setSceneTitle(newProject.sceneTitle);
+          setSceneSummary(newProject.sceneSummary);
+          setCharacters(newProject.characters);
+          setActiveCharacterName(newProject.characters[0]?.name || "Lead");
+          setScreenplayText("");
+          setEvents([]);
+          setHotSeatTurns([]);
+
+          router.push(`/studio/${newProject.id}`);
+          await runFullPipeline(newProject.id, newProject.premise);
         }}
       />
+
+      {/* Real-time Autonomous Agent Generation Overlay */}
+      {isGenerating && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-md">
+          <div className="max-w-md w-full mx-4 rounded-xl border border-accent/40 bg-card p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-lg bg-accent/15 border border-accent/30 text-accent">
+                <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
+              <div>
+                <SlateLabel>Agentic Cinema Engine</SlateLabel>
+                <h3 className="text-base font-heading font-bold text-foreground">
+                  Autonomous Writers&apos; Room
+                </h3>
+              </div>
+            </div>
+
+            <div className="space-y-2 rounded-lg bg-secondary/30 p-3.5 border border-border">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-foreground">Active Agent Stage:</span>
+                <span className="font-mono text-[11px] text-accent animate-pulse">Running</span>
+              </div>
+              <p className="text-xs text-muted-foreground font-mono leading-relaxed">
+                {generationStage || "Orchestrating Gemini 3.7 Flash & ClickHouse Story Event Engine..."}
+              </p>
+            </div>
+
+            <div className="text-[11px] text-muted-foreground text-center">
+              Generating screenplay text, sharding character knowledge firewalls, and synchronizing blueprint node graph.
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -3,7 +3,8 @@
 import * as React from "react";
 import { SlateLabel } from "@/components/cinema/slate-label";
 import { Badge } from "@/components/ui/badge";
-import { Camera, Lightbulb, User, Eye } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Camera, Lightbulb, User, Eye, Sparkles, RefreshCw, Film } from "lucide-react";
 
 interface FloorPlanCharacter {
   name: string;
@@ -34,6 +35,24 @@ interface PracticalLight {
   color: string;
 }
 
+interface PrecedentComp {
+  film: string;
+  director: string;
+  scene_comparison: string;
+  lens_and_blocking_technique: string;
+}
+
+interface LocationScoutData {
+  film_precedents?: PrecedentComp[];
+  location_aesthetic?: string;
+  practical_lighting?: string;
+  camera_package?: {
+    cam_a: string;
+    cam_b: string;
+    cam_c: string;
+  };
+}
+
 interface FloorPlanViewProps {
   sceneTitle: string;
   characters?: Array<{ name: string; archetype?: string }>;
@@ -46,9 +65,35 @@ export function FloorPlanView({
   className,
 }: FloorPlanViewProps) {
   const [selectedCam, setSelectedCam] = React.useState<string>("cam-a");
+  const [isScouting, setIsScouting] = React.useState(false);
+  const [scoutedData, setScoutedData] = React.useState<LocationScoutData | null>(null);
 
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = React.useState({ width: 1000, height: 300 });
+
+  const handleRunLocationScout = async () => {
+    if (isScouting) return;
+    setIsScouting(true);
+    try {
+      const res = await fetch("/api/location/scout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scene_description: sceneTitle || "Cinematic Confrontation",
+          characters: characters.map((c) => c.name),
+          genre: "Cinematic Drama / Thriller",
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setScoutedData(data);
+      }
+    } catch (err) {
+      console.error("Location scout error:", err);
+    } finally {
+      setIsScouting(false);
+    }
+  };
 
   React.useLayoutEffect(() => {
     if (!containerRef.current) return;
@@ -77,16 +122,16 @@ export function FloorPlanView({
   const charPositions: FloorPlanCharacter[] = React.useMemo(() => {
     const list: FloorPlanCharacter[] = [
       {
-        name: characters[0]?.name || "Marcus",
-        role: "Primary Subject (Kneeling)",
+        name: characters[0]?.name || "Lead",
+        role: characters[0]?.archetype ? `${characters[0].archetype.split(",")[0]}` : "Primary Subject",
         x: Math.round(roomX + roomW * 0.4),
         y: Math.round(roomY + roomH * 0.55),
         angle: 45,
         color: "var(--accent)",
       },
       {
-        name: characters[1]?.name || "Elena",
-        role: "Foreground Counter-Weight",
+        name: characters[1]?.name || "Counterpart",
+        role: characters[1]?.archetype ? `${characters[1].archetype.split(",")[0]}` : "Counter-Weight",
         x: Math.round(roomX + roomW * 0.65),
         y: Math.round(roomY + roomH * 0.42),
         angle: 210,
@@ -96,7 +141,7 @@ export function FloorPlanView({
     if (characters[2]) {
       list.push({
         name: characters[2].name,
-        role: "Perimeter Lookout",
+        role: characters[2].archetype ? `${characters[2].archetype.split(",")[0]}` : "Perimeter Lookout",
         x: Math.round(roomX + roomW * 0.8),
         y: Math.round(roomY + roomH * 0.72),
         angle: 180,
@@ -110,7 +155,7 @@ export function FloorPlanView({
     {
       id: "cam-a",
       name: "Cam A · Wide Master",
-      lens: "35mm T1.5 Anamorphic",
+      lens: scoutedData?.camera_package?.cam_a || "35mm T1.5 Anamorphic",
       x: Math.round(roomX + roomW * 0.2),
       y: Math.round(roomY + roomH * 0.82),
       targetX: Math.round(roomX + roomW * 0.52),
@@ -120,7 +165,7 @@ export function FloorPlanView({
     {
       id: "cam-b",
       name: "Cam B · Over-The-Shoulder",
-      lens: "50mm T1.3 Prime",
+      lens: scoutedData?.camera_package?.cam_b || "50mm T1.3 Prime",
       x: Math.round(roomX + roomW * 0.78),
       y: Math.round(roomY + roomH * 0.3),
       targetX: Math.round(roomX + roomW * 0.4),
@@ -130,19 +175,19 @@ export function FloorPlanView({
     {
       id: "cam-c",
       name: "Cam C · Intimate Close-Up",
-      lens: "85mm T1.4 Portrait",
+      lens: scoutedData?.camera_package?.cam_c || "85mm T1.4 Portrait",
       x: Math.round(roomX + roomW * 0.3),
       y: Math.round(roomY + roomH * 0.66),
       targetX: Math.round(roomX + roomW * 0.4),
       targetY: Math.round(roomY + roomH * 0.55),
       fov: 30,
     },
-  ], [roomX, roomY, roomW, roomH]);
+  ], [roomX, roomY, roomW, roomH, scoutedData]);
 
   const lights: PracticalLight[] = React.useMemo(() => [
-    { id: "light-1", name: "Cyan Emergency Strip", x: Math.round(roomX + roomW * 0.5), y: roomY + 18, type: "practical", color: "#06b6d4" },
-    { id: "light-2", name: "Key Fill Panel", x: roomX + 170, y: Math.round(roomY + roomH * 0.38), type: "key", color: "#e2e8f0" },
-    { id: "light-3", name: "Corridor Spill", x: roomX + roomW - 65, y: roomY + roomH - 25, type: "ambient", color: "#f59e0b" },
+    { id: "light-1", name: "Key Practical Fixture", x: Math.round(roomX + roomW * 0.5), y: roomY + 18, type: "practical", color: "#06b6d4" },
+    { id: "light-2", name: "Fill Key Panel", x: roomX + 170, y: Math.round(roomY + roomH * 0.38), type: "key", color: "#e2e8f0" },
+    { id: "light-3", name: "Ambient Edge Spill", x: roomX + roomW - 65, y: roomY + roomH - 25, type: "ambient", color: "#f59e0b" },
   ], [roomX, roomY, roomW, roomH]);
 
   return (
@@ -156,9 +201,24 @@ export function FloorPlanView({
           </div>
           <span className="text-xs font-semibold text-foreground">{sceneTitle}</span>
         </div>
-        <Badge variant="outline" className="border-accent/40 bg-accent/10 text-accent text-[10px]">
-          3-Cam Setup · 2.39:1 Scope
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            onClick={handleRunLocationScout}
+            disabled={isScouting}
+            className="text-xs h-7 gap-1.5 bg-blue-600 hover:bg-blue-500 text-white"
+          >
+            {isScouting ? (
+              <RefreshCw className="h-3 w-3 animate-spin" />
+            ) : (
+              <Sparkles className="h-3 w-3" />
+            )}
+            <span>{isScouting ? "Scouting..." : "AI Location Scout (Gemini 3.7)"}</span>
+          </Button>
+          <Badge variant="outline" className="border-accent/40 bg-accent/10 text-accent text-[10px]">
+            3-Cam Setup · 2.39:1 Scope
+          </Badge>
+        </div>
       </div>
 
       {/* SVG Architectural Floor Plan Canvas */}
@@ -209,7 +269,9 @@ export function FloorPlanView({
             fontFamily="ui-monospace, monospace"
             opacity="0.6"
           >
-            SEC-04 · INNER VAULT PERIMETER
+            {scoutedData?.location_aesthetic
+              ? `SETTING: ${scoutedData.location_aesthetic.slice(0, 42).toUpperCase()}`
+              : `${(sceneTitle || "SOUNDSTAGE").toUpperCase()} · STAGE PERIMETER`}
           </text>
 
           {/* Security door / corridor opening */}
@@ -230,10 +292,10 @@ export function FloorPlanView({
             fontFamily="ui-monospace, monospace"
             textAnchor="middle"
           >
-            CORRIDOR ACCESS
+            STAGE ACCESS / INGRESS
           </text>
 
-          {/* Stage Furniture / Vault Safety Deposit Boxes */}
+          {/* Stage Furniture */}
           <rect
             x={roomX + 35}
             y={roomY + 30}
@@ -254,10 +316,10 @@ export function FloorPlanView({
             letterSpacing="1"
             textAnchor="middle"
           >
-            VAULT DEPOSIT BOXES
+            PRACTICAL SET RIG A
           </text>
 
-          {/* Timer Console */}
+          {/* Timer / Control Console */}
           <rect
             x={roomX + roomW - 150}
             y={roomY + 25}
@@ -277,7 +339,7 @@ export function FloorPlanView({
             textAnchor="middle"
             letterSpacing="0.5"
           >
-            TIMER CONSOLE
+            PRIMARY PROP / CONSOLE
           </text>
 
           {/* Practical Lights */}
@@ -433,6 +495,56 @@ export function FloorPlanView({
         </div>
         <span className="font-mono text-[10px]">Overhead 2D Blocking Engine</span>
       </div>
+
+      {/* AI Location Scout Aesthetic & Precedent Comps */}
+      {scoutedData && (
+        <div className="rounded-lg border border-border bg-secondary/15 p-3.5 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+              <Film className="h-3.5 w-3.5 text-accent" />
+              Hollywood Precedent Comps &amp; Lens Packages
+            </span>
+            <Badge variant="outline" className="border-accent/40 text-accent text-[9px] font-mono">
+              Gemini 3.7 Hollywood Scout
+            </Badge>
+          </div>
+
+          {scoutedData.location_aesthetic && (
+            <div className="rounded border border-border/60 bg-background/70 p-2.5 text-xs text-foreground/90 leading-relaxed">
+              <span className="font-mono uppercase text-[10px] text-accent block mb-0.5 font-semibold">
+                Scouted Architectural Aesthetic:
+              </span>
+              {scoutedData.location_aesthetic}
+            </div>
+          )}
+
+          {scoutedData.practical_lighting && (
+            <div className="rounded border border-border/60 bg-background/70 p-2.5 text-xs text-foreground/90 leading-relaxed">
+              <span className="font-mono uppercase text-[10px] text-accent block mb-0.5 font-semibold">
+                Practical Lighting Scheme:
+              </span>
+              {scoutedData.practical_lighting}
+            </div>
+          )}
+
+          {scoutedData.film_precedents && scoutedData.film_precedents.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1">
+              {scoutedData.film_precedents.map((comp, idx) => (
+                <div key={idx} className="rounded border border-border/50 bg-secondary/30 p-2.5 text-xs space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-foreground">{comp.film}</span>
+                    <span className="font-mono text-[10px] text-muted-foreground">{comp.director}</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-snug">{comp.scene_comparison}</p>
+                  <div className="text-[10px] font-mono text-accent/90 pt-1 border-t border-border/40">
+                    Technique: {comp.lens_and_blocking_technique}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

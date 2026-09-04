@@ -104,6 +104,11 @@ export function TableReadPlayer({
         } else if (s.includes("RAY")) {
           pitch = 1.15;
           rate = speechRate * 1.1;
+        } else {
+          // Dynamic pitch & rate hashing for any custom character
+          const hash = Array.from(s).reduce((acc, c) => acc + c.charCodeAt(0), 0);
+          pitch = 0.85 + (hash % 6) * 0.08;
+          rate = speechRate * (0.92 + (hash % 4) * 0.06);
         }
       }
 
@@ -114,13 +119,22 @@ export function TableReadPlayer({
       // Available voices
       const voices = window.speechSynthesis.getVoices();
       if (voices.length > 0) {
-        // Pick contrasting English voice if available
-        if (item.speaker?.includes("ELENA")) {
+        const s = (item.speaker || "").toUpperCase();
+        if (s.includes("ELENA")) {
           const femaleVoice = voices.find((v) => v.name.includes("Samantha") || v.name.includes("Karen") || v.name.includes("Zira"));
           if (femaleVoice) utterance.voice = femaleVoice;
-        } else if (item.speaker?.includes("MARCUS") || item.speaker?.includes("VANCE")) {
+        } else if (s.includes("MARCUS") || s.includes("VANCE")) {
           const maleVoice = voices.find((v) => v.name.includes("Alex") || v.name.includes("Daniel") || v.name.includes("David"));
           if (maleVoice) utterance.voice = maleVoice;
+        } else if (s) {
+          const hash = Array.from(s).reduce((acc, c) => acc + c.charCodeAt(0), 0);
+          const isFemale = hash % 2 === 1;
+          const matchedVoice = voices.find((v) =>
+            isFemale
+              ? v.name.includes("Female") || v.name.includes("Samantha") || v.name.includes("Karen") || v.name.includes("Victoria")
+              : v.name.includes("Male") || v.name.includes("Alex") || v.name.includes("Daniel") || v.name.includes("Fred")
+          );
+          if (matchedVoice) utterance.voice = matchedVoice;
         }
       }
 

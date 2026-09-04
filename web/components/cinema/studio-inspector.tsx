@@ -27,6 +27,7 @@ import {
   Flame,
   X,
   ExternalLink,
+  RefreshCw,
 } from "lucide-react";
 
 export interface StudioInspectorProps {
@@ -57,6 +58,109 @@ export function StudioInspector({
   const [activeTab, setActiveTab] = React.useState<"inspector" | "outliner">("inspector");
 
   const nodeData = (selectedNode?.data || {}) as Record<string, any>;
+
+  const [isSynthesizing, setIsSynthesizing] = React.useState(false);
+  const [isExtractingStyle, setIsExtractingStyle] = React.useState(false);
+  const [sampleLine, setSampleLine] = React.useState("Step away from the control console.");
+  const [isTuningDialogue, setIsTuningDialogue] = React.useState(false);
+  const [tunedDialogueResult, setTunedDialogueResult] = React.useState<string | null>(null);
+  const [newTic, setNewTic] = React.useState("");
+
+  const handleTuneDialogue = async () => {
+    if (isTuningDialogue || !sampleLine) return;
+    setIsTuningDialogue(true);
+    setTunedDialogueResult(null);
+    try {
+      const res = await fetch("/api/character/tune", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          character_name: nodeData.name || "Character",
+          speech_style:
+            (nodeData.speed ?? 50) > 60
+              ? "Fast-talking, staccato cadence"
+              : "Measured, calculated cadence",
+          subtext_ratio:
+            (nodeData.subtext ?? 70) > 60
+              ? "Heavy subtext, veiled sarcasm"
+              : "Literal, direct",
+          raw_dialogue: sampleLine,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTunedDialogueResult(data.tuned_dialogue || data.dialogue);
+      }
+    } catch (err) {
+      console.error("Failed to tune dialogue:", err);
+    } finally {
+      setIsTuningDialogue(false);
+    }
+  };
+
+  const handleSynthesizeCharacter = async () => {
+    if (isSynthesizing || !selectedNode) return;
+    setIsSynthesizing(true);
+    try {
+      const res = await fetch("/api/character/synthesize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: nodeData.name || nodeData.actorName || "Character",
+          base_archetype: nodeData.archetype || "High-stakes dramatic character",
+          dream_actor: nodeData.actorComp || nodeData.actorName || "Character Actor",
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        onUpdateNodeData?.(selectedNode.id, {
+          name: data.name || nodeData.name,
+          archetype: data.archetype || nodeData.archetype,
+          bio: data.bio,
+          speechStyle: data.speech_style,
+          subtextRatio: data.subtext_ratio,
+          actorComp: data.dream_actor_comp,
+          quirks: data.behavioral_tics,
+        });
+      }
+    } catch (err) {
+      console.error("Failed to synthesize character:", err);
+    } finally {
+      setIsSynthesizing(false);
+    }
+  };
+
+  const handleExtractStyle = async () => {
+    if (isExtractingStyle || !selectedNode) return;
+    setIsExtractingStyle(true);
+    try {
+      const res = await fetch("/api/style/extract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          video_url: nodeData.url || "youtube.com/watch?v=cinematic",
+          timestamp_range: nodeData.timestampRange || "01:00 - 02:30",
+          genre: "Feature Film",
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const swatches = Array.isArray(data.visual_palette)
+          ? data.visual_palette.map((c: string) => c.split(" ")[0])
+          : ["#0b132b", "#1c2541", "#3a506b", "#e09f3e", "#d62828"];
+
+        onUpdateNodeData?.(selectedNode.id, {
+          lightingStyle: data.lighting_style,
+          palette: swatches,
+          pacing: data.editing_rhythm,
+        });
+      }
+    } catch (err) {
+      console.error("Failed to extract style:", err);
+    } finally {
+      setIsExtractingStyle(false);
+    }
+  };
 
   return (
     <aside
@@ -173,6 +277,21 @@ export function StudioInspector({
                   <div className="pt-2 flex flex-col gap-2">
                     <Button
                       size="sm"
+                      onClick={handleSynthesizeCharacter}
+                      disabled={isSynthesizing}
+                      className="gap-2 bg-purple-600 hover:bg-purple-500 text-white w-full"
+                    >
+                      {isSynthesizing ? (
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Sparkles className="h-3.5 w-3.5" />
+                      )}
+                      <span>
+                        {isSynthesizing ? "Synthesizing..." : "Synthesize Character DNA (Gemini AI)"}
+                      </span>
+                    </Button>
+                    <Button
+                      size="sm"
                       onClick={() => onOpenHotSeat?.(nodeData.name || "Marcus")}
                       className="gap-2 bg-accent text-accent-foreground hover:bg-accent/90 w-full"
                     >
@@ -272,6 +391,42 @@ export function StudioInspector({
                       ))}
                     </div>
                   </div>
+
+                  {/* Live AI Cadence & Subtext Tuning */}
+                  <div className="mt-2 rounded-lg border border-cyan-500/30 bg-cyan-500/5 p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono uppercase text-cyan-400 font-semibold flex items-center gap-1">
+                        <Sparkles className="h-3 w-3" />
+                        Live Cadence Tuning
+                      </span>
+                      <span className="text-[9px] font-mono text-muted-foreground">Gemini 3.7</span>
+                    </div>
+                    <input
+                      type="text"
+                      value={sampleLine}
+                      onChange={(e) => setSampleLine(e.target.value)}
+                      placeholder="Sample dialogue to tune..."
+                      className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground font-mono"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={handleTuneDialogue}
+                      disabled={isTuningDialogue}
+                      className="w-full text-xs h-7 gap-1 bg-cyan-600 hover:bg-cyan-500 text-white"
+                    >
+                      {isTuningDialogue ? (
+                        <RefreshCw className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Sliders className="h-3 w-3" />
+                      )}
+                      <span>{isTuningDialogue ? "Tuning Cadence..." : "Test Dialogue Cadence"}</span>
+                    </Button>
+                    {tunedDialogueResult && (
+                      <div className="rounded bg-background/80 p-2 text-xs italic font-serif text-cyan-200 border border-cyan-500/20 leading-snug">
+                        &ldquo;{tunedDialogueResult}&rdquo;
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -318,6 +473,24 @@ export function StudioInspector({
                       }
                       className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground"
                     />
+                  </div>
+
+                  <div className="pt-2">
+                    <Button
+                      size="sm"
+                      onClick={handleSynthesizeCharacter}
+                      disabled={isSynthesizing}
+                      className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white w-full"
+                    >
+                      {isSynthesizing ? (
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Sparkles className="h-3.5 w-3.5" />
+                      )}
+                      <span>
+                        {isSynthesizing ? "Synthesizing..." : "Synthesize Cast DNA (Gemini AI)"}
+                      </span>
+                    </Button>
                   </div>
                 </div>
               )}
@@ -366,6 +539,196 @@ export function StudioInspector({
                       className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground leading-snug"
                     />
                   </div>
+
+                  <div className="pt-2">
+                    <Button
+                      size="sm"
+                      onClick={handleExtractStyle}
+                      disabled={isExtractingStyle}
+                      className="gap-2 bg-purple-600 hover:bg-purple-500 text-white w-full"
+                    >
+                      {isExtractingStyle ? (
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Sparkles className="h-3.5 w-3.5" />
+                      )}
+                      <span>
+                        {isExtractingStyle
+                          ? "Extracting Palette..."
+                          : "Extract Aesthetic & Palette (Gemini AI)"}
+                      </span>
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Premise Note Controls */}
+              {selectedNode.type === "note" && (
+                <div className="flex flex-col gap-3 text-xs">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-mono text-muted-foreground uppercase">
+                      Note Classification
+                    </label>
+                    <select
+                      value={nodeData.noteType || "Plot Seed"}
+                      onChange={(e) =>
+                        onUpdateNodeData?.(selectedNode.id, { noteType: e.target.value })
+                      }
+                      className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground font-semibold"
+                    >
+                      <option value="Plot Seed">Plot Seed</option>
+                      <option value="Voice Memo">Voice Memo</option>
+                      <option value="Dialogue Snippet">Dialogue Snippet</option>
+                      <option value="World Lore">World Lore</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-mono text-muted-foreground uppercase">
+                      Premise / Core Narrative Idea
+                    </label>
+                    <textarea
+                      rows={5}
+                      value={nodeData.content || ""}
+                      onChange={(e) =>
+                        onUpdateNodeData?.(selectedNode.id, { content: e.target.value })
+                      }
+                      placeholder="Enter the dramatic seed or narrative premise..."
+                      className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground leading-relaxed"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Behavioral Quirks Controls */}
+              {selectedNode.type === "quirks" && (
+                <div className="flex flex-col gap-3 text-xs">
+                  <div className="text-[10px] font-mono text-muted-foreground uppercase">
+                    Behavioral Quirks & Tells
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    {(nodeData.tics || []).map((tic: string, i: number) => (
+                      <div
+                        key={i}
+                        className="flex items-center justify-between rounded bg-rose-500/10 px-2.5 py-1.5 text-[11px] text-rose-300 border border-rose-500/20"
+                      >
+                        <span>{tic}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = (nodeData.tics || []).filter((_: any, idx: number) => idx !== i);
+                            onUpdateNodeData?.(selectedNode.id, { tics: updated });
+                          }}
+                          className="text-rose-400 hover:text-rose-200"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <input
+                      type="text"
+                      value={newTic}
+                      onChange={(e) => setNewTic(e.target.value)}
+                      placeholder="Add new behavioral tic..."
+                      className="flex-1 rounded border border-border bg-background px-2 py-1 text-xs"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && newTic.trim()) {
+                          const updated = [...(nodeData.tics || []), newTic.trim()];
+                          onUpdateNodeData?.(selectedNode.id, { tics: updated });
+                          setNewTic("");
+                        }
+                      }}
+                    />
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        if (newTic.trim()) {
+                          const updated = [...(nodeData.tics || []), newTic.trim()];
+                          onUpdateNodeData?.(selectedNode.id, { tics: updated });
+                          setNewTic("");
+                        }
+                      }}
+                      className="text-xs h-7 px-2.5 bg-rose-600 hover:bg-rose-500 text-white"
+                    >
+                      Add
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Chemistry Node Controls */}
+              {selectedNode.type === "chemistry" && (
+                <div className="flex flex-col gap-3 text-xs">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-mono text-muted-foreground uppercase">
+                      Friction Scenario
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={nodeData.scenario || ""}
+                      onChange={(e) =>
+                        onUpdateNodeData?.(selectedNode.id, { scenario: e.target.value })
+                      }
+                      className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground leading-snug"
+                    />
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => nodeData.onRunChemistry?.()}
+                    className="gap-2 bg-rose-600 hover:bg-rose-500 text-white w-full"
+                  >
+                    <Flame className="h-3.5 w-3.5" />
+                    <span>Run Dynamic Friction Scene</span>
+                  </Button>
+                </div>
+              )}
+
+              {/* Storyboard Node Controls */}
+              {selectedNode.type === "storyboard" && (
+                <div className="flex flex-col gap-3 text-xs">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-mono text-muted-foreground uppercase">
+                      Shot Composition / Aspect Ratio
+                    </label>
+                    <input
+                      type="text"
+                      value={nodeData.shotType || "2.39:1 Anamorphic Scope"}
+                      onChange={(e) =>
+                        onUpdateNodeData?.(selectedNode.id, { shotType: e.target.value })
+                      }
+                      className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground font-mono"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-mono text-muted-foreground uppercase">
+                      Imagen 3 Visual Prompt
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={nodeData.prompt || ""}
+                      onChange={(e) =>
+                        onUpdateNodeData?.(selectedNode.id, { prompt: e.target.value })
+                      }
+                      className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground leading-snug font-mono"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-mono text-muted-foreground uppercase">
+                      Lighting & Atmosphere
+                    </label>
+                    <input
+                      type="text"
+                      value={nodeData.lighting || ""}
+                      onChange={(e) =>
+                        onUpdateNodeData?.(selectedNode.id, { lighting: e.target.value })
+                      }
+                      className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground"
+                    />
+                  </div>
                 </div>
               )}
 
@@ -386,13 +749,40 @@ export function StudioInspector({
                     />
                   </div>
 
-                  <div className="pt-2">
+                  {nodeData.stakes !== undefined && (
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-mono text-muted-foreground uppercase">
+                        Dramatic Stakes
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={nodeData.stakes || ""}
+                        onChange={(e) =>
+                          onUpdateNodeData?.(selectedNode.id, { stakes: e.target.value })
+                        }
+                        className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground leading-snug"
+                      />
+                    </div>
+                  )}
+
+                  <div className="pt-2 flex flex-col gap-2">
+                    {nodeData.onGenerateDraft && (
+                      <Button
+                        size="sm"
+                        onClick={nodeData.onGenerateDraft}
+                        className="gap-2 bg-accent text-accent-foreground hover:bg-accent/90 w-full"
+                      >
+                        <Sparkles className="h-3.5 w-3.5" />
+                        <span>Generate Screenplay Draft</span>
+                      </Button>
+                    )}
                     <Button
                       size="sm"
+                      variant="outline"
                       onClick={onOpenScriptReader}
-                      className="gap-2 bg-accent text-accent-foreground hover:bg-accent/90 w-full"
+                      className="gap-2 border-border w-full"
                     >
-                      <FileText className="h-3.5 w-3.5" />
+                      <FileText className="h-3.5 w-3.5 text-accent" />
                       <span>Open Full Screenplay Reader</span>
                     </Button>
                   </div>

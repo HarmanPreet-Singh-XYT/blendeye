@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { SlateLabel } from "@/components/cinema/slate-label";
 import { Shuffle, Sparkles, ArrowRight, Layers, UserCheck } from "lucide-react";
 import type { FilmFusionResponse } from "@/lib/agent-service";
+import { getAllProjects, saveProject, type ProjectData, type ProjectCharacter } from "@/lib/project-store";
 
 interface FilmFusionDialogProps {
   open: boolean;
@@ -27,35 +28,56 @@ export function FilmFusionDialog({
   onFusionComplete,
 }: FilmFusionDialogProps) {
   const router = useRouter();
+  const [projects, setProjects] = React.useState<ProjectData[]>([]);
+  const [selectedProjAId, setSelectedProjAId] = React.useState<string>("vault-heist-demo");
+  const [selectedProjBId, setSelectedProjBId] = React.useState<string>("space-airlock-demo");
   const [isFusing, setIsFusing] = React.useState(false);
   const [directive, setDirective] = React.useState(
-    "Marcus and Elena's heist crew breaches an abandoned orbital vault station where Commander Vance is fighting an emergency biological containment breach."
+    "The heist crew infiltrates an orbital research station during an emergency quarantine breach, forcing opposing survivors into an armed standoff."
   );
   const [fusionResult, setFusionResult] = React.useState<FilmFusionResponse | null>(null);
+
+  React.useEffect(() => {
+    if (open) {
+      const projs = getAllProjects();
+      setProjects(projs);
+      if (projs.length >= 2) {
+        if (!projs.some((p) => p.id === selectedProjAId)) setSelectedProjAId(projs[0].id);
+        if (!projs.some((p) => p.id === selectedProjBId)) setSelectedProjBId(projs[1].id);
+      }
+    }
+  }, [open]);
+
+  const projA = projects.find((p) => p.id === selectedProjAId) || projects[0];
+  const projB = projects.find((p) => p.id === selectedProjBId) || projects[1] || projects[0];
 
   const handleRunFusion = async () => {
     setIsFusing(true);
     setFusionResult(null);
 
-    const scriptA = `INT. UNDERGROUND VAULT - NIGHT
-MARCUS: The bypass keys are gone. Elena, you were the last one at the locker.
-ELENA: We have six minutes until atmospheric purge. Panic won't unlock that door.`;
+    const titleA = projA?.title || "Film Alpha";
+    const scriptA =
+      projA?.screenplayText ||
+      `INT. UNDERGROUND VAULT - NIGHT\nMARCUS: The bypass keys are gone. Elena, you were the last one at the locker.\nELENA: We have six minutes until atmospheric purge.`;
+    const titleB =
+      projB?.title || "Film Beta";
+    const scriptB =
+      projB?.screenplayText ||
+      `INT. ORBITAL RESEARCH MODULE - ZERO GRAVITY\nCOMMANDER VANCE: Ray, someone entered the override sequence to purge the airlock!\nENGINEER RAY: If I didn't vent that compartment, whatever was inside would have reached life support.`;
 
-    const scriptB = `INT. ORBITAL RESEARCH MODULE - ZERO GRAVITY
-COMMANDER VANCE: Ray, someone entered the override sequence to purge the airlock!
-ENGINEER RAY: If I didn't vent that compartment, whatever was inside would have reached life support.`;
+    const fusionPid = `fusion-${selectedProjAId.slice(0, 8)}-${selectedProjBId.slice(0, 8)}`;
 
     try {
       const res = await fetch("/api/fusion", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title_a: "The Vault Heist",
+          title_a: titleA,
           script_a: scriptA,
-          title_b: "Deep Space Airlock",
+          title_b: titleB,
           script_b: scriptB,
           fusion_directive: directive,
-          fusion_project_id: "fusion-crossover-demo",
+          fusion_project_id: fusionPid,
         }),
       });
 
@@ -71,8 +93,47 @@ ENGINEER RAY: If I didn't vent that compartment, whatever was inside would have 
   };
 
   const handleEnterFusedStudio = () => {
-    onOpenChange(false);
-    router.push("/studio/fusion-crossover-demo");
+    if (fusionResult) {
+      const fusedChars: ProjectCharacter[] = fusionResult.character_remappings.map((remap) => ({
+        name: remap.original_name,
+        archetype: `${remap.fused_role} (${remap.alignment})`,
+        speechStyle: remap.speech_style || "sharp, dramatic",
+        subtextRatio: remap.subtext_ratio || "extreme",
+        actorComp: `${remap.original_name} Comp`,
+        objective: remap.fused_role,
+      }));
+
+      const fusedPid = fusionResult.fusion_project_id || `fusion-${selectedProjAId.slice(0, 8)}-${selectedProjBId.slice(0, 8)}`;
+
+      const fusedProject: ProjectData = {
+        id: fusedPid,
+        title: fusionResult.fused_title,
+        genre: "Crossover Speculative Thriller",
+        premise: fusionResult.fused_logline,
+        sceneTitle: `${fusionResult.fused_title} — Reconciled Climax`,
+        sceneSummary: fusionResult.fused_logline,
+        screenplayText: fusionResult.fused_screenplay,
+        characters: fusedChars,
+        initialEvents: (fusionResult.reconciled_events || []).map((ev) => {
+          const parts = ev.event_timestamp.split(":").map(Number);
+          const totalSec = (parts[0] || 0) * 3600 + (parts[1] || 0) * 60 + (parts[2] || 0);
+          return {
+            atSeconds: totalSec,
+            characterName: ev.character_name,
+            eventType: ev.event_type as any,
+          };
+        }),
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        isCustom: true,
+      };
+
+      saveProject(fusedProject);
+      onOpenChange(false);
+      router.push(`/studio/${fusedPid}`);
+    } else {
+      onOpenChange(false);
+    }
   };
 
   return (
@@ -87,26 +148,51 @@ ENGINEER RAY: If I didn't vent that compartment, whatever was inside would have 
             Film Fusion: Reconcile Two Distinct Stories
           </DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">
-            Combines two source screenplays, re-maps character objectives, detects narrative contradictions, and reconciles a unified ClickHouse time-gated story timeline.
+            Select two source screenplays to re-map character objectives, resolve narrative conflicts, and reconcile a unified ClickHouse story timeline.
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto space-y-4 py-2">
-          {/* Source Stories Strip */}
+          {/* Dynamic Source Stories Selection */}
           <div className="grid grid-cols-2 gap-3 p-3 rounded-lg border border-border bg-secondary/20 text-xs">
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <span className="font-mono text-[10px] text-accent uppercase tracking-wider block">
-                Source Story A
+                Source Story Alpha
               </span>
-              <p className="font-semibold text-foreground">The Vault Heist</p>
-              <p className="text-muted-foreground text-[11px]">Marcus (Driver) &amp; Elena (Mastermind)</p>
+              <select
+                value={selectedProjAId}
+                onChange={(e) => setSelectedProjAId(e.target.value)}
+                className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground font-semibold"
+              >
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.title}
+                  </option>
+                ))}
+              </select>
+              <p className="text-muted-foreground text-[11px] truncate">
+                Cast: {projA?.characters?.map((c) => c.name).join(", ") || "Ensemble"}
+              </p>
             </div>
-            <div className="space-y-1">
+
+            <div className="space-y-1.5">
               <span className="font-mono text-[10px] text-accent uppercase tracking-wider block">
-                Source Story B
+                Source Story Beta
               </span>
-              <p className="font-semibold text-foreground">Deep Space Airlock</p>
-              <p className="text-muted-foreground text-[11px]">Commander Vance &amp; Engineer Ray</p>
+              <select
+                value={selectedProjBId}
+                onChange={(e) => setSelectedProjBId(e.target.value)}
+                className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground font-semibold"
+              >
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.title}
+                  </option>
+                ))}
+              </select>
+              <p className="text-muted-foreground text-[11px] truncate">
+                Cast: {projB?.characters?.map((c) => c.name).join(", ") || "Ensemble"}
+              </p>
             </div>
           </div>
 
