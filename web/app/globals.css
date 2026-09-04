@@ -1,0 +1,273 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+/*
+  ---break---
+*/
+@custom-variant dark (&:is(.dark *));
+
+/*
+  Agentic Cinema theme — "screening room" dark studio.
+  Reference points: Bloomberg Terminal (density without clutter), DaVinci
+  Resolve / Avid (desaturated, precise, cold surfaces), Linear (proof dark
+  can feel premium not just moody). Built for directors/producers evaluating
+  a professional tool, not a consumer AI toy.
+
+  This product is dark-only by design — no light mode. A screening room
+  doesn't have a light mode. The `.dark` variant/class is kept only because
+  shadcn components reference it structurally; the values below are
+  identical on :root and .dark so the app looks the same regardless.
+
+  Discipline rule: --accent (amber) is reserved for the timeline/playhead/
+  active-state ONLY. It must never appear on routine buttons, links, or
+  badges — the moment it's used everywhere it stops signaling anything, and
+  the time-gate scrub is the one moment in the whole product that needs to
+  visually announce itself.
+*/
+
+:root,
+.dark {
+  --radius: 0.5rem;
+
+  --background: #0c0d10;
+  --foreground: #e8e9eb;
+
+  --card: #15171b;
+  --card-foreground: #e8e9eb;
+
+  --popover: #15171b;
+  --popover-foreground: #e8e9eb;
+
+  --primary: #e8e9eb;
+  --primary-foreground: #0c0d10;
+
+  --secondary: #1c1f24;
+  --secondary-foreground: #e8e9eb;
+
+  --muted: #1c1f24;
+  --muted-foreground: #8b8f98;
+
+  /* Reserved: timeline playhead, active timestamp, hot-seat "live" indicator */
+  --accent: #d4a054;
+  --accent-foreground: #0c0d10;
+
+  --destructive: #c25b52;
+  --destructive-foreground: #e8e9eb;
+
+  --success: #5fa88a;
+  --success-foreground: #0c0d10;
+
+  --warning: #c9975a;
+  --warning-foreground: #0c0d10;
+
+  --border: #2a2d33;
+  --input: #2a2d33;
+  --ring: #d4a054;
+
+  --chart-1: #d4a054;
+  --chart-2: #5fa88a;
+  --chart-3: #6b8fb0;
+  --chart-4: #a377a8;
+  --chart-5: #c25b52;
+
+  --sidebar: #101216;
+  --sidebar-foreground: #e8e9eb;
+  --sidebar-primary: #e8e9eb;
+  --sidebar-primary-foreground: #0c0d10;
+  --sidebar-accent: #1c1f24;
+  --sidebar-accent-foreground: #e8e9eb;
+  --sidebar-border: #2a2d33;
+  --sidebar-ring: #d4a054;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-geist-sans);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+/* Timecode / story-timestamp readout — the one place monospace + accent
+   color combine. Used for the timeline scrubber and any HH:MM:SS display. */
+.timecode {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+}
+
+/*
+  Cinema motif primitives — the structural language that signals "film tool"
+  rather than "generic dark-mode SaaS." Referenced literally from physical
+  film stock: sprocket perforations, the 2.39:1 scope letterbox ratio, and
+  slate/burn-in frame labels. Used as structure, not decoration — sprocket
+  edges mark real boundaries (card edges, section dividers), letterboxing
+  frames real media surfaces (storyboards, scene previews).
+*/
+
+/* Sprocket perforation strip — repeating rounded holes at fixed pitch,
+   evenly inset from the edge, matching real 35mm film pitch proportions.
+   Apply to top/bottom of a card via ::before/::after through the utility
+   classes below, or use directly as a standalone strip. */
+.sprocket-strip {
+  height: 10px;
+  background-image: repeating-linear-gradient(
+    to right,
+    var(--border) 0px,
+    var(--border) 4px,
+    transparent 4px,
+    transparent 15px
+  );
+  background-position: center;
+  background-repeat: repeat-x;
+  background-size: 15px 4px;
+  opacity: 0.7;
+}
+
+.sprocket-edge {
+  position: relative;
+}
+.sprocket-edge::before,
+.sprocket-edge::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 8px;
+  background-image: repeating-linear-gradient(
+    to right,
+    var(--border) 0px,
+    var(--border) 3px,
+    transparent 3px,
+    transparent 13px
+  );
+  background-position: 6px center;
+  background-repeat: repeat-x;
+  background-size: 13px 3px;
+  opacity: 0.55;
+  pointer-events: none;
+}
+.sprocket-edge::before {
+  top: 0;
+}
+.sprocket-edge::after {
+  bottom: 0;
+}
+
+/* Letterbox — true 2.39:1 scope framing with real bars, not just an aspect
+   ratio box. Content sits in the exposed window; bars are pure background. */
+.letterbox {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 2.39 / 1;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+}
+.letterbox > * {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Slate label — a corner burn-in tag like a workprint frame counter or
+   production slate. Use on scene/script cards and generated media. */
+.slate-label {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+.slate-label::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+/* Film-cell card texture — extremely subtle vertical grain so surfaces
+   don't read as flat SaaS panels. Kept faint deliberately: texture that's
+   visible in a screenshot but invisible in motion/on camera compression. */
+.film-grain {
+  position: relative;
+}
+.film-grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.035;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
