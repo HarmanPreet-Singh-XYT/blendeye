@@ -22,6 +22,21 @@ async function postJson<TResponse>(path: string, body: unknown): Promise<TRespon
   return res.json() as Promise<TResponse>;
 }
 
+async function getJson<TResponse>(path: string): Promise<TResponse> {
+  const res = await fetch(`${AGENT_SERVICE_URL}${path}`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`agent-service ${path} failed (${res.status}): ${detail}`);
+  }
+
+  return res.json() as Promise<TResponse>;
+}
+
 export interface GenerateScriptResponse {
   screenplay_text: string;
 }
@@ -38,7 +53,17 @@ export interface StoryEvent {
   content: string;
 }
 
+export interface CharacterProfile {
+  name: string;
+  archetype: string;
+  speech_style?: string;
+  subtext_ratio?: string;
+}
+
 export interface ShardScriptResponse {
+  scene_title: string;
+  scene_summary: string;
+  characters: CharacterProfile[];
   events_written: number;
   events: StoryEvent[];
 }
@@ -48,6 +73,10 @@ export function shardScript(projectId: string, screenplayText: string) {
     project_id: projectId,
     screenplay_text: screenplayText,
   });
+}
+
+export function getProjectEvents(projectId: string) {
+  return getJson<StoryEvent[]>(`/sharding/events/${encodeURIComponent(projectId)}`);
 }
 
 export interface HotSeatTurnIn {
@@ -72,9 +101,27 @@ export interface KnowledgeFactOut {
   type: "known_fact" | "unaware_of";
 }
 
+export interface KnowledgeStateResponse {
+  character_name: string;
+  current_timestamp: string;
+  known_facts: KnowledgeFactOut[];
+  query_sql: string;
+}
+
+export function getKnowledgeState(projectId: string, characterName: string, currentTimestamp: string) {
+  const query = new URLSearchParams({
+    project_id: projectId,
+    character_name: characterName,
+    current_timestamp: currentTimestamp,
+  });
+  return getJson<KnowledgeStateResponse>(`/hot-seat/knowledge?${query.toString()}`);
+}
+
 export interface HotSeatAskResponse {
   answer: string;
   known_facts: KnowledgeFactOut[];
+  is_within_firewall?: boolean;
+  query_sql?: string;
 }
 
 export function askHotSeat(req: HotSeatAskRequest) {

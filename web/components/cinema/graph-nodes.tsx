@@ -84,6 +84,7 @@ export interface SceneNodeData extends Record<string, unknown> {
   state: NodeState;
   summary?: string;
   characterCount?: number;
+  onViewScript?: () => void;
 }
 
 function SceneNode({ data, selected }: NodeProps & { data: SceneNodeData }) {
@@ -92,11 +93,25 @@ function SceneNode({ data, selected }: NodeProps & { data: SceneNodeData }) {
       {data.summary && (
         <p className="line-clamp-2 text-xs text-muted-foreground">{data.summary}</p>
       )}
-      {typeof data.characterCount === "number" && (
-        <p className="mt-1.5 text-[11px] text-muted-foreground">
-          {data.characterCount} character{data.characterCount === 1 ? "" : "s"} sharded
-        </p>
-      )}
+      <div className="mt-2 flex items-center justify-between">
+        {typeof data.characterCount === "number" && (
+          <span className="text-[11px] text-muted-foreground">
+            {data.characterCount} character{data.characterCount === 1 ? "" : "s"} sharded
+          </span>
+        )}
+        {data.onViewScript && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              data.onViewScript?.();
+            }}
+            className="rounded px-1.5 py-0.5 text-[10px] font-medium text-accent hover:bg-accent/10 transition-colors"
+          >
+            Read Script →
+          </button>
+        )}
+      </div>
     </NodeShell>
   );
 }
@@ -105,13 +120,26 @@ export interface CharacterNodeData extends Record<string, unknown> {
   name: string;
   state: NodeState;
   archetype?: string;
+  isSelected?: boolean;
 }
 
 function CharacterNode({ data, selected }: NodeProps & { data: CharacterNodeData }) {
+  const isTarget = data.isSelected || selected;
   return (
-    <NodeShell kind="Character" title={data.name} state={data.state} selected={selected}>
+    <NodeShell
+      kind="Character"
+      title={data.name}
+      state={data.state}
+      selected={isTarget}
+    >
       {data.archetype && (
         <p className="text-xs text-muted-foreground">{data.archetype}</p>
+      )}
+      {data.isSelected && (
+        <div className="mt-2 flex items-center gap-1.5 text-[10px] text-accent font-medium">
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+          Live in Hot Seat
+        </div>
       )}
     </NodeShell>
   );
@@ -134,10 +162,40 @@ function InspirationNode({ data, selected }: NodeProps & { data: InspirationNode
   );
 }
 
+export interface StoryboardNodeData extends Record<string, unknown> {
+  prompt: string;
+  shotType?: string;
+  lighting?: string;
+}
+
+function StoryboardNode({ data, selected }: NodeProps & { data: StoryboardNodeData }) {
+  return (
+    <NodeShell kind="Storyboard" title="Cinematic Frame" state="ready" selected={selected}>
+      <div className="letterbox relative mt-1 w-full overflow-hidden rounded border border-border/70 bg-gradient-to-br from-secondary/80 via-card to-background flex items-center justify-center p-3 text-center">
+        <div className="z-10 flex flex-col gap-1">
+          <span className="text-[9px] font-mono uppercase tracking-widest text-accent">
+            {data.shotType || "2.39:1 Anamorphic Master"}
+          </span>
+          <p className="text-[11px] leading-snug text-foreground/90 line-clamp-2 italic">
+            &ldquo;{data.prompt}&rdquo;
+          </p>
+        </div>
+      </div>
+      {data.lighting && (
+        <div className="mt-1.5 flex items-center justify-between text-[10px] text-muted-foreground">
+          <span>Atmosphere: {data.lighting}</span>
+          <span className="font-mono text-accent font-medium">Imagen 3</span>
+        </div>
+      )}
+    </NodeShell>
+  );
+}
+
 export const nodeTypes = {
   scene: SceneNode,
   character: CharacterNode,
   inspiration: InspirationNode,
+  storyboard: StoryboardNode,
 };
 
-export { SceneNode, CharacterNode, InspirationNode, NodeShell };
+export { SceneNode, CharacterNode, InspirationNode, StoryboardNode, NodeShell };

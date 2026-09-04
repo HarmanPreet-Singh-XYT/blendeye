@@ -27,33 +27,32 @@ class ShardedEvent(BaseModel):
     content: str
 
 
+class CharacterProfile(BaseModel):
+    name: str
+    archetype: str = Field(description="Short archetype or role, e.g. 'Getaway driver, rattles easily'")
+    speech_style: str = Field(default="naturalistic", description="Cadence, e.g. terse, fast, defensive")
+    subtext_ratio: str = Field(default="moderate", description="Subtext level: low, moderate, high")
+
+
 class PerspectiveShardResult(BaseModel):
-    events: list[ShardedEvent]
+    scene_title: str = Field(description="Short cinematic title for the scene, e.g. 'The Vault Break'")
+    scene_summary: str = Field(description="1-2 sentence synopsis of what happens in the scene")
+    characters: list[CharacterProfile] = Field(description="List of characters appearing in or referenced in the scene")
+    events: list[ShardedEvent] = Field(description="Flat list of timestamped events across all characters")
 
 
 INSTRUCTION = """
-You are a script continuity analyst. Given a screenplay scene, decompose it
-into a flat list of timestamped events, one per character, tracking:
+You are a script continuity analyst. Given a screenplay scene, analyze it and:
+1. Provide a concise scene title and a 1-2 sentence synopsis.
+2. Identify all characters appearing in the scene with their archetypes, speech styles, and subtext levels.
+3. Decompose the scene into a flat list of timestamped events for each character, tracking:
+   - known_fact: something this character witnessed or learned by this point in the story, stated as a short factual sentence.
+   - unaware_of: something relevant that happened in the scene that this character did NOT witness and has no way of knowing yet — including things other characters know, or events that occurred off-screen. For every named character, identify at least one fact that OTHER characters know but THIS character does NOT. This information firewall is essential.
+   - location: where the character physically is at that timestamp.
+   - objective: what the character is actively trying to do at that timestamp.
 
-- known_fact: something this character has witnessed or learned by this
-  point in the story, stated as a short factual sentence.
-- unaware_of: something relevant that happened in the scene that this
-  character did NOT witness and has no way of knowing yet — including
-  things other characters know, or events that occurred off-screen from
-  this character's point of view. This is the important one: for every
-  named character, look for at least one fact that OTHER characters in the
-  scene know but THIS character does not. That asymmetry is the entire
-  point of this task.
-- location: where the character physically is at that timestamp.
-- objective: what the character is actively trying to do at that timestamp.
+Assign plausible HH:MM:SS story-timestamps to each event based on the scene's internal pacing (assume the scene starts at a reasonable point in a feature runtime, e.g. 00:25:00, and events progress forward by a few minutes each as the scene plays out, e.g. 00:28:00, 00:34:00, 00:42:00, 00:52:00). Do not cluster all events at one timestamp.
 
-Assign a plausible HH:MM:SS story-timestamp to each event based on the
-scene's internal pacing (assume the scene starts at a reasonable point in a
-feature-length runtime, e.g. 00:25:00, and events progress forward by a few
-minutes each as the scene plays out — do not cluster everything at one
-timestamp).
-
-Cover every named character who appears or is referenced in the scene.
 Output must conform exactly to the provided schema.
 """
 

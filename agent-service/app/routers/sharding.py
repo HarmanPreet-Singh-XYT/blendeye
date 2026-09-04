@@ -1,7 +1,9 @@
+import re
 from fastapi import APIRouter
 from pydantic import BaseModel
 
 from app.agents.perspective_sharder import (
+    CharacterProfile,
     PerspectiveShardResult,
     build_perspective_sharder_agent,
 )
@@ -17,15 +19,28 @@ class ShardScriptRequest(BaseModel):
 
 
 class ShardScriptResponse(BaseModel):
+    scene_title: str
+    scene_summary: str
+    characters: list[CharacterProfile]
     events_written: int
     events: list[StoryEvent]
+
+
+def _clean_json_str(raw: str) -> str:
+    """Strips markdown code fences and extraneous text if present."""
+    text = raw.strip()
+    match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", text)
+    if match:
+        return match.group(1).strip()
+    return text
 
 
 @router.post("/shard", response_model=ShardScriptResponse)
 async def shard_script(body: ShardScriptRequest) -> ShardScriptResponse:
     agent = build_perspective_sharder_agent()
     raw = await run_agent_once(agent, body.screenplay_text, app_name="perspective-sharder")
-    parsed = PerspectiveShardResult.model_validate_json(raw)
+    cleaned = _clean_json_str(raw)
+    parsed = PerspectiveShardResult.model_validate_json(cleaned)
 
     events = [
         StoryEvent(
@@ -41,4 +56,16 @@ async def shard_script(body: ShardScriptRequest) -> ShardScriptResponse:
     store = get_clickhouse_store()
     store.insert_events(events)
 
-    return ShardScriptResponse(events_written=len(events), events=events)
+    return ShardScriptResponse(
+        scene_title=parsed.scene_title,
+        scene_summary=parsed.scene_summary,
+        characters=parsed.characters,
+        events_written=len(events),
+        events=events,
+    )
+
+
+@router.get("/events/{project_id}", response_model=list[StoryEvent])
+async def get_project_events(project_id: str) -> list[StoryEvent]:
+    store = get_clickhouse_store()
+    return store.events_for_project(project_id)
