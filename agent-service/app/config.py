@@ -1,6 +1,18 @@
 from functools import lru_cache
 
+from dotenv import load_dotenv
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# pydantic-settings' env_file loading only populates the Settings object
+# below — it does NOT export values into os.environ. google-genai's Client
+# (which ADK's Agent uses under the hood) reads GOOGLE_API_KEY straight
+# from os.environ itself, independent of anything Settings parses. Without
+# this, GOOGLE_API_KEY silently never reaches the actual Gemini client even
+# though Settings.google_api_key is populated correctly — the two are
+# unrelated pipes. Loading .env into the real process environment here
+# closes that gap; safe to call before pydantic-settings does its own
+# (separate) parse of the same file below.
+load_dotenv()
 
 
 class Settings(BaseSettings):
@@ -12,13 +24,16 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     # Gemini / Google Cloud — required per hackathon rules (Google Cloud AI
-    # only). GOOGLE_GENAI_USE_VERTEXAI toggles Vertex AI vs. AI Studio auth;
-    # ADK respects the same env vars, no extra wiring needed on our side.
+    # only). GOOGLE_GENAI_USE_VERTEXAI toggles Vertex AI vs. AI Studio auth.
+    # NOTE: google-genai's Client reads GOOGLE_API_KEY etc. directly from
+    # os.environ (see load_dotenv() above), not from this Settings object —
+    # these fields exist for our own code (e.g. clickhouse_mcp.py building
+    # a subprocess env) and validation, not because ADK consults them.
     google_api_key: str = ""
     google_genai_use_vertexai: bool = False
     google_cloud_project: str = ""
     google_cloud_location: str = "us-central1"
-    gemini_model: str = "gemini-2.5-flash"
+    gemini_model: str = "gemini-3.7-flash"
 
     # ClickHouse — the required partner track integration. Story Event
     # Engine (see plan.md Layer 2) reads/writes here via mcp-clickhouse.

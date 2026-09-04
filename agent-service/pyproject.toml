@@ -19,6 +19,11 @@ dependencies = [
     "mcp>=1.9,<2.0",
     "mcp-clickhouse==0.5.0",
     "httpx>=0.28.1",
+    # Explicit direct dep (was only transitive via google-adk) — see
+    # config.py's load_dotenv() call for why this matters: pydantic-settings'
+    # env_file loading does not export into os.environ, but google-genai's
+    # Client reads GOOGLE_API_KEY straight from there.
+    "python-dotenv>=1.2.3",
 ]
 
 [dependency-groups]

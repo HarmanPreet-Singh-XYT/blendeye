@@ -167,7 +167,7 @@ def create_time_gated_interrogator(state: CharacterTimelineState, character_prof
 
     return Agent(
         name=f"timegated_{state.character_name.lower()}_{state.current_timestamp.replace(':', '_')}",
-        model="gemini-2.5-flash",
+        model="gemini-3.7-flash",
         instruction=instruction
     )
 ```
