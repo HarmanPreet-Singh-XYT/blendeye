@@ -20,8 +20,33 @@ function ResizablePanelGroup({
   );
 }
 
-function ResizablePanel({ ...props }: ResizablePrimitive.PanelProps) {
-  return <ResizablePrimitive.Panel data-slot="resizable-panel" {...props} />;
+function normalizeSize(size: number | string | undefined): number | string | undefined {
+  if (size === undefined) return undefined;
+  if (typeof size === "number") {
+    // In shadcn conventions, size numbers between 0 and 100 represent percentages.
+    // In react-resizable-panels v4, numbers are interpreted as raw pixels unless given '%'.
+    return size <= 100 ? `${size}%` : `${size}px`;
+  }
+  return size;
+}
+
+function ResizablePanel({
+  defaultSize,
+  minSize,
+  maxSize,
+  collapsedSize,
+  ...props
+}: ResizablePrimitive.PanelProps) {
+  return (
+    <ResizablePrimitive.Panel
+      data-slot="resizable-panel"
+      defaultSize={normalizeSize(defaultSize)}
+      minSize={normalizeSize(minSize)}
+      maxSize={normalizeSize(maxSize)}
+      collapsedSize={normalizeSize(collapsedSize)}
+      {...props}
+    />
+  );
 }
 
 function ResizableHandle({

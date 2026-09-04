@@ -1140,10 +1140,10 @@ export default function StudioPage() {
       <div className="flex-1 min-h-0 h-full relative overflow-hidden">
         <ResizablePanelGroup orientation="vertical" className="h-full w-full">
           {/* Top Panel: Canvas + Resizable Inspector Sidebar */}
-          <ResizablePanel defaultSize={65} minSize={25} maxSize={88} className="relative">
+          <ResizablePanel defaultSize="65%" minSize="25%" maxSize="85%" className="relative">
             <ResizablePanelGroup orientation="horizontal" className="h-full w-full">
               {/* Left Panel: React Flow Story Canvas */}
-              <ResizablePanel defaultSize={72} minSize={35}>
+              <ResizablePanel defaultSize="72%" minSize="35%">
                 <div className="relative h-full w-full overflow-hidden bg-background">
                   <StoryCanvas
                     nodes={nodes}
@@ -1164,10 +1164,10 @@ export default function StudioPage() {
               <ResizablePanel
                 panelRef={inspectorPanelRef}
                 collapsible={true}
-                collapsedSize={0}
-                defaultSize={28}
-                minSize={18}
-                maxSize={48}
+                collapsedSize="0%"
+                defaultSize="28%"
+                minSize="18%"
+                maxSize="50%"
                 onResize={(panelSize) => {
                   setIsSidebarOpen(panelSize.asPercentage > 2);
                 }}
@@ -1203,7 +1203,7 @@ export default function StudioPage() {
           <ResizableHandle withHandle />
 
           {/* Bottom Panel: Resizable Cinema Dock */}
-          <ResizablePanel defaultSize={35} minSize={12} maxSize={75} className="flex flex-col overflow-hidden bg-card/95 backdrop-blur border-t border-border">
+          <ResizablePanel defaultSize="35%" minSize="15%" maxSize="75%" className="flex flex-col overflow-hidden bg-card/95 backdrop-blur border-t border-border">
             {/* Navigation Strip */}
             <div className="flex h-10 shrink-0 items-center justify-between border-b border-border px-4 bg-secondary/30">
               <div className="flex items-center gap-1">
