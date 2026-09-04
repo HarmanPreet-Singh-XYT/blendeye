@@ -54,6 +54,7 @@ async def shard_script(body: ShardScriptRequest) -> ShardScriptResponse:
     ]
 
     store = get_clickhouse_store()
+    store.clear_project_events(body.project_id)
     store.insert_events(events)
 
     return ShardScriptResponse(

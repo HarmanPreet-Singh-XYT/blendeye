@@ -137,3 +137,34 @@ export function askHotSeat(req: HotSeatAskRequest) {
     prior_turns: req.priorTurns ?? [],
   });
 }
+
+export interface ShowrunnerMessage {
+  role: "user" | "showrunner";
+  content: string;
+}
+
+export interface ShowrunnerChatRequest {
+  projectTitle?: string;
+  logline?: string;
+  screenplayText?: string;
+  characters?: string[];
+  message: string;
+  history?: ShowrunnerMessage[];
+}
+
+export interface ShowrunnerChatResponse {
+  reply: string;
+  suggested_actions: string[];
+}
+
+export function chatWithShowrunner(req: ShowrunnerChatRequest) {
+  return postJson<ShowrunnerChatResponse>("/showrunner/chat", {
+    project_title: req.projectTitle ?? "",
+    logline: req.logline ?? "",
+    screenplay_text: req.screenplayText ?? "",
+    characters: req.characters ?? [],
+    message: req.message,
+    history: req.history ?? [],
+  });
+}
+

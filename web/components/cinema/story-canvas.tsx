@@ -32,6 +32,7 @@ function StoryCanvas({
   onNodesChange,
   onEdgesChange,
   onConnect,
+  onNodeClick,
   extraNodeTypes,
   children,
 }: {
@@ -40,6 +41,7 @@ function StoryCanvas({
   onNodesChange?: React.ComponentProps<typeof ReactFlow>["onNodesChange"];
   onEdgesChange?: React.ComponentProps<typeof ReactFlow>["onEdgesChange"];
   onConnect?: React.ComponentProps<typeof ReactFlow>["onConnect"];
+  onNodeClick?: React.ComponentProps<typeof ReactFlow>["onNodeClick"];
   extraNodeTypes?: NodeTypes;
   children?: React.ReactNode;
 }) {
@@ -51,6 +53,7 @@ function StoryCanvas({
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onNodeClick={onNodeClick}
         nodeTypes={{ ...nodeTypes, ...extraNodeTypes }}
         defaultEdgeOptions={{
           type: "smoothstep",

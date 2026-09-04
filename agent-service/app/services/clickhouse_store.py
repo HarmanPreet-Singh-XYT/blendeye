@@ -140,6 +140,14 @@ class ClickHouseStore:
             for row in result.result_rows
         ]
 
+    def clear_project_events(self, project_id: str) -> None:
+        """Deletes prior events for a project to ensure idempotent re-sharding."""
+        self._client.command(
+            "ALTER TABLE story_events DELETE WHERE project_id = {project_id:String}",
+            parameters={"project_id": project_id},
+        )
+
+
 
 @lru_cache
 def get_clickhouse_store() -> ClickHouseStore:
