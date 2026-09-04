@@ -155,6 +155,16 @@ export interface ShowrunnerChatRequest {
 export interface ShowrunnerChatResponse {
   reply: string;
   suggested_actions: string[];
+  clickhouse_query_sql?: string;
+  precedents_cited?: Array<{
+    genre: string;
+    trope: string;
+    historical_reference: string;
+    tension_level: number;
+    commercial_territory: string;
+    audience_retention_pct: number;
+    precedent_example: string;
+  }>;
 }
 
 export function chatWithShowrunner(req: ShowrunnerChatRequest) {

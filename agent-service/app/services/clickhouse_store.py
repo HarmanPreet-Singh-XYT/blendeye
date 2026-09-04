@@ -147,6 +147,29 @@ class ClickHouseStore:
             parameters={"project_id": project_id},
         )
 
+    def get_cinematic_precedents(self, genre: str = "") -> list[dict]:
+        """Queries ClickHouse cinematic_precedents table for grounding flourish."""
+        query = "SELECT genre, trope, historical_reference, tension_level, commercial_territory, audience_retention_pct, precedent_example FROM cinematic_precedents"
+        params = {}
+        if genre:
+            query += " WHERE genre LIKE {genre:String}"
+            params["genre"] = f"%{genre}%"
+        query += " ORDER BY audience_retention_pct DESC"
+        result = self._client.query(query, parameters=params)
+        return [
+            {
+                "genre": row[0],
+                "trope": row[1],
+                "historical_reference": row[2],
+                "tension_level": row[3],
+                "commercial_territory": row[4],
+                "audience_retention_pct": float(row[5]),
+                "precedent_example": row[6],
+            }
+            for row in result.result_rows
+        ]
+
+
 
 
 @lru_cache

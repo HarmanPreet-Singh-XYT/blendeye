@@ -10,7 +10,7 @@ export interface ClickHouseQueryLog {
   timestamp: string;
   sql: string;
   durationMs?: number;
-  type: "scrub" | "interrogate" | "insert" | "events";
+  type: "scrub" | "interrogate" | "insert" | "events" | "precedents";
 }
 
 interface ClickHouseInspectorProps {

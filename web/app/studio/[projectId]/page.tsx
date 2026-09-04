@@ -406,6 +406,7 @@ export default function StudioProjectPage() {
     const userMsg: ShowrunnerMessage = { role: "user", content: message };
     setShowrunnerMessages((prev) => [...prev, userMsg]);
 
+    const start = performance.now();
     try {
       const res = await fetch("/api/showrunner/chat", {
         method: "POST",
@@ -426,6 +427,10 @@ export default function StudioProjectPage() {
           ...prev,
           { role: "showrunner", content: data.reply },
         ]);
+        if (data.clickhouse_query_sql) {
+          const elapsed = Math.round(performance.now() - start);
+          logClickHouseQuery(data.clickhouse_query_sql, "precedents", elapsed);
+        }
       }
     } catch (err) {
       console.error("Showrunner error:", err);
