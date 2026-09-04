@@ -20,20 +20,24 @@ Full request/response schemas: run the server and visit `/docs`.
 
 ## Setup
 
-Requires Python 3.12 and [uv](https://docs.astral.sh/uv/).
+Requires [uv](https://docs.astral.sh/uv/) — it manages the Python version
+(pinned via `.python-version`, 3.12), the venv, and locked dependency
+versions (`uv.lock`, committed) automatically. No manual venv activation.
 
 ```bash
 cd agent-service
-uv venv .venv --python 3.12
-uv pip install -e . --python .venv/bin/python
+uv sync   # creates .venv, installs exact locked versions from uv.lock
 cp .env.example .env   # then fill in GOOGLE_API_KEY and CLICKHOUSE_* values
 ```
 
 Run:
 
 ```bash
-.venv/bin/python -m uvicorn app.main:app --reload --port 8000
+uv run uvicorn app.main:app --reload --port 8000
 ```
+
+To pick up new upstream releases (respecting the `mcp`/`mcp-clickhouse` pin
+below), run `uv lock -U` then `uv sync`.
 
 `/health` and `/script/generate` work with only `GOOGLE_API_KEY` set —
 `/sharding/shard` and `/hot-seat/ask` additionally need a reachable
@@ -56,16 +60,21 @@ Two separate paths, intentionally:
 
 ## Dependency note
 
-`mcp-clickhouse` is pinned to `0.5.0` and `mcp` to `>=1.9,<2.0`. Newer
-`mcp-clickhouse` (0.6.0+) requires `fastmcp>=4.0` which requires `mcp>=2.0`,
-but `google-adk` 2.8.0's `McpToolset` imports `mcp.shared.session`, a module
-that doesn't exist in `mcp` 2.x's restructured package layout. This is a
-real, current upstream conflict between the two packages — not a
-preference. Re-check this pin before upgrading either dependency.
+`mcp-clickhouse` is pinned to `0.5.0` and `mcp` to `>=1.9,<2.0` in
+`pyproject.toml`, and `uv.lock` freezes the exact resolved versions of
+everything else — every other dependency floor is set to the latest
+release available as of 2026-09-04. Newer `mcp-clickhouse` (0.6.0+)
+requires `fastmcp>=4.0` which requires `mcp>=2.0`, but `google-adk` 2.8.0's
+`McpToolset` imports `mcp.shared.session`, a module that doesn't exist in
+`mcp` 2.x's restructured package layout. This is a real, current upstream
+conflict between the two packages, confirmed by `uv`'s resolver refusing to
+solve it with both packages latest — not a preference. Re-check this pin
+(`uv lock -U` and see if it still fails) before upgrading either
+dependency.
 
 ## Lint / test
 
 ```bash
-.venv/bin/ruff check app/
-.venv/bin/pytest
+uv run ruff check app/
+uv run pytest
 ```
