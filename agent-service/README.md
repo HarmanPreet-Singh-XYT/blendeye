@@ -27,10 +27,22 @@ versions (`uv.lock`, committed) automatically. No manual venv activation.
 ```bash
 cd agent-service
 uv sync   # creates .venv, installs exact locked versions from uv.lock
-cp .env.example .env   # then fill in GOOGLE_API_KEY and CLICKHOUSE_* values
+cp .env.example .env   # then fill in GOOGLE_API_KEY at minimum
 ```
 
-Run:
+`/health` and `/script/generate` work with only `GOOGLE_API_KEY` set.
+`/sharding/shard` and `/hot-seat/ask` additionally need a reachable
+ClickHouse instance — for local dev, start the container from the repo
+root (`docker compose up -d clickhouse`) and make sure
+`CLICKHOUSE_PASSWORD` here matches the root `.env`'s value (an empty
+password is rejected by ClickHouse's HTTP auth, confirmed by testing — use
+a real value even for local dev). ClickHouse Cloud works too; see the
+`CLICKHOUSE_*` comments in `.env.example`.
+
+Run this service natively, not in Docker, while actively developing —
+`--reload` plus a native Python process is a faster edit loop than
+anything bind-mount-based, and ClickHouse is the only piece here that
+genuinely benefits from staying containerized:
 
 ```bash
 uv run uvicorn app.main:app --reload --port 8000
@@ -38,11 +50,6 @@ uv run uvicorn app.main:app --reload --port 8000
 
 To pick up new upstream releases (respecting the `mcp`/`mcp-clickhouse` pin
 below), run `uv lock -U` then `uv sync`.
-
-`/health` and `/script/generate` work with only `GOOGLE_API_KEY` set —
-`/sharding/shard` and `/hot-seat/ask` additionally need a reachable
-ClickHouse instance (ClickHouse Cloud free tier or self-hosted both work;
-see `CLICKHOUSE_*` vars in `.env.example`).
 
 ## ClickHouse integration
 

@@ -37,12 +37,17 @@ class Settings(BaseSettings):
 
     # ClickHouse — the required partner track integration. Story Event
     # Engine (see plan.md Layer 2) reads/writes here via mcp-clickhouse.
+    # Defaults below target a local self-hosted container (see root
+    # docker-compose.yml's `clickhouse` service: HTTP port 8123, no TLS).
+    # Point at ClickHouse Cloud instead by overriding host/port 8443/
+    # secure=true in your .env — Cloud's default HTTPS port, unlike the
+    # self-hosted container's plain HTTP port.
     clickhouse_host: str = "localhost"
-    clickhouse_port: int = 8443
+    clickhouse_port: int = 8123
     clickhouse_user: str = "default"
     clickhouse_password: str = ""
     clickhouse_database: str = "default"
-    clickhouse_secure: bool = True
+    clickhouse_secure: bool = False
 
     # CORS — only the Next.js frontend calls this service.
     allowed_origins: list[str] = ["http://localhost:3000"]
