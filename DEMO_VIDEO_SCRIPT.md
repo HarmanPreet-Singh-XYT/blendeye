@@ -56,21 +56,22 @@
 
 ---
 
-### 2:15 – 2:45 | Showrunner AI & Multiverse Film Fusion
-* **Screen**: Switch to the **Showrunner AI** tab, then click **Film Fusion**.
+### 2:15 – 2:45 | Director's Deck, Audio Table Read & Multiverse Takes
+* **Screen**: Switch to the **Director's Deck** tab, then show **Screenplay Audio Table Read**.
 * **Voiceover**:
-  > *"We also built an omniscient Showrunner AI co-pilot. When we ask for dramatic critique, it doesn't just guess — it queries ClickHouse for real cinematic precedents and audience retention metrics.*
+  > *"For directors, we built a complete Pre-Production Deck: an interactive 2D architectural floor plan with 3-camera blocking, a 3-act tension and pacing curve, Hollywood shooting stripboards, and comparative box office intelligence from ClickHouse.*
   >
-  > *And with our Layer 4b Film Fusion engine, you can take two completely different stories — like our heist movie and a deep-space airlock thriller — and Gemini plus ClickHouse will reconcile their timelines, remap character roles, and generate a unified crossover."*
+  > *You can even click 'Audio Table Read' to hear multi-voice synthesized dialogue playback with real-time rhythm tracking, or open 'Multiverse Takes' to hot-swap between Psychological Slow-Burn, Neo-Noir, and Visceral Action cuts with one click."*
 * **Action**:
-  - Click **Film Fusion** in the top bar.
-  - Show the reconciled crossover modal (*"Dead Orbit Vault"* with Marcus, Elena, Vance, and Ray).
+  - Click **Director's Deck** tab → show the 2D Floor Plan and Tension Curve.
+  - Click **Screenplay** tab → click **Audio Table Read** to show the waveform.
+  - Click **Multiverse Takes** button in the header bar.
 
 ---
 
 ### 2:45 – 3:00 | Conclusion & Architecture Wrap-up
 * **Screen**: Return to the Story Canvas overview.
 * **Voiceover**:
-  > *"Built with Google Cloud's Gemini 3.7 Flash via ADK, Next.js, and ClickHouse as the ultra-fast story event data plane.*
+  > *"Built with Google Cloud's Gemini 3.7 Flash, Next.js, and ClickHouse as the ultra-fast story event data plane.*
   > *Agentic Cinema gives filmmakers the power to test story continuity and interrogate characters with genuine, time-gated authenticity.*
   > *Thank you!"*

@@ -224,4 +224,20 @@ export function fuseFilms(req: FilmFusionRequest) {
   });
 }
 
+export interface PrecedentItem {
+  genre: string;
+  trope: string;
+  historical_reference: string;
+  tension_level: number;
+  commercial_territory: string;
+  audience_retention_pct: number;
+  precedent_example: string;
+}
+
+export function getPrecedents(genre: string = "") {
+  const query = genre ? `?genre=${encodeURIComponent(genre)}` : "";
+  return getJson<PrecedentItem[]>(`/showrunner/precedents${query}`);
+}
+
+
 

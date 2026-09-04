@@ -220,6 +220,55 @@ export default function FilmHubLandingPage() {
           </div>
         </section>
 
+        {/* Complete Director's Pre-Production Suite Callout */}
+        <section className="w-full space-y-4">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <div>
+              <SlateLabel>Production Deck &amp; Directorial Tools</SlateLabel>
+              <h2 className="text-lg font-heading font-semibold mt-0.5">
+                Built for Hollywood Pre-Production Workflows
+              </h2>
+            </div>
+            <Badge variant="outline" className="border-accent/40 bg-accent/10 text-accent text-xs">
+              4 Integrated Modules
+            </Badge>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="p-4 rounded-xl border border-border bg-card/60 space-y-2">
+              <span className="text-xl block">📐</span>
+              <h4 className="text-sm font-semibold">2D Floor Plan &amp; Blocking</h4>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Overhead architectural stage layout with multi-camera FOV angles, practical lights, and actor sightline vectors.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl border border-border bg-card/60 space-y-2">
+              <span className="text-xl block">📈</span>
+              <h4 className="text-sm font-semibold">Tension &amp; Pacing Curve</h4>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Non-linear narrative intensity graph tracking scene tension beats, character POV curves, and audience retention metrics.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl border border-border bg-card/60 space-y-2">
+              <span className="text-xl block">🌍</span>
+              <h4 className="text-sm font-semibold">Box Office &amp; Precedents</h4>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                ClickHouse-indexed precedent comparisons across Heat, Sicario, and Alien with global territory revenue heatmaps.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl border border-border bg-card/60 space-y-2">
+              <span className="text-xl block">🎙️</span>
+              <h4 className="text-sm font-semibold">Audio Table Read</h4>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Multi-speaker speech simulation playing back character dialogue with distinct vocal pitch, speed, and real-time line highlighting.
+              </p>
+            </div>
+          </div>
+        </section>
+
         {/* Technical Architecture Breakdown */}
         <section className="w-full rounded-2xl border border-border bg-card/40 p-8 space-y-6">
           <div className="text-center max-w-xl mx-auto space-y-1">

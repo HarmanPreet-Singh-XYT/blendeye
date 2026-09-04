@@ -21,6 +21,15 @@ import {
 } from "@/components/cinema/new-project-dialog";
 import { FilmFusionDialog } from "@/components/cinema/film-fusion-dialog";
 import { ScreenplayDialog } from "@/components/cinema/screenplay-dialog";
+import { FloorPlanView } from "@/components/cinema/floor-plan-view";
+import { TensionCurveView } from "@/components/cinema/tension-curve-view";
+import { TerritoryHeatmapView } from "@/components/cinema/territory-heatmap-view";
+import { StripboardView } from "@/components/cinema/stripboard-view";
+import { TableReadPlayer } from "@/components/cinema/table-read-player";
+import {
+  MultiverseTakesDialog,
+  type MultiverseTake,
+} from "@/components/cinema/multiverse-takes-dialog";
 import {
   ClickHouseInspector,
   type ClickHouseQueryLog,
@@ -37,6 +46,12 @@ import {
   ChevronRight,
   ArrowLeft,
   Shuffle,
+  Clapperboard,
+  Sliders,
+  Activity,
+  Globe2,
+  Layers,
+  Volume2,
 } from "lucide-react";
 import type { ShowrunnerMessage } from "@/lib/agent-service";
 
@@ -160,7 +175,8 @@ Because if I didn't vent that compartment... whatever was growing inside would h
   },
 ];
 
-type StudioTab = "screenplay" | "showrunner" | "hotseat";
+type StudioTab = "hotseat" | "showrunner" | "screenplay" | "deck";
+type DeckSubTab = "blocking" | "tension" | "precedents" | "stripboard";
 
 export default function StudioProjectPage() {
   const router = useRouter();
@@ -192,11 +208,26 @@ export default function StudioProjectPage() {
   const [showrunnerMessages, setShowrunnerMessages] = React.useState<ShowrunnerMessage[]>([]);
   const [isShowrunnerThinking, setIsShowrunnerThinking] = React.useState(false);
 
-  // UI Navigation & Modals
+  // UI Navigation, Deck Sub-tabs & Modals
   const [activeTab, setActiveTab] = React.useState<StudioTab>("hotseat");
+  const [deckSubTab, setDeckSubTab] = React.useState<DeckSubTab>("blocking");
   const [newProjectOpen, setNewProjectOpen] = React.useState(false);
   const [fusionOpen, setFusionOpen] = React.useState(false);
+  const [multiverseOpen, setMultiverseOpen] = React.useState(false);
   const [scriptViewerOpen, setScriptViewerOpen] = React.useState(false);
+  const [showTableRead, setShowTableRead] = React.useState(false);
+
+  // Micro-interaction: Insert dialogue from Hot Seat into Script Draft
+  const handleInsertIntoScript = (characterName: string, dialogue: string) => {
+    const formatted = `\n\n${characterName.toUpperCase()}\n(interrogation alternate)\n${dialogue}\n`;
+    setScreenplayText((prev) => prev + formatted);
+  };
+
+  // Micro-interaction: Apply Multiverse Take
+  const handleApplyTake = (take: MultiverseTake) => {
+    setScreenplayText(take.scriptSnippet);
+    setSceneSummary(take.synopsis);
+  };
 
   // Pipeline Status & Logs
   const [isGenerating, setIsGenerating] = React.useState(false);
@@ -512,6 +543,19 @@ export default function StudioProjectPage() {
               : "Amber hazard strobe",
         },
       },
+      {
+        id: "floorplan-node",
+        type: "floorplan",
+        position: { x: 340, y: 440 },
+        data: {
+          sceneTitle,
+          cameraCount: 3,
+          onOpenDeck: () => {
+            setActiveTab("deck");
+            setDeckSubTab("blocking");
+          },
+        },
+      },
     ];
 
     characters.forEach((char, index) => {
@@ -555,6 +599,12 @@ export default function StudioProjectPage() {
         target: "storyboard-node",
         className: isGenerating ? "generating" : "",
       },
+      {
+        id: "e-scene-floorplan",
+        source: "scene-node",
+        target: "floorplan-node",
+        className: isGenerating ? "generating" : "",
+      },
     ];
 
     characters.forEach((char) => {
@@ -577,6 +627,9 @@ export default function StudioProjectPage() {
       setActiveTab("hotseat");
     } else if (node.type === "scene") {
       setActiveTab("screenplay");
+    } else if (node.type === "floorplan") {
+      setActiveTab("deck");
+      setDeckSubTab("blocking");
     }
   };
 
@@ -632,6 +685,16 @@ export default function StudioProjectPage() {
               </button>
             ))}
           </div>
+
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs gap-1.5 border-border hover:bg-secondary"
+            onClick={() => setMultiverseOpen(true)}
+          >
+            <Clapperboard className="h-3.5 w-3.5 text-accent" />
+            Multiverse Takes
+          </Button>
 
           <Button
             size="sm"
@@ -790,6 +853,19 @@ export default function StudioProjectPage() {
                 <FileText className="h-3.5 w-3.5 text-accent" />
                 <span>Screenplay</span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab("deck")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  activeTab === "deck"
+                    ? "bg-card text-foreground font-semibold border border-border shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Sliders className="h-3.5 w-3.5 text-accent" />
+                <span>Director&apos;s Deck</span>
+              </button>
             </div>
           </div>
 
@@ -803,6 +879,7 @@ export default function StudioProjectPage() {
                 knownFacts={knownFacts}
                 turns={hotSeatTurns}
                 onSend={handleAskHotSeat}
+                onInsertIntoScript={handleInsertIntoScript}
                 isAsking={isAsking}
                 suggestedQuestions={suggestedQuestions}
                 className="h-full border-none rounded-none"
@@ -830,17 +907,116 @@ export default function StudioProjectPage() {
                   <SlateLabel>Production Draft</SlateLabel>
                   <span className="text-xs font-medium block">{sceneTitle}</span>
                 </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 text-xs"
-                  onClick={() => setScriptViewerOpen(true)}
-                >
-                  Full Screen
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant={showTableRead ? "secondary" : "outline"}
+                    className="h-7 text-xs gap-1.5"
+                    onClick={() => setShowTableRead((s) => !s)}
+                  >
+                    <Volume2 className="h-3 w-3 text-accent" />
+                    {showTableRead ? "Hide Table Read" : "Audio Table Read"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs"
+                    onClick={() => setScriptViewerOpen(true)}
+                  >
+                    Full Screen
+                  </Button>
+                </div>
               </div>
+
+              {/* Collapsible Audio Table Read Simulation */}
+              {showTableRead && (
+                <div className="p-3 border-b border-border bg-secondary/10">
+                  <TableReadPlayer screenplayText={screenplayText} />
+                </div>
+              )}
+
               <div className="flex-1 overflow-y-auto p-5 font-mono text-xs leading-relaxed whitespace-pre-wrap selection:bg-accent/30 selection:text-accent-foreground text-foreground/90 bg-background/50">
                 {screenplayText}
+              </div>
+            </div>
+          )}
+
+          {/* Tab Content 4: Director's Deck & Advanced Pre-Production Suite */}
+          {activeTab === "deck" && (
+            <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+              {/* Deck Sub-navigation */}
+              <div className="flex items-center gap-1.5 border-b border-border px-3 py-2 bg-secondary/20">
+                <button
+                  type="button"
+                  onClick={() => setDeckSubTab("blocking")}
+                  className={`px-2.5 py-1 rounded text-xs transition-colors ${
+                    deckSubTab === "blocking"
+                      ? "bg-card font-semibold text-foreground border border-border shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  📐 2D Floor Plan
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeckSubTab("tension")}
+                  className={`px-2.5 py-1 rounded text-xs transition-colors ${
+                    deckSubTab === "tension"
+                      ? "bg-card font-semibold text-foreground border border-border shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  📈 Tension Curve
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeckSubTab("precedents")}
+                  className={`px-2.5 py-1 rounded text-xs transition-colors ${
+                    deckSubTab === "precedents"
+                      ? "bg-card font-semibold text-foreground border border-border shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  🌍 Precedents &amp; Box Office
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeckSubTab("stripboard")}
+                  className={`px-2.5 py-1 rounded text-xs transition-colors ${
+                    deckSubTab === "stripboard"
+                      ? "bg-card font-semibold text-foreground border border-border shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  📋 Stripboard
+                </button>
+              </div>
+
+              {/* Sub-tab view body */}
+              <div className="flex-1 overflow-y-auto p-3 bg-background/50">
+                {deckSubTab === "blocking" && (
+                  <FloorPlanView sceneTitle={sceneTitle} characters={characters} />
+                )}
+                {deckSubTab === "tension" && (
+                  <TensionCurveView
+                    currentTimeSeconds={timeSeconds}
+                    onScrubTime={(s) => setTimeSeconds(s)}
+                    projectId={projectId}
+                  />
+                )}
+                {deckSubTab === "precedents" && (
+                  <TerritoryHeatmapView
+                    projectTitle={projectTitle}
+                    genre={matchedPreset.genre}
+                  />
+                )}
+                {deckSubTab === "stripboard" && (
+                  <StripboardView
+                    projectTitle={projectTitle}
+                    characters={characters}
+                    projectId={projectId}
+                  />
+                )}
               </div>
             </div>
           )}
@@ -873,6 +1049,13 @@ export default function StudioProjectPage() {
       <FilmFusionDialog
         open={fusionOpen}
         onOpenChange={setFusionOpen}
+      />
+
+      {/* Multiverse Alternate Takes Studio Dialog */}
+      <MultiverseTakesDialog
+        open={multiverseOpen}
+        onOpenChange={setMultiverseOpen}
+        onApplyTake={handleApplyTake}
       />
     </div>
   );

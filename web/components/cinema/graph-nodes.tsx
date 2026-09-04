@@ -191,11 +191,55 @@ function StoryboardNode({ data, selected }: NodeProps & { data: StoryboardNodeDa
   );
 }
 
+export interface FloorPlanNodeData extends Record<string, unknown> {
+  sceneTitle: string;
+  cameraCount?: number;
+  onOpenDeck?: () => void;
+}
+
+function FloorPlanNode({ data, selected }: NodeProps & { data: FloorPlanNodeData }) {
+  return (
+    <NodeShell kind="Blocking" title="2D Floor Plan" state="ready" selected={selected}>
+      <div className="relative mt-1 w-full rounded border border-border/70 bg-background/90 p-2.5 flex flex-col gap-1.5">
+        <div className="flex items-center justify-between text-[10px]">
+          <span className="font-mono text-muted-foreground">{data.sceneTitle}</span>
+          <span className="text-accent font-semibold">{data.cameraCount || 3} Cams · Scope</span>
+        </div>
+        {/* Mini 2D SVG preview */}
+        <div className="w-full h-12 bg-secondary/30 rounded border border-border/50 relative overflow-hidden flex items-center justify-center">
+          <svg className="w-full h-full" viewBox="0 0 100 40">
+            <rect x="5" y="5" width="90" height="30" fill="none" stroke="var(--border)" strokeWidth="1" />
+            <circle cx="35" cy="20" r="3" fill="var(--accent)" />
+            <circle cx="65" cy="18" r="3" fill="#10b981" />
+            <line x1="20" y1="32" x2="35" y2="20" stroke="var(--accent)" strokeWidth="1" strokeDasharray="2 2" />
+            <circle cx="20" cy="32" r="2" fill="var(--secondary)" stroke="var(--accent)" />
+            <line x1="75" y1="12" x2="65" y2="18" stroke="var(--accent)" strokeWidth="1" strokeDasharray="2 2" />
+            <circle cx="75" cy="12" r="2" fill="var(--secondary)" stroke="var(--accent)" />
+          </svg>
+        </div>
+        {data.onOpenDeck && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              data.onOpenDeck?.();
+            }}
+            className="w-full mt-1 py-1 rounded bg-secondary/50 hover:bg-accent/15 text-accent text-[10px] font-medium transition-colors text-center"
+          >
+            Open Director Blocking Deck →
+          </button>
+        )}
+      </div>
+    </NodeShell>
+  );
+}
+
 export const nodeTypes = {
   scene: SceneNode,
   character: CharacterNode,
   inspiration: InspirationNode,
   storyboard: StoryboardNode,
+  floorplan: FloorPlanNode,
 };
 
-export { SceneNode, CharacterNode, InspirationNode, StoryboardNode, NodeShell };
+export { SceneNode, CharacterNode, InspirationNode, StoryboardNode, FloorPlanNode, NodeShell };

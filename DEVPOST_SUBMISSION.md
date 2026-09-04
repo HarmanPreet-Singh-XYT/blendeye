@@ -24,15 +24,26 @@ Agentic Cinema is an end-to-end interactive writers' room studio consisting of:
    - **Scene Master Node**: Script overview, synopsis, and Hollywood-formatted screenplay reader.
    - **Character Perspective Nodes**: Visual cast roster with live status badges.
    - **Storyboard Visual Node**: 2.39:1 Anamorphic Scope widescreen preview detailing camera lens, atmosphere grading, and lighting cues.
+   - **Director's 2D Floor Plan Node**: Interactive stage blocking schematic linked directly to the scene.
 3. **The Centerpiece: ClickHouse Time-Gate Engine**:
    - As you drag the **Timeline Scrubber** across the 90-minute runtime, ClickHouse executes real-time queries (`WHERE character = ? AND event_timestamp <= ?`).
    - The **Knowledge State Strip** updates instantly, showing verified **Known Facts** vs. **Critical Firewall Ignorance**.
 4. **The Interrogation Chamber (Hot Seat)**:
    - Interrogate any character live using screenplay-style dialogue blocks.
    - Characters are bounded by strict information firewalls. If the interviewer tries to trick them with future facts, they treat it as unverified hearsay or paranoia.
+   - **"Insert into Script" Micro-Interaction**: One-click insertion of improvised character dialogue directly into the screenplay draft.
 5. **Centralized Showrunner AI**:
    - An omniscient co-writer and script supervisor capable of critiquing dramatic tension, adjusting subtext, suggesting reversals, and citing commercial territory precedents.
-6. **Film Fusion / Multiverse Crossover Engine (Layer 4b)**:
+6. **Audio Table Read Simulation**:
+   - Multi-speaker voice synthesis playback with distinct character pitch, speed controls, audio visualizer, and synchronized line highlighting.
+7. **The Director's Deck (Advanced Pre-Production Suite)**:
+   - **2D Floor Plan & Spatial Blocking**: Architectural overhead camera blocking (Wide Master, OTS, Intimate Close-up), lens focal lengths, practical lighting, and actor sightline vectors.
+   - **Dramatic Tension & Pacing Curve Graph**: 3-act narrative intensity graph plotting scene tension beats and character POV tension against the timeline.
+   - **Global Territory Heatmap & Box Office Intelligence**: Precedent distribution analysis queried from ClickHouse `cinematic_precedents` (Heat, Sicario, Alien) with worldwide market projections.
+   - **Production Stripboard & Shooting Logistics**: Hollywood shooting schedule strips (INT/EXT/DAY/NIGHT), page counts, cast calls, and budget estimation.
+8. **Multiverse Alternate Takes Studio**:
+   - 3 diverging takes per scene: *Psychological Slow-Burn (A24)*, *Neo-Noir Confrontation (Mann/Fincher)*, and *Visceral Ticking Clock (Nolan/Villeneuve)* with 1-click apply to production.
+9. **Film Fusion / Multiverse Crossover Engine (Layer 4b)**:
    - Reconciles two different screenplays, re-maps conflicting character roles, and merges them into a unified ClickHouse time-gated story timeline.
 
 ---
@@ -95,12 +106,15 @@ A live console built directly into the UI shows judges and directors the exact C
 ## 🏆 Accomplishments That We're Proud Of
 - **Genuine Knowledge Firewalls**: Achieving genuine character ignorance that feels natural, witty, and loyal to character flaws rather than robotic refusals.
 - **The "Scrubbing Revelation" Moment**: Moving the slider from 00:34:00 to 00:52:00 and seeing Marcus go from defending his keys to unmasking Elena's betrayal in the hot seat.
-- **Film Fusion Crossover Engine**: Taking two separate films and having Gemini and ClickHouse automatically reconcile their conflicting timelines into a unified story graph.
+- **Director's Deck Suite**: Full 2D architectural camera blocking, 3-act dramatic tension curves, global box office heatmaps, and Hollywood shooting stripboard.
+- **Audio Table Read Simulation**: Multi-character vocal synthesis allowing writers to hear their dialogue spoken with character-specific cadence and subtext.
+- **Film Fusion & Multiverse Takes**: Combining separate movie universes and hot-swapping between 3 distinct director takes with a single click.
 - **Cinema-First Aesthetic**: Custom filmstrips, sprocket borders, and 2.39:1 anamorphic framing that make the app feel like a real high-end production tool.
 
 ---
 
 ## 🚀 What's Next for Agentic Cinema
-- **Live Bidirectional Voice Rehearsal**: Integrating Gemini Live WebSockets for spoken dialogue practice with time-gated characters.
-- **Director's Floor Plan / 3D Blocking**: Auto-deriving character spatial coordinates from ClickHouse location events into interactive stage floor plans.
-- **Full Feature Screenplay Export**: One-click Final Draft (.fdx) and PDF production export.
+- **Live Duplex Voice Rehearsal**: Integrating Gemini Live WebSockets for real-time vocal table reads and improvised voice interrogation.
+- **Unreal Engine 5 Previs Connector**: Exporting 2D floor plans directly into 3D virtual production stages.
+- **Native Screenplay Export**: One-click Final Draft (.fdx), Fountain, and production PDF script packet generation.
+

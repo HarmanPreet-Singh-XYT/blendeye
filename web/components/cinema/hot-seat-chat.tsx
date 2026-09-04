@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { SlateLabel } from "@/components/cinema/slate-label";
-import { SendIcon } from "lucide-react";
+import { SendIcon, FilePlus, Check } from "lucide-react";
 
 export interface HotSeatTurn {
   role: "interviewer" | "character";
@@ -37,6 +37,7 @@ function HotSeatChat({
   knownFacts,
   turns,
   onSend,
+  onInsertIntoScript,
   isAsking = false,
   suggestedQuestions = [],
   className,
@@ -47,11 +48,13 @@ function HotSeatChat({
   knownFacts: KnowledgeFact[];
   turns: HotSeatTurn[];
   onSend: (message: string) => void;
+  onInsertIntoScript?: (characterName: string, dialogue: string) => void;
   isAsking?: boolean;
   suggestedQuestions?: string[];
   className?: string;
 }) {
   const [draft, setDraft] = React.useState("");
+  const [insertedIndex, setInsertedIndex] = React.useState<number | null>(null);
   const scrollRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
@@ -132,6 +135,29 @@ function HotSeatChat({
                 <p className="max-w-sm text-sm leading-relaxed text-foreground/90 font-serif italic">
                   &ldquo;{turn.content}&rdquo;
                 </p>
+                {onInsertIntoScript && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onInsertIntoScript(characterName, turn.content);
+                      setInsertedIndex(i);
+                      setTimeout(() => setInsertedIndex(null), 2500);
+                    }}
+                    className="mt-1 flex items-center gap-1.5 text-[10px] text-accent/80 hover:text-accent hover:underline transition-colors"
+                  >
+                    {insertedIndex === i ? (
+                      <>
+                        <Check className="h-3 w-3 text-emerald-400" />
+                        <span className="text-emerald-400 font-medium">Inserted into Script!</span>
+                      </>
+                    ) : (
+                      <>
+                        <FilePlus className="h-3 w-3" />
+                        <span>Insert into Script Draft</span>
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             )
           )}
