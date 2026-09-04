@@ -52,14 +52,34 @@ export function TensionCurveView({
     ];
   }, [projectId]);
 
-  // Dimensions for SVG plot (1000x240 high-density coordinate space)
-  const svgWidth = 1000;
-  const svgHeight = 240;
-  const paddingX = 55;
+  // Responsive container observer for true 1:1 Retina pixel coordinate rendering
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const [dimensions, setDimensions] = React.useState({ width: 1000, height: 220 });
+
+  React.useLayoutEffect(() => {
+    if (!containerRef.current) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        if (width > 0 && height > 0) {
+          setDimensions({ width: Math.round(width), height: Math.round(height) });
+        }
+      }
+    });
+    ro.observe(containerRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  const svgWidth = dimensions.width;
+  const svgHeight = dimensions.height;
+  const paddingX = 60;
   const paddingY = 32;
   const totalDuration = 90 * 60; // 5400s
 
-  // Compute curve points
+  const plotWidth = Math.max(100, svgWidth - 2 * paddingX);
+  const plotHeight = Math.max(80, svgHeight - 2 * paddingY);
+
+  // Compute curve points mapped to true pixel coordinates
   const points = React.useMemo(() => {
     return defaultBeats.map((b) => {
       let score = b.tensionScore;
@@ -68,11 +88,11 @@ export function TensionCurveView({
       } else if (activeCurveMode === "elena") {
         score = b.characterFocus === "Elena" ? Math.min(100, score + 16) : Math.max(15, score - 10);
       }
-      const x = paddingX + (b.timeSeconds / totalDuration) * (svgWidth - 2 * paddingX);
-      const y = svgHeight - paddingY - (score / 100) * (svgHeight - 2 * paddingY);
+      const x = paddingX + (b.timeSeconds / totalDuration) * plotWidth;
+      const y = svgHeight - paddingY - (score / 100) * plotHeight;
       return { ...b, x, y, score };
     });
-  }, [defaultBeats, activeCurveMode]);
+  }, [defaultBeats, activeCurveMode, plotWidth, plotHeight, svgHeight]);
 
   // Construct smooth SVG cubic bezier path
   const pathD = React.useMemo(() => {
@@ -97,13 +117,13 @@ export function TensionCurveView({
     const lastX = points[points.length - 1].x;
     const bottomY = svgHeight - paddingY;
     return `${pathD} L ${lastX} ${bottomY} L ${firstX} ${bottomY} Z`;
-  }, [pathD, points]);
+  }, [pathD, points, svgHeight]);
 
-  // Current scrubber position in SVG space
+  // Current scrubber position in pixel space
   const currentX = React.useMemo(() => {
     const clamped = Math.max(0, Math.min(totalDuration, currentTimeSeconds));
-    return paddingX + (clamped / totalDuration) * (svgWidth - 2 * paddingX);
-  }, [currentTimeSeconds]);
+    return paddingX + (clamped / totalDuration) * plotWidth;
+  }, [currentTimeSeconds, plotWidth]);
 
   // Find nearest beat
   const activeBeat = React.useMemo(() => {
@@ -118,6 +138,11 @@ export function TensionCurveView({
     });
     return closest;
   }, [defaultBeats, currentTimeSeconds]);
+
+  // Act boundaries
+  const act1Width = plotWidth * 0.25;
+  const act2Width = plotWidth * 0.5;
+  const act3Width = plotWidth * 0.25;
 
   return (
     <div className={`flex flex-col rounded-xl border border-border bg-card p-4 space-y-4 ${className ?? ""}`}>
@@ -171,18 +196,19 @@ export function TensionCurveView({
         </div>
       </div>
 
-      {/* SVG Curve Canvas */}
-      <div className="relative w-full h-[200px] sm:h-[220px] rounded-lg border border-border/80 bg-background/90 overflow-hidden select-none">
+      {/* SVG Curve Canvas with True 1:1 Pixel Coordinates */}
+      <div
+        ref={containerRef}
+        className="relative w-full h-[210px] sm:h-[230px] rounded-lg border border-border/80 bg-background/90 overflow-hidden select-none"
+      >
         <svg
-          className="w-full h-full cursor-crosshair"
+          className="w-full h-full cursor-crosshair block"
           viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-          preserveAspectRatio="none"
           onClick={(e) => {
             const rect = e.currentTarget.getBoundingClientRect();
             const clickX = e.clientX - rect.left;
-            const svgX = (clickX / rect.width) * svgWidth;
-            const clampedX = Math.max(paddingX, Math.min(svgWidth - paddingX, svgX));
-            const clickRatio = (clampedX - paddingX) / (svgWidth - 2 * paddingX);
+            const clampedX = Math.max(paddingX, Math.min(svgWidth - paddingX, clickX));
+            const clickRatio = (clampedX - paddingX) / plotWidth;
             const clickSec = Math.round(clickRatio * totalDuration);
             onScrubTime?.(clickSec);
           }}
@@ -190,71 +216,131 @@ export function TensionCurveView({
           <defs>
             {/* Ambient Tension Fill Gradient */}
             <linearGradient id="tension-fill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.3" />
-              <stop offset="60%" stopColor="var(--accent)" stopOpacity="0.06" />
+              <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.22" />
+              <stop offset="70%" stopColor="var(--accent)" stopOpacity="0.04" />
               <stop offset="100%" stopColor="var(--accent)" stopOpacity="0.0" />
             </linearGradient>
-
-            {/* Tension Line Glow Filter */}
-            <filter id="tension-glow" x="-10%" y="-10%" width="120%" height="120%">
-              <feDropShadow dx="0" dy="0" stdDeviation="2.5" floodColor="var(--accent)" floodOpacity="0.5" />
-            </filter>
           </defs>
 
           {/* Act Region Background Shading */}
           <rect
             x={paddingX}
             y={paddingY}
-            width={(svgWidth - 2 * paddingX) * 0.25}
-            height={svgHeight - 2 * paddingY}
+            width={act1Width}
+            height={plotHeight}
             fill="var(--secondary)"
-            opacity="0.15"
+            opacity="0.12"
           />
-          <text
-            x={paddingX + 12}
-            y={paddingY + 16}
-            fill="var(--muted-foreground)"
-            fontSize="10"
-            fontFamily="monospace"
-            letterSpacing="0.5"
-          >
-            ACT I · SETUP
-          </text>
-
           <rect
-            x={paddingX + (svgWidth - 2 * paddingX) * 0.25}
+            x={paddingX + act1Width}
             y={paddingY}
-            width={(svgWidth - 2 * paddingX) * 0.5}
-            height={svgHeight - 2 * paddingY}
+            width={act2Width}
+            height={plotHeight}
             fill="var(--accent)"
-            opacity="0.04"
+            opacity="0.035"
           />
-          <text
-            x={paddingX + (svgWidth - 2 * paddingX) * 0.25 + 12}
-            y={paddingY + 16}
-            fill="var(--accent)"
-            opacity="0.75"
-            fontSize="10"
-            fontFamily="monospace"
-            letterSpacing="0.5"
-          >
-            ACT II · CONFLICT &amp; ASYMMETRY
-          </text>
 
-          <text
-            x={paddingX + (svgWidth - 2 * paddingX) * 0.75 + 12}
-            y={paddingY + 16}
-            fill="var(--muted-foreground)"
-            fontSize="10"
-            fontFamily="monospace"
-            letterSpacing="0.5"
-          >
-            ACT III · CLIMAX
-          </text>
+          {/* Act Division Vertical Lines */}
+          <line
+            x1={paddingX + act1Width}
+            y1={paddingY}
+            x2={paddingX + act1Width}
+            y2={svgHeight - paddingY}
+            stroke="var(--border)"
+            strokeWidth="1"
+            strokeDasharray="4 4"
+            opacity="0.5"
+          />
+          <line
+            x1={paddingX + act1Width + act2Width}
+            y1={paddingY}
+            x2={paddingX + act1Width + act2Width}
+            y2={svgHeight - paddingY}
+            stroke="var(--border)"
+            strokeWidth="1"
+            strokeDasharray="4 4"
+            opacity="0.5"
+          />
+
+          {/* Act Badges */}
+          <g>
+            <rect
+              x={paddingX + 10}
+              y={paddingY + 8}
+              width="90"
+              height="18"
+              rx="3"
+              fill="var(--card)"
+              stroke="var(--border)"
+              strokeWidth="0.5"
+            />
+            <text
+              x={paddingX + 55}
+              y={paddingY + 20.5}
+              fill="var(--muted-foreground)"
+              fontSize="9.5"
+              fontFamily="ui-monospace, monospace"
+              fontWeight="600"
+              textAnchor="middle"
+              letterSpacing="0.5"
+            >
+              ACT I · SETUP
+            </text>
+          </g>
+
+          <g>
+            <rect
+              x={paddingX + act1Width + 10}
+              y={paddingY + 8}
+              width="170"
+              height="18"
+              rx="3"
+              fill="var(--card)"
+              stroke="var(--border)"
+              strokeWidth="0.5"
+            />
+            <text
+              x={paddingX + act1Width + 95}
+              y={paddingY + 20.5}
+              fill="var(--accent)"
+              fontSize="9.5"
+              fontFamily="ui-monospace, monospace"
+              fontWeight="600"
+              textAnchor="middle"
+              letterSpacing="0.5"
+            >
+              ACT II · CONFLICT &amp; ASYMMETRY
+            </text>
+          </g>
+
+          <g>
+            <rect
+              x={paddingX + act1Width + act2Width + 10}
+              y={paddingY + 8}
+              width="100"
+              height="18"
+              rx="3"
+              fill="var(--card)"
+              stroke="var(--border)"
+              strokeWidth="0.5"
+            />
+            <text
+              x={paddingX + act1Width + act2Width + 60}
+              y={paddingY + 20.5}
+              fill="var(--muted-foreground)"
+              fontSize="9.5"
+              fontFamily="ui-monospace, monospace"
+              fontWeight="600"
+              textAnchor="middle"
+              letterSpacing="0.5"
+            >
+              ACT III · CLIMAX
+            </text>
+          </g>
 
           {/* Horizontal Reference Grid Lines */}
           {[25, 50, 75, 100].map((level) => {
-            const y = svgHeight - paddingY - (level / 100) * (svgHeight - 2 * paddingY);
+            const y = svgHeight - paddingY - (level / 100) * plotHeight;
             return (
               <g key={level}>
                 <line
@@ -265,14 +351,14 @@ export function TensionCurveView({
                   stroke="var(--border)"
                   strokeWidth="0.75"
                   strokeDasharray="4 4"
-                  opacity="0.45"
+                  opacity="0.4"
                 />
                 <text
                   x={paddingX - 10}
                   y={y + 3.5}
                   fill="var(--muted-foreground)"
-                  fontSize="10"
-                  fontFamily="monospace"
+                  fontSize="9.5"
+                  fontFamily="ui-monospace, monospace"
                   textAnchor="end"
                 >
                   {level}%
@@ -284,26 +370,45 @@ export function TensionCurveView({
           {/* Gradient Fill Under Curve */}
           <path d={areaPathD} fill="url(#tension-fill)" />
 
-          {/* Main Dramatic Tension Line */}
+          {/* Main Dramatic Tension Line - Dual Vector Strokes (Crisp Retina Glow without raster filter) */}
           <path
             d={pathD}
             fill="none"
             stroke="var(--accent)"
-            strokeWidth="2.5"
+            strokeWidth="6"
+            strokeOpacity="0.18"
             strokeLinecap="round"
-            filter="url(#tension-glow)"
+            strokeLinejoin="round"
+          />
+          <path
+            d={pathD}
+            fill="none"
+            stroke="var(--accent)"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
           />
 
-          {/* Beat Markers */}
+          {/* Beat Markers & Precision Score Badges */}
           {points.map((pt, i) => (
             <g
               key={i}
-              className="cursor-pointer"
+              className="cursor-pointer group"
               onClick={(e) => {
                 e.stopPropagation();
                 onScrubTime?.(pt.timeSeconds);
               }}
             >
+              {/* Subtle hover pulse circle */}
+              <circle
+                cx={pt.x}
+                cy={pt.y}
+                r="10"
+                fill="var(--accent)"
+                fillOpacity="0"
+                className="group-hover:fill-opacity-20 transition-all"
+              />
+              {/* Beat Node Circle */}
               <circle
                 cx={pt.x}
                 cy={pt.y}
@@ -312,13 +417,25 @@ export function TensionCurveView({
                 stroke="var(--accent)"
                 strokeWidth="2"
               />
+              {/* Crisp Score Badge */}
+              <rect
+                x={pt.x - 17}
+                y={pt.y - 23}
+                width="34"
+                height="15"
+                rx="3"
+                fill="var(--card)"
+                stroke="var(--border)"
+                strokeWidth="0.75"
+                className="shadow-sm"
+              />
               <text
                 x={pt.x}
-                y={pt.y - 8}
+                y={pt.y - 12}
                 fill="var(--foreground)"
-                fontSize="10"
-                fontFamily="monospace"
-                fontWeight="bold"
+                fontSize="9.5"
+                fontFamily="ui-monospace, monospace"
+                fontWeight="700"
                 textAnchor="middle"
               >
                 {pt.score}%
@@ -336,7 +453,16 @@ export function TensionCurveView({
             strokeWidth="1.5"
             strokeDasharray="3 3"
           />
-          <circle cx={currentX} cy={paddingY - 5} r="3.5" fill="#f59e0b" />
+          {/* Top Diamond Indicator */}
+          <polygon
+            points={`${currentX - 5},${paddingY - 7} ${currentX + 5},${paddingY - 7} ${currentX},${paddingY - 1}`}
+            fill="#f59e0b"
+          />
+          {/* Bottom Diamond Indicator */}
+          <polygon
+            points={`${currentX - 5},${svgHeight - paddingY + 7} ${currentX + 5},${svgHeight - paddingY + 7} ${currentX},${svgHeight - paddingY + 1}`}
+            fill="#f59e0b"
+          />
         </svg>
       </div>
 

@@ -47,22 +47,48 @@ export function FloorPlanView({
 }: FloorPlanViewProps) {
   const [selectedCam, setSelectedCam] = React.useState<string>("cam-a");
 
-  // Dynamic coordinates based on scene characters (1000x480 blueprint space)
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const [dimensions, setDimensions] = React.useState({ width: 1000, height: 300 });
+
+  React.useLayoutEffect(() => {
+    if (!containerRef.current) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        if (width > 0 && height > 0) {
+          setDimensions({ width: Math.round(width), height: Math.round(height) });
+        }
+      }
+    });
+    ro.observe(containerRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  const svgW = dimensions.width;
+  const svgH = dimensions.height;
+
+  // Blueprint room bounds centered within the viewport
+  const roomW = Math.min(svgW - 60, 880);
+  const roomH = Math.min(svgH - 40, 250);
+  const roomX = Math.round((svgW - roomW) / 2);
+  const roomY = Math.round((svgH - roomH) / 2);
+
+  // Dynamic coordinates based on scene characters & room dimensions
   const charPositions: FloorPlanCharacter[] = React.useMemo(() => {
     const list: FloorPlanCharacter[] = [
       {
         name: characters[0]?.name || "Marcus",
         role: "Primary Subject (Kneeling)",
-        x: 400,
-        y: 250,
+        x: Math.round(roomX + roomW * 0.4),
+        y: Math.round(roomY + roomH * 0.55),
         angle: 45,
         color: "var(--accent)",
       },
       {
         name: characters[1]?.name || "Elena",
         role: "Foreground Counter-Weight",
-        x: 640,
-        y: 190,
+        x: Math.round(roomX + roomW * 0.65),
+        y: Math.round(roomY + roomH * 0.42),
         angle: 210,
         color: "#10b981",
       },
@@ -71,53 +97,53 @@ export function FloorPlanView({
       list.push({
         name: characters[2].name,
         role: "Perimeter Lookout",
-        x: 820,
-        y: 330,
+        x: Math.round(roomX + roomW * 0.8),
+        y: Math.round(roomY + roomH * 0.72),
         angle: 180,
         color: "#f59e0b",
       });
     }
     return list;
-  }, [characters]);
+  }, [characters, roomX, roomY, roomW, roomH]);
 
-  const cameras: CameraSetup[] = [
+  const cameras: CameraSetup[] = React.useMemo(() => [
     {
       id: "cam-a",
       name: "Cam A · Wide Master",
       lens: "35mm T1.5 Anamorphic",
-      x: 220,
-      y: 380,
-      targetX: 520,
-      targetY: 220,
+      x: Math.round(roomX + roomW * 0.2),
+      y: Math.round(roomY + roomH * 0.82),
+      targetX: Math.round(roomX + roomW * 0.52),
+      targetY: Math.round(roomY + roomH * 0.48),
       fov: 60,
     },
     {
       id: "cam-b",
       name: "Cam B · Over-The-Shoulder",
       lens: "50mm T1.3 Prime",
-      x: 740,
-      y: 150,
-      targetX: 400,
-      targetY: 250,
+      x: Math.round(roomX + roomW * 0.78),
+      y: Math.round(roomY + roomH * 0.3),
+      targetX: Math.round(roomX + roomW * 0.4),
+      targetY: Math.round(roomY + roomH * 0.55),
       fov: 40,
     },
     {
       id: "cam-c",
       name: "Cam C · Intimate Close-Up",
       lens: "85mm T1.4 Portrait",
-      x: 300,
-      y: 310,
-      targetX: 400,
-      targetY: 250,
+      x: Math.round(roomX + roomW * 0.3),
+      y: Math.round(roomY + roomH * 0.66),
+      targetX: Math.round(roomX + roomW * 0.4),
+      targetY: Math.round(roomY + roomH * 0.55),
       fov: 30,
     },
-  ];
+  ], [roomX, roomY, roomW, roomH]);
 
-  const lights: PracticalLight[] = [
-    { id: "light-1", name: "Cyan Emergency Strip", x: 500, y: 55, type: "practical", color: "#06b6d4" },
-    { id: "light-2", name: "Key Fill Panel", x: 200, y: 160, type: "key", color: "#e2e8f0" },
-    { id: "light-3", name: "Corridor Spill", x: 880, y: 370, type: "ambient", color: "#f59e0b" },
-  ];
+  const lights: PracticalLight[] = React.useMemo(() => [
+    { id: "light-1", name: "Cyan Emergency Strip", x: Math.round(roomX + roomW * 0.5), y: roomY + 18, type: "practical", color: "#06b6d4" },
+    { id: "light-2", name: "Key Fill Panel", x: roomX + 170, y: Math.round(roomY + roomH * 0.38), type: "key", color: "#e2e8f0" },
+    { id: "light-3", name: "Corridor Spill", x: roomX + roomW - 65, y: roomY + roomH - 25, type: "ambient", color: "#f59e0b" },
+  ], [roomX, roomY, roomW, roomH]);
 
   return (
     <div className={`flex flex-col rounded-xl border border-border bg-card p-4 space-y-4 ${className ?? ""}`}>
@@ -135,17 +161,18 @@ export function FloorPlanView({
         </Badge>
       </div>
 
-      {/* SVG Architectural Floor Plan */}
-      <div className="relative w-full h-[280px] sm:h-[320px] rounded-lg border border-border/80 bg-background/90 overflow-hidden select-none flex items-center justify-center">
-        {/* Architectural Grid */}
+      {/* SVG Architectural Floor Plan Canvas */}
+      <div
+        ref={containerRef}
+        className="relative w-full h-[280px] sm:h-[310px] rounded-lg border border-border/80 bg-background/90 overflow-hidden select-none"
+      >
         <svg
-          className="w-full h-full"
-          viewBox="0 0 1000 480"
-          preserveAspectRatio="xMidYMid meet"
+          className="w-full h-full block"
+          viewBox={`0 0 ${svgW} ${svgH}`}
         >
           <defs>
-            <pattern id="floor-grid" width="30" height="30" patternUnits="userSpaceOnUse">
-              <path d="M 30 0 L 0 0 0 30" fill="none" stroke="var(--border)" strokeWidth="0.5" opacity="0.35" />
+            <pattern id="floor-grid" width="28" height="28" patternUnits="userSpaceOnUse">
+              <path d="M 28 0 L 0 0 0 28" fill="none" stroke="var(--border)" strokeWidth="0.5" opacity="0.3" />
             </pattern>
             {/* Camera FOV Gradients */}
             {cameras.map((cam) => (
@@ -157,47 +184,113 @@ export function FloorPlanView({
           </defs>
 
           {/* Grid Background */}
-          <rect width="1000" height="480" fill="url(#floor-grid)" />
+          <rect width={svgW} height={svgH} fill="url(#floor-grid)" />
 
-          {/* Architectural Walls */}
-          <rect x="40" y="30" width="920" height="420" fill="none" stroke="var(--border)" strokeWidth="2.5" rx="6" />
+          {/* Architectural Perimeter Walls */}
+          <rect
+            x={roomX}
+            y={roomY}
+            width={roomW}
+            height={roomH}
+            fill="none"
+            stroke="var(--border)"
+            strokeWidth="2.5"
+            rx="6"
+          />
 
           {/* Blueprint Corner Accents */}
-          <line x1="40" y1="20" x2="40" y2="40" stroke="var(--muted-foreground)" strokeWidth="1" opacity="0.4" />
-          <line x1="960" y1="20" x2="960" y2="40" stroke="var(--muted-foreground)" strokeWidth="1" opacity="0.4" />
-          <text x="50" y="24" fill="var(--muted-foreground)" fontSize="9" fontFamily="monospace" opacity="0.6">
+          <line x1={roomX} y1={roomY - 8} x2={roomX} y2={roomY + 12} stroke="var(--muted-foreground)" strokeWidth="1" opacity="0.4" />
+          <line x1={roomX + roomW} y1={roomY - 8} x2={roomX + roomW} y2={roomY + 12} stroke="var(--muted-foreground)" strokeWidth="1" opacity="0.4" />
+          <text
+            x={roomX + 10}
+            y={roomY - 4}
+            fill="var(--muted-foreground)"
+            fontSize="9.5"
+            fontFamily="ui-monospace, monospace"
+            opacity="0.6"
+          >
             SEC-04 · INNER VAULT PERIMETER
           </text>
 
           {/* Security door / corridor opening */}
-          <line x1="840" y1="450" x2="930" y2="450" stroke="var(--accent)" strokeWidth="5" strokeLinecap="round" />
-          <text x="885" y="470" fill="var(--muted-foreground)" fontSize="10" fontFamily="monospace" textAnchor="middle">
-            DOOR / CORRIDOR ACCESS
+          <line
+            x1={roomX + roomW - 100}
+            y1={roomY + roomH}
+            x2={roomX + roomW - 20}
+            y2={roomY + roomH}
+            stroke="var(--accent)"
+            strokeWidth="4.5"
+            strokeLinecap="round"
+          />
+          <text
+            x={roomX + roomW - 60}
+            y={roomY + roomH + 16}
+            fill="var(--muted-foreground)"
+            fontSize="9"
+            fontFamily="ui-monospace, monospace"
+            textAnchor="middle"
+          >
+            CORRIDOR ACCESS
           </text>
 
           {/* Stage Furniture / Vault Safety Deposit Boxes */}
-          <rect x="80" y="80" width="90" height="260" fill="var(--secondary)" stroke="var(--border)" strokeWidth="1.2" rx="3" />
-          <text x="96" y="210" fill="var(--muted-foreground)" fontSize="10" fontFamily="monospace" transform="rotate(-90 96 210)" letterSpacing="1">
+          <rect
+            x={roomX + 35}
+            y={roomY + 30}
+            width="80"
+            height={roomH - 60}
+            fill="var(--secondary)"
+            stroke="var(--border)"
+            strokeWidth="1.2"
+            rx="3"
+          />
+          <text
+            x={roomX + 50}
+            y={roomY + roomH / 2}
+            fill="var(--muted-foreground)"
+            fontSize="9.5"
+            fontFamily="ui-monospace, monospace"
+            transform={`rotate(-90 ${roomX + 50} ${roomY + roomH / 2})`}
+            letterSpacing="1"
+            textAnchor="middle"
+          >
             VAULT DEPOSIT BOXES
           </text>
 
           {/* Timer Console */}
-          <rect x="680" y="65" width="140" height="40" fill="var(--secondary)" stroke="var(--border)" strokeWidth="1.2" rx="3" />
-          <text x="750" y="89" fill="var(--muted-foreground)" fontSize="10" fontFamily="monospace" textAnchor="middle" letterSpacing="0.5">
+          <rect
+            x={roomX + roomW - 150}
+            y={roomY + 25}
+            width="125"
+            height="34"
+            fill="var(--secondary)"
+            stroke="var(--border)"
+            strokeWidth="1.2"
+            rx="3"
+          />
+          <text
+            x={roomX + roomW - 87.5}
+            y={roomY + 46}
+            fill="var(--muted-foreground)"
+            fontSize="9.5"
+            fontFamily="ui-monospace, monospace"
+            textAnchor="middle"
+            letterSpacing="0.5"
+          >
             TIMER CONSOLE
           </text>
 
           {/* Practical Lights */}
           {lights.map((l) => (
             <g key={l.id}>
-              <circle cx={l.x} cy={l.y} r="20" fill={l.color} opacity="0.12" />
-              <circle cx={l.x} cy={l.y} r="5" fill={l.color} />
+              <circle cx={l.x} cy={l.y} r="18" fill={l.color} opacity="0.12" />
+              <circle cx={l.x} cy={l.y} r="4.5" fill={l.color} />
               <text
                 x={l.x}
                 y={l.y + 16}
                 fill="var(--muted-foreground)"
                 fontSize="9"
-                fontFamily="monospace"
+                fontFamily="ui-monospace, monospace"
                 textAnchor="middle"
               >
                 {l.name}
@@ -223,7 +316,7 @@ export function FloorPlanView({
                 <circle
                   cx={cam.x}
                   cy={cam.y}
-                  r={isSelected ? 10 : 8}
+                  r={isSelected ? 9 : 7}
                   fill={isSelected ? "var(--accent)" : "var(--secondary)"}
                   stroke="var(--border)"
                   strokeWidth="1.5"
@@ -232,10 +325,10 @@ export function FloorPlanView({
                 />
                 <text
                   x={cam.x}
-                  y={cam.y + 22}
+                  y={cam.y + 20}
                   fill={isSelected ? "var(--accent)" : "var(--muted-foreground)"}
-                  fontSize="10"
-                  fontFamily="monospace"
+                  fontSize="9.5"
+                  fontFamily="ui-monospace, monospace"
                   fontWeight={isSelected ? "bold" : "normal"}
                   textAnchor="middle"
                 >
@@ -252,8 +345,8 @@ export function FloorPlanView({
               <line
                 x1={char.x}
                 y1={char.y}
-                x2={char.x + Math.cos((char.angle * Math.PI) / 180) * 45}
-                y2={char.y + Math.sin((char.angle * Math.PI) / 180) * 45}
+                x2={char.x + Math.cos((char.angle * Math.PI) / 180) * 40}
+                y2={char.y + Math.sin((char.angle * Math.PI) / 180) * 40}
                 stroke={char.color}
                 strokeWidth="1.5"
                 strokeDasharray="3 3"
@@ -262,7 +355,7 @@ export function FloorPlanView({
               <circle
                 cx={char.x}
                 cy={char.y}
-                r="13"
+                r="12"
                 fill={char.color}
                 stroke="var(--background)"
                 strokeWidth="2.5"
@@ -270,20 +363,22 @@ export function FloorPlanView({
               />
               <text
                 x={char.x}
-                y={char.y + 4}
+                y={char.y + 3.5}
                 fill="var(--background)"
-                fontSize="10"
+                fontSize="9.5"
                 fontWeight="bold"
+                fontFamily="ui-monospace, monospace"
                 textAnchor="middle"
               >
                 {char.name[0]}
               </text>
               <text
                 x={char.x}
-                y={char.y + 25}
+                y={char.y + 22}
                 fill="var(--foreground)"
-                fontSize="10"
+                fontSize="9.5"
                 fontWeight="600"
+                fontFamily="ui-monospace, monospace"
                 textAnchor="middle"
               >
                 {char.name}
