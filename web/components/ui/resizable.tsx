@@ -1,8 +1,8 @@
-"use client"
+"use client";
 
-import * as ResizablePrimitive from "react-resizable-panels"
-
-import { cn } from "@/lib/utils"
+import * as React from "react";
+import * as ResizablePrimitive from "react-resizable-panels";
+import { cn } from "@/lib/utils";
 
 function ResizablePanelGroup({
   className,
@@ -17,11 +17,11 @@ function ResizablePanelGroup({
       )}
       {...props}
     />
-  )
+  );
 }
 
 function ResizablePanel({ ...props }: ResizablePrimitive.PanelProps) {
-  return <ResizablePrimitive.Panel data-slot="resizable-panel" {...props} />
+  return <ResizablePrimitive.Panel data-slot="resizable-panel" {...props} />;
 }
 
 function ResizableHandle({
@@ -29,22 +29,29 @@ function ResizableHandle({
   className,
   ...props
 }: ResizablePrimitive.SeparatorProps & {
-  withHandle?: boolean
+  withHandle?: boolean;
 }) {
   return (
     <ResizablePrimitive.Separator
       data-slot="resizable-handle"
       className={cn(
-        "relative flex w-px items-center justify-center bg-border ring-offset-background after:absolute after:inset-y-0 after:left-1/2 after:w-1 after:-translate-x-1/2 focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-hidden aria-[orientation=horizontal]:h-px aria-[orientation=horizontal]:w-full aria-[orientation=horizontal]:after:left-0 aria-[orientation=horizontal]:after:h-1 aria-[orientation=horizontal]:after:w-full aria-[orientation=horizontal]:after:translate-x-0 aria-[orientation=horizontal]:after:-translate-y-1/2 [&[aria-orientation=horizontal]>div]:rotate-90",
+        "group relative flex items-center justify-center bg-border/70 transition-all hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent select-none",
+        // Horizontal divider (separates top and bottom rows)
+        "aria-[orientation=horizontal]:h-2 aria-[orientation=horizontal]:w-full aria-[orientation=horizontal]:cursor-row-resize aria-[orientation=horizontal]:after:absolute aria-[orientation=horizontal]:after:inset-x-0 aria-[orientation=horizontal]:after:-top-1.5 aria-[orientation=horizontal]:after:-bottom-1.5",
+        // Vertical divider (separates left and right columns)
+        "aria-[orientation=vertical]:w-2 aria-[orientation=vertical]:h-full aria-[orientation=vertical]:cursor-col-resize aria-[orientation=vertical]:after:absolute aria-[orientation=vertical]:after:inset-y-0 aria-[orientation=vertical]:after:-left-1.5 aria-[orientation=vertical]:after:-right-1.5",
         className
       )}
       {...props}
     >
       {withHandle && (
-        <div className="z-10 flex h-6 w-1 shrink-0 rounded-lg bg-border" />
+        <div className="z-20 flex items-center justify-center rounded-sm bg-secondary border border-border px-1 py-0.5 shadow-sm transition-transform group-hover:scale-110 group-hover:border-accent">
+          {/* Grip pill that adjusts orientation */}
+          <div className="h-1 w-6 rounded-full bg-muted-foreground/70 group-hover:bg-accent-foreground [[aria-orientation=vertical]_&]:h-6 [[aria-orientation=vertical]_&]:w-1" />
+        </div>
       )}
     </ResizablePrimitive.Separator>
-  )
+  );
 }
 
-export { ResizableHandle, ResizablePanel, ResizablePanelGroup }
+export { ResizableHandle, ResizablePanel, ResizablePanelGroup };

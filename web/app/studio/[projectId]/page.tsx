@@ -50,6 +50,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable";
+import { StudioInspector } from "@/components/cinema/studio-inspector";
+import {
   Film,
   Sparkles,
   Bot,
@@ -770,6 +776,26 @@ export default function StudioPage() {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
+  const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
+  const [selectedNode, setSelectedNode] = React.useState<Node | null>(() => initialNodes[5] || initialNodes[0] || null);
+
+  const handleUpdateNodeData = React.useCallback(
+    (nodeId: string, newData: Record<string, unknown>) => {
+      setNodes((nds) =>
+        nds.map((n) => {
+          if (n.id === nodeId) {
+            return { ...n, data: { ...n.data, ...newData } };
+          }
+          return n;
+        })
+      );
+      setSelectedNode((prev) =>
+        prev && prev.id === nodeId ? { ...prev, data: { ...prev.data, ...newData } } : prev
+      );
+    },
+    [setNodes]
+  );
+
   // Allow user to draw new connections between nodes
   const onConnect = React.useCallback(
     (connection: Connection) => setEdges((eds) => addEdge(connection, eds)),
@@ -974,25 +1000,11 @@ export default function StudioPage() {
 
   // Node Clicking Handlers
   const handleNodeClick = (_: React.MouseEvent, node: Node) => {
+    setSelectedNode(node);
+    if (!isSidebarOpen) setIsSidebarOpen(true);
     if (node.type === "characterCore") {
       const charName = (node.data as { name: string }).name;
       setActiveCharacterName(charName);
-      setActiveTab("hotseat");
-    } else if (node.type === "scene" || node.type === "script") {
-      setScriptViewerOpen(true);
-    } else if (node.type === "floorplan") {
-      setActiveTab("deck");
-      setDeckSubTab("blocking");
-    } else if (node.type === "tensionCurve") {
-      setActiveTab("deck");
-      setDeckSubTab("tension");
-    } else if (node.type === "market") {
-      setActiveTab("deck");
-      setDeckSubTab("territory");
-    } else if (node.type === "tableRead") {
-      setShowTableRead(true);
-    } else if (node.type === "chemistry") {
-      setActiveTab("chemistry");
     }
   };
 
@@ -1082,6 +1094,17 @@ export default function StudioPage() {
 
           <Button
             size="sm"
+            variant={isSidebarOpen ? "secondary" : "outline"}
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className="gap-1.5 text-xs border-border/80 text-foreground"
+            title="Toggle Studio Inspector Sidebar"
+          >
+            <Sliders className="h-3.5 w-3.5 text-cyan-400" />
+            <span>{isSidebarOpen ? "Hide Inspector" : "Show Inspector"}</span>
+          </Button>
+
+          <Button
+            size="sm"
             onClick={() => setNewProjectOpen(true)}
             className="gap-1.5 text-xs bg-accent text-accent-foreground hover:bg-accent/90"
           >
@@ -1091,251 +1114,295 @@ export default function StudioPage() {
         </div>
       </header>
 
-      {/* Main Canvas Workspace with Unreal Blueprint Node Network */}
-      <div className="relative flex-1 overflow-hidden bg-background">
-        <StoryCanvas
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onNodeClick={handleNodeClick}
-          onAddNode={handleAddBlueprintNode}
-        />
-      </div>
+      {/* Resizable Studio Layout (Canvas, Inspector Sidebar & Cinema Dock) */}
+      <div className="flex-1 overflow-hidden">
+        <ResizablePanelGroup orientation="vertical" className="h-full w-full">
+          {/* Top Panel: Canvas + Resizable Inspector Sidebar */}
+          <ResizablePanel defaultSize={65} minSize={25} maxSize={88} className="relative">
+            <ResizablePanelGroup orientation="horizontal" className="h-full w-full">
+              {/* Left Panel: React Flow Story Canvas */}
+              <ResizablePanel defaultSize={isSidebarOpen ? 75 : 100} minSize={40}>
+                <div className="relative h-full w-full overflow-hidden bg-background">
+                  <StoryCanvas
+                    nodes={nodes}
+                    edges={edges}
+                    onNodesChange={onNodesChange}
+                    onEdgesChange={onEdgesChange}
+                    onConnect={onConnect}
+                    onNodeClick={handleNodeClick}
+                    onAddNode={handleAddBlueprintNode}
+                  />
+                </div>
+              </ResizablePanel>
 
-      {/* Unified Cinema Dock (Bottom Workspace) */}
-      <div className="flex h-80 shrink-0 flex-col border-t border-border bg-card/95 backdrop-blur">
-        {/* Navigation Strip */}
-        <div className="flex h-10 shrink-0 items-center justify-between border-b border-border px-4 bg-secondary/30">
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setActiveTab("hotseat")}
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
-                activeTab === "hotseat"
-                  ? "bg-accent text-accent-foreground shadow-sm"
-                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-              }`}
-            >
-              <UserCheck className="h-3.5 w-3.5" />
-              <span>Interrogation Chamber ({activeCharacterName})</span>
-            </button>
+              {/* Vertical Separator Handle between Canvas and Sidebar */}
+              {isSidebarOpen && (
+                <>
+                  <ResizableHandle withHandle />
+                  <ResizablePanel defaultSize={25} minSize={18} maxSize={50}>
+                    <StudioInspector
+                      selectedNode={selectedNode}
+                      nodes={nodes}
+                      onSelectNode={(nodeId) => {
+                        const found = nodes.find((n) => n.id === nodeId);
+                        if (found) setSelectedNode(found);
+                      }}
+                      onUpdateNodeData={handleUpdateNodeData}
+                      onOpenHotSeat={(charName) => {
+                        setActiveCharacterName(charName);
+                        setActiveTab("hotseat");
+                      }}
+                      onOpenScriptReader={() => setScriptViewerOpen(true)}
+                      onOpenDeck={(subTab) => {
+                        setActiveTab("deck");
+                        setDeckSubTab(subTab);
+                      }}
+                      onOpenTableRead={() => setShowTableRead(true)}
+                      onClose={() => setIsSidebarOpen(false)}
+                    />
+                  </ResizablePanel>
+                </>
+              )}
+            </ResizablePanelGroup>
+          </ResizablePanel>
 
-            <button
-              type="button"
-              onClick={() => setActiveTab("showrunner")}
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
-                activeTab === "showrunner"
-                  ? "bg-accent text-accent-foreground shadow-sm"
-                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-              }`}
-            >
-              <Bot className="h-3.5 w-3.5" />
-              <span>Showrunner AI Co-Pilot</span>
-            </button>
+          {/* Horizontal Resizable Handle between Canvas and Bottom Dock */}
+          <ResizableHandle withHandle />
 
-            <button
-              type="button"
-              onClick={() => setActiveTab("chemistry")}
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
-                activeTab === "chemistry"
-                  ? "bg-rose-500 text-white shadow-sm"
-                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-              }`}
-            >
-              <Users2 className="h-3.5 w-3.5 text-rose-400" />
-              <span>Dream Casting Bench</span>
-            </button>
+          {/* Bottom Panel: Resizable Cinema Dock */}
+          <ResizablePanel defaultSize={35} minSize={12} maxSize={75} className="flex flex-col overflow-hidden bg-card/95 backdrop-blur border-t border-border">
+            {/* Navigation Strip */}
+            <div className="flex h-10 shrink-0 items-center justify-between border-b border-border px-4 bg-secondary/30">
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("hotseat")}
+                  className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
+                    activeTab === "hotseat"
+                      ? "bg-accent text-accent-foreground shadow-sm"
+                      : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  }`}
+                >
+                  <UserCheck className="h-3.5 w-3.5" />
+                  <span>Interrogation Chamber ({activeCharacterName})</span>
+                </button>
 
-            <button
-              type="button"
-              onClick={() => setActiveTab("deck")}
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
-                activeTab === "deck"
-                  ? "bg-accent text-accent-foreground shadow-sm"
-                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-              }`}
-            >
-              <Layers className="h-3.5 w-3.5" />
-              <span>Director's Deck Suite</span>
-            </button>
-          </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("showrunner")}
+                  className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
+                    activeTab === "showrunner"
+                      ? "bg-accent text-accent-foreground shadow-sm"
+                      : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  }`}
+                >
+                  <Bot className="h-3.5 w-3.5" />
+                  <span>Showrunner AI Co-Pilot</span>
+                </button>
 
-          {/* ClickHouse Live Status Badge */}
-          <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground">
-            <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>ClickHouse Sub-ms Time-Gate Active</span>
-          </div>
-        </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("chemistry")}
+                  className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
+                    activeTab === "chemistry"
+                      ? "bg-rose-500 text-white shadow-sm"
+                      : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  }`}
+                >
+                  <Users2 className="h-3.5 w-3.5 text-rose-400" />
+                  <span>Dream Casting Bench</span>
+                </button>
 
-        {/* Tab 1: Timeline Scrubber & Hot Seat Interrogation */}
-        {activeTab === "hotseat" && (
-          <div className="flex flex-1 flex-col overflow-hidden">
-            <div className="border-b border-border/50 px-4 py-2 bg-background/50">
-              <TimelineScrubber
-                durationSeconds={DURATION_SECONDS}
-                value={timeSeconds}
-                onChange={setTimeSeconds}
-                events={events}
-              />
-            </div>
-            <div className="flex-1 overflow-hidden p-2">
-              <HotSeatChat
-                characterName={activeCharacterName}
-                characterArchetype={activeCharacter?.archetype}
-                currentTimecode={formatTimecode(timeSeconds)}
-                turns={hotSeatTurns}
-                knownFacts={knownFacts}
-                onSend={handleAskHotSeat}
-                isAsking={isAsking}
-                onInsertIntoScript={handleInsertIntoScript}
-                suggestedQuestions={[
-                  "Do you know who has the vault bypass keys?",
-                  "Why won't you turn around and look at me?",
-                  "Where were you when the security alarms triggered?",
-                ]}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Tab 2: Showrunner AI Co-Pilot */}
-        {activeTab === "showrunner" && (
-          <div className="flex-1 overflow-hidden p-3">
-            <ShowrunnerChat
-              messages={showrunnerMessages}
-              isThinking={isShowrunnerThinking}
-              onSendMessage={handleSendShowrunner}
-              suggestedPrompts={[
-                "Critique the dramatic irony at Minute 34",
-                "Suggest subtext revisions for Elena's dialogue",
-                "Query ClickHouse box-office precedents for heist twists",
-              ]}
-            />
-          </div>
-        )}
-
-        {/* Tab 3: Dream Casting Chemistry Bench */}
-        {activeTab === "chemistry" && (
-          <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <h4 className="font-heading text-sm font-bold text-foreground flex items-center gap-2">
-                  <Flame className="h-4 w-4 text-rose-500" />
-                  Impromptu Dynamic Friction Sandbox (Marcus vs Elena)
-                </h4>
-                <p className="text-xs text-muted-foreground">
-                  Tests how two contrasting character DNAs and vocal cadences clash under pressure.
-                </p>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("deck")}
+                  className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
+                    activeTab === "deck"
+                      ? "bg-accent text-accent-foreground shadow-sm"
+                      : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  }`}
+                >
+                  <Layers className="h-3.5 w-3.5" />
+                  <span>Director's Deck Suite</span>
+                </button>
               </div>
-              <Button
-                size="sm"
-                onClick={handleRunChemistry}
-                disabled={isChemistryRunning}
-                className="bg-rose-500 hover:bg-rose-600 text-white font-semibold"
-              >
-                {isChemistryRunning ? "Generating Micro-Scene..." : "Run Chemistry Test"}
-              </Button>
-            </div>
 
-            <div className="flex gap-3">
-              <input
-                type="text"
-                value={chemistryScenario}
-                onChange={(e) => setChemistryScenario(e.target.value)}
-                placeholder="Enter an environmental conflict scenario..."
-                className="flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-xs text-foreground font-mono"
-              />
-            </div>
-
-            {chemistrySceneOutput ? (
-              <div className="rounded-lg border border-border bg-background/80 p-3 font-mono text-xs leading-relaxed text-foreground whitespace-pre-wrap max-h-48 overflow-y-auto shadow-inner">
-                {chemistrySceneOutput}
+              {/* ClickHouse Live Status Badge */}
+              <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground">
+                <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span>ClickHouse Sub-ms Time-Gate Active</span>
               </div>
-            ) : (
-              <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-border/80 p-6 text-center text-xs text-muted-foreground">
-                Click &ldquo;Run Chemistry Test&rdquo; to simulate an impromptu 1-page friction scene between Marcus and Elena.
+            </div>
+
+            {/* Tab 1: Timeline Scrubber & Hot Seat Interrogation */}
+            {activeTab === "hotseat" && (
+              <div className="flex flex-1 flex-col overflow-hidden">
+                <div className="border-b border-border/50 px-4 py-2 bg-background/50">
+                  <TimelineScrubber
+                    durationSeconds={DURATION_SECONDS}
+                    value={timeSeconds}
+                    onChange={setTimeSeconds}
+                    events={events}
+                  />
+                </div>
+                <div className="flex-1 overflow-hidden p-2">
+                  <HotSeatChat
+                    characterName={activeCharacterName}
+                    characterArchetype={activeCharacter?.archetype}
+                    currentTimecode={formatTimecode(timeSeconds)}
+                    turns={hotSeatTurns}
+                    knownFacts={knownFacts}
+                    onSend={handleAskHotSeat}
+                    isAsking={isAsking}
+                    onInsertIntoScript={handleInsertIntoScript}
+                    suggestedQuestions={[
+                      "Do you know who has the vault bypass keys?",
+                      "Why won't you turn around and look at me?",
+                      "Where were you when the security alarms triggered?",
+                    ]}
+                  />
+                </div>
               </div>
             )}
-          </div>
-        )}
 
-        {/* Tab 4: Director's Deck Suite */}
-        {activeTab === "deck" && (
-          <div className="flex flex-1 flex-col overflow-hidden">
-            <div className="flex items-center gap-2 border-b border-border px-4 py-1.5 bg-secondary/20">
-              <button
-                type="button"
-                onClick={() => setDeckSubTab("blocking")}
-                className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
-                  deckSubTab === "blocking"
-                    ? "bg-accent text-accent-foreground"
-                    : "text-muted-foreground hover:bg-secondary"
-                }`}
-              >
-                2D Camera Blocking
-              </button>
-              <button
-                type="button"
-                onClick={() => setDeckSubTab("tension")}
-                className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
-                  deckSubTab === "tension"
-                    ? "bg-accent text-accent-foreground"
-                    : "text-muted-foreground hover:bg-secondary"
-                }`}
-              >
-                3-Act Tension Curve
-              </button>
-              <button
-                type="button"
-                onClick={() => setDeckSubTab("territory")}
-                className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
-                  deckSubTab === "territory"
-                    ? "bg-accent text-accent-foreground"
-                    : "text-muted-foreground hover:bg-secondary"
-                }`}
-              >
-                Territory Box Office
-              </button>
-              <button
-                type="button"
-                onClick={() => setDeckSubTab("stripboard")}
-                className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
-                  deckSubTab === "stripboard"
-                    ? "bg-accent text-accent-foreground"
-                    : "text-muted-foreground hover:bg-secondary"
-                }`}
-              >
-                Production Stripboard
-              </button>
-            </div>
+            {/* Tab 2: Showrunner AI Co-Pilot */}
+            {activeTab === "showrunner" && (
+              <div className="flex-1 overflow-hidden p-3">
+                <ShowrunnerChat
+                  messages={showrunnerMessages}
+                  isThinking={isShowrunnerThinking}
+                  onSendMessage={handleSendShowrunner}
+                  suggestedPrompts={[
+                    "Critique the dramatic irony at Minute 34",
+                    "Suggest subtext revisions for Elena's dialogue",
+                    "Query ClickHouse box-office precedents for heist twists",
+                  ]}
+                />
+              </div>
+            )}
 
-            <div className="flex-1 overflow-y-auto p-3">
-              {deckSubTab === "blocking" && <FloorPlanView sceneTitle={sceneTitle} />}
-              {deckSubTab === "tension" && (
-                <TensionCurveView
-                  currentTimeSeconds={timeSeconds}
-                  onScrubTime={setTimeSeconds}
-                  projectId={projectId}
-                />
-              )}
-              {deckSubTab === "territory" && (
-                <TerritoryHeatmapView
-                  projectTitle={projectTitle}
-                  genre={matchedPreset.genre}
-                />
-              )}
-              {deckSubTab === "stripboard" && (
-                <StripboardView
-                  projectTitle={projectTitle}
-                  characters={characters}
-                  projectId={projectId}
-                />
-              )}
-            </div>
-          </div>
-        )}
+            {/* Tab 3: Dream Casting Chemistry Bench */}
+            {activeTab === "chemistry" && (
+              <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-heading text-sm font-bold text-foreground flex items-center gap-2">
+                      <Flame className="h-4 w-4 text-rose-500" />
+                      Impromptu Dynamic Friction Sandbox (Marcus vs Elena)
+                    </h4>
+                    <p className="text-xs text-muted-foreground">
+                      Tests how two contrasting character DNAs and vocal cadences clash under pressure.
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={handleRunChemistry}
+                    disabled={isChemistryRunning}
+                    className="bg-rose-500 hover:bg-rose-600 text-white font-semibold"
+                  >
+                    {isChemistryRunning ? "Generating Micro-Scene..." : "Run Chemistry Test"}
+                  </Button>
+                </div>
+
+                <div className="flex gap-3">
+                  <input
+                    type="text"
+                    value={chemistryScenario}
+                    onChange={(e) => setChemistryScenario(e.target.value)}
+                    placeholder="Enter an environmental conflict scenario..."
+                    className="flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-xs text-foreground font-mono"
+                  />
+                </div>
+
+                {chemistrySceneOutput ? (
+                  <div className="rounded-lg border border-border bg-background/80 p-3 font-mono text-xs leading-relaxed text-foreground whitespace-pre-wrap max-h-48 overflow-y-auto shadow-inner">
+                    {chemistrySceneOutput}
+                  </div>
+                ) : (
+                  <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-border/80 p-6 text-center text-xs text-muted-foreground">
+                    Click &ldquo;Run Chemistry Test&rdquo; to simulate an impromptu 1-page friction scene between Marcus and Elena.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Tab 4: Director's Deck Suite */}
+            {activeTab === "deck" && (
+              <div className="flex flex-1 flex-col overflow-hidden">
+                <div className="flex items-center gap-2 border-b border-border px-4 py-1.5 bg-secondary/20">
+                  <button
+                    type="button"
+                    onClick={() => setDeckSubTab("blocking")}
+                    className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+                      deckSubTab === "blocking"
+                        ? "bg-accent text-accent-foreground"
+                        : "text-muted-foreground hover:bg-secondary"
+                    }`}
+                  >
+                    2D Camera Blocking
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeckSubTab("tension")}
+                    className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+                      deckSubTab === "tension"
+                        ? "bg-accent text-accent-foreground"
+                        : "text-muted-foreground hover:bg-secondary"
+                    }`}
+                  >
+                    3-Act Tension Curve
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeckSubTab("territory")}
+                    className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+                      deckSubTab === "territory"
+                        ? "bg-accent text-accent-foreground"
+                        : "text-muted-foreground hover:bg-secondary"
+                    }`}
+                  >
+                    Territory Box Office
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeckSubTab("stripboard")}
+                    className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+                      deckSubTab === "stripboard"
+                        ? "bg-accent text-accent-foreground"
+                        : "text-muted-foreground hover:bg-secondary"
+                    }`}
+                  >
+                    Production Stripboard
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-3">
+                  {deckSubTab === "blocking" && <FloorPlanView sceneTitle={sceneTitle} />}
+                  {deckSubTab === "tension" && (
+                    <TensionCurveView
+                      currentTimeSeconds={timeSeconds}
+                      onScrubTime={setTimeSeconds}
+                      projectId={projectId}
+                    />
+                  )}
+                  {deckSubTab === "territory" && (
+                    <TerritoryHeatmapView
+                      projectTitle={projectTitle}
+                      genre={matchedPreset.genre}
+                    />
+                  )}
+                  {deckSubTab === "stripboard" && (
+                    <StripboardView
+                      projectTitle={projectTitle}
+                      characters={characters}
+                      projectId={projectId}
+                    />
+                  )}
+                </div>
+              </div>
+            )}
+          </ResizablePanel>
+        </ResizablePanelGroup>
       </div>
 
       {/* Floating ClickHouse Live Inspector (Bottom Right) */}
