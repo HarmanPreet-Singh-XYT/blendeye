@@ -10,6 +10,7 @@ import {
   NewProjectDialog,
   type NewProjectFormData,
 } from "@/components/cinema/new-project-dialog";
+import { FilmFusionDialog } from "@/components/cinema/film-fusion-dialog";
 import {
   Film,
   Sparkles,
@@ -20,6 +21,7 @@ import {
   ShieldAlert,
   Play,
   Plus,
+  Shuffle,
 } from "lucide-react";
 
 const FEATURED_SLATES = [
@@ -52,6 +54,7 @@ const FEATURED_SLATES = [
 export default function FilmHubLandingPage() {
   const router = useRouter();
   const [newProjectOpen, setNewProjectOpen] = React.useState(false);
+  const [fusionOpen, setFusionOpen] = React.useState(false);
 
   const handleCreateProject = (data: NewProjectFormData) => {
     const newPid = `project-${Date.now().toString(36)}`;
@@ -121,6 +124,15 @@ export default function FilmHubLandingPage() {
             >
               <Plus className="h-4 w-4" />
               Create Custom Film Slate
+            </Button>
+            <Button
+              size="lg"
+              variant="secondary"
+              className="gap-2 text-sm h-11 px-6 border border-border/80 hover:bg-secondary/80"
+              onClick={() => setFusionOpen(true)}
+            >
+              <Shuffle className="h-4 w-4 text-accent" />
+              Film Fusion (Crossover)
             </Button>
           </div>
         </div>
@@ -267,6 +279,12 @@ export default function FilmHubLandingPage() {
         open={newProjectOpen}
         onOpenChange={setNewProjectOpen}
         onSubmit={handleCreateProject}
+      />
+
+      {/* Film Fusion Crossover Dialog */}
+      <FilmFusionDialog
+        open={fusionOpen}
+        onOpenChange={setFusionOpen}
       />
     </div>
   );

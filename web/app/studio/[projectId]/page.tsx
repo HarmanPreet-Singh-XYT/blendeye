@@ -19,6 +19,7 @@ import {
   NewProjectDialog,
   type NewProjectFormData,
 } from "@/components/cinema/new-project-dialog";
+import { FilmFusionDialog } from "@/components/cinema/film-fusion-dialog";
 import { ScreenplayDialog } from "@/components/cinema/screenplay-dialog";
 import {
   ClickHouseInspector,
@@ -35,6 +36,7 @@ import {
   Plus,
   ChevronRight,
   ArrowLeft,
+  Shuffle,
 } from "lucide-react";
 import type { ShowrunnerMessage } from "@/lib/agent-service";
 
@@ -193,6 +195,7 @@ export default function StudioProjectPage() {
   // UI Navigation & Modals
   const [activeTab, setActiveTab] = React.useState<StudioTab>("hotseat");
   const [newProjectOpen, setNewProjectOpen] = React.useState(false);
+  const [fusionOpen, setFusionOpen] = React.useState(false);
   const [scriptViewerOpen, setScriptViewerOpen] = React.useState(false);
 
   // Pipeline Status & Logs
@@ -632,6 +635,16 @@ export default function StudioProjectPage() {
 
           <Button
             size="sm"
+            variant="outline"
+            className="h-8 text-xs gap-1.5 border-border hover:bg-secondary"
+            onClick={() => setFusionOpen(true)}
+          >
+            <Shuffle className="h-3.5 w-3.5 text-accent" />
+            Film Fusion
+          </Button>
+
+          <Button
+            size="sm"
             className="h-8 text-xs gap-1.5 bg-accent text-accent-foreground hover:bg-accent/90"
             onClick={() => setNewProjectOpen(true)}
           >
@@ -854,6 +867,12 @@ export default function StudioProjectPage() {
         title={sceneTitle}
         summary={sceneSummary}
         screenplayText={screenplayText}
+      />
+
+      {/* Film Fusion Crossover Dialog */}
+      <FilmFusionDialog
+        open={fusionOpen}
+        onOpenChange={setFusionOpen}
       />
     </div>
   );

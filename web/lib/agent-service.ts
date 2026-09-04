@@ -178,3 +178,50 @@ export function chatWithShowrunner(req: ShowrunnerChatRequest) {
   });
 }
 
+export interface CharacterRemapping {
+  original_name: string;
+  original_story: string;
+  fused_role: string;
+  alignment: string;
+  speech_style: string;
+  subtext_ratio: string;
+}
+
+export interface FusedTimelineEvent {
+  character_name: string;
+  event_timestamp: string;
+  event_type: "known_fact" | "unaware_of" | "location" | "objective";
+  content: string;
+}
+
+export interface FilmFusionRequest {
+  title_a: string;
+  script_a: string;
+  title_b: string;
+  script_b: string;
+  fusion_directive?: string;
+  fusion_project_id?: string;
+}
+
+export interface FilmFusionResponse {
+  fusion_project_id: string;
+  fused_title: string;
+  fused_logline: string;
+  character_remappings: CharacterRemapping[];
+  reconciled_events: FusedTimelineEvent[];
+  fused_screenplay: string;
+  events_written_to_clickhouse: number;
+}
+
+export function fuseFilms(req: FilmFusionRequest) {
+  return postJson<FilmFusionResponse>("/fusion/fuse", {
+    title_a: req.title_a,
+    script_a: req.script_a,
+    title_b: req.title_b,
+    script_b: req.script_b,
+    fusion_directive: req.fusion_directive ?? "Combine these two worlds into a high-stakes crossover scene where the characters' secrets clash directly.",
+    fusion_project_id: req.fusion_project_id ?? "fusion-crossover-demo",
+  });
+}
+
+
