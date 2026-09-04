@@ -52,11 +52,11 @@ export function TensionCurveView({
     ];
   }, [projectId]);
 
-  // Dimensions for SVG plot (500x180 coordinate space)
-  const svgWidth = 500;
-  const svgHeight = 180;
-  const paddingX = 35;
-  const paddingY = 25;
+  // Dimensions for SVG plot (1000x240 high-density coordinate space)
+  const svgWidth = 1000;
+  const svgHeight = 240;
+  const paddingX = 55;
+  const paddingY = 32;
   const totalDuration = 90 * 60; // 5400s
 
   // Compute curve points
@@ -172,13 +172,17 @@ export function TensionCurveView({
       </div>
 
       {/* SVG Curve Canvas */}
-      <div className="relative w-full aspect-[21/9] rounded-lg border border-border/80 bg-background/80 overflow-hidden select-none">
+      <div className="relative w-full h-[200px] sm:h-[220px] rounded-lg border border-border/80 bg-background/90 overflow-hidden select-none">
         <svg
           className="w-full h-full cursor-crosshair"
           viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+          preserveAspectRatio="none"
           onClick={(e) => {
             const rect = e.currentTarget.getBoundingClientRect();
-            const clickRatio = (e.clientX - rect.left) / rect.width;
+            const clickX = e.clientX - rect.left;
+            const svgX = (clickX / rect.width) * svgWidth;
+            const clampedX = Math.max(paddingX, Math.min(svgWidth - paddingX, svgX));
+            const clickRatio = (clampedX - paddingX) / (svgWidth - 2 * paddingX);
             const clickSec = Math.round(clickRatio * totalDuration);
             onScrubTime?.(clickSec);
           }}
@@ -186,29 +190,65 @@ export function TensionCurveView({
           <defs>
             {/* Ambient Tension Fill Gradient */}
             <linearGradient id="tension-fill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.35" />
-              <stop offset="60%" stopColor="var(--accent)" stopOpacity="0.08" />
+              <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.3" />
+              <stop offset="60%" stopColor="var(--accent)" stopOpacity="0.06" />
               <stop offset="100%" stopColor="var(--accent)" stopOpacity="0.0" />
             </linearGradient>
 
             {/* Tension Line Glow Filter */}
-            <filter id="tension-glow" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor="var(--accent)" floodOpacity="0.6" />
+            <filter id="tension-glow" x="-10%" y="-10%" width="120%" height="120%">
+              <feDropShadow dx="0" dy="0" stdDeviation="2.5" floodColor="var(--accent)" floodOpacity="0.5" />
             </filter>
           </defs>
 
           {/* Act Region Background Shading */}
-          <rect x={paddingX} y={paddingY} width={(svgWidth - 2 * paddingX) * 0.25} height={svgHeight - 2 * paddingY} fill="var(--secondary)" opacity="0.15" />
-          <text x={paddingX + 10} y={paddingY + 14} fill="var(--muted-foreground)" fontSize="8" fontFamily="monospace">
+          <rect
+            x={paddingX}
+            y={paddingY}
+            width={(svgWidth - 2 * paddingX) * 0.25}
+            height={svgHeight - 2 * paddingY}
+            fill="var(--secondary)"
+            opacity="0.15"
+          />
+          <text
+            x={paddingX + 12}
+            y={paddingY + 16}
+            fill="var(--muted-foreground)"
+            fontSize="10"
+            fontFamily="monospace"
+            letterSpacing="0.5"
+          >
             ACT I · SETUP
           </text>
 
-          <rect x={paddingX + (svgWidth - 2 * paddingX) * 0.25} y={paddingY} width={(svgWidth - 2 * paddingX) * 0.5} height={svgHeight - 2 * paddingY} fill="var(--accent)" opacity="0.04" />
-          <text x={paddingX + (svgWidth - 2 * paddingX) * 0.25 + 10} y={paddingY + 14} fill="var(--accent)" opacity="0.7" fontSize="8" fontFamily="monospace">
+          <rect
+            x={paddingX + (svgWidth - 2 * paddingX) * 0.25}
+            y={paddingY}
+            width={(svgWidth - 2 * paddingX) * 0.5}
+            height={svgHeight - 2 * paddingY}
+            fill="var(--accent)"
+            opacity="0.04"
+          />
+          <text
+            x={paddingX + (svgWidth - 2 * paddingX) * 0.25 + 12}
+            y={paddingY + 16}
+            fill="var(--accent)"
+            opacity="0.75"
+            fontSize="10"
+            fontFamily="monospace"
+            letterSpacing="0.5"
+          >
             ACT II · CONFLICT &amp; ASYMMETRY
           </text>
 
-          <text x={paddingX + (svgWidth - 2 * paddingX) * 0.75 + 10} y={paddingY + 14} fill="var(--muted-foreground)" fontSize="8" fontFamily="monospace">
+          <text
+            x={paddingX + (svgWidth - 2 * paddingX) * 0.75 + 12}
+            y={paddingY + 16}
+            fill="var(--muted-foreground)"
+            fontSize="10"
+            fontFamily="monospace"
+            letterSpacing="0.5"
+          >
             ACT III · CLIMAX
           </text>
 
@@ -217,8 +257,24 @@ export function TensionCurveView({
             const y = svgHeight - paddingY - (level / 100) * (svgHeight - 2 * paddingY);
             return (
               <g key={level}>
-                <line x1={paddingX} y1={y} x2={svgWidth - paddingX} y2={y} stroke="var(--border)" strokeWidth="0.5" strokeDasharray="3 3" opacity="0.5" />
-                <text x={paddingX - 22} y={y + 3} fill="var(--muted-foreground)" fontSize="8" fontFamily="monospace">
+                <line
+                  x1={paddingX}
+                  y1={y}
+                  x2={svgWidth - paddingX}
+                  y2={y}
+                  stroke="var(--border)"
+                  strokeWidth="0.75"
+                  strokeDasharray="4 4"
+                  opacity="0.45"
+                />
+                <text
+                  x={paddingX - 10}
+                  y={y + 3.5}
+                  fill="var(--muted-foreground)"
+                  fontSize="10"
+                  fontFamily="monospace"
+                  textAnchor="end"
+                >
                   {level}%
                 </text>
               </g>
@@ -240,7 +296,14 @@ export function TensionCurveView({
 
           {/* Beat Markers */}
           {points.map((pt, i) => (
-            <g key={i} className="cursor-pointer" onClick={(e) => { e.stopPropagation(); onScrubTime?.(pt.timeSeconds); }}>
+            <g
+              key={i}
+              className="cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                onScrubTime?.(pt.timeSeconds);
+              }}
+            >
               <circle
                 cx={pt.x}
                 cy={pt.y}
@@ -253,7 +316,7 @@ export function TensionCurveView({
                 x={pt.x}
                 y={pt.y - 8}
                 fill="var(--foreground)"
-                fontSize="8"
+                fontSize="10"
                 fontFamily="monospace"
                 fontWeight="bold"
                 textAnchor="middle"
@@ -266,23 +329,23 @@ export function TensionCurveView({
           {/* Current Scrubber Head Vertical Ray */}
           <line
             x1={currentX}
-            y1={paddingY - 5}
+            y1={paddingY - 6}
             x2={currentX}
-            y2={svgHeight - paddingY + 5}
+            y2={svgHeight - paddingY + 6}
             stroke="#f59e0b"
             strokeWidth="1.5"
-            strokeDasharray="2 2"
+            strokeDasharray="3 3"
           />
-          <circle cx={currentX} cy={paddingY - 4} r="3" fill="#f59e0b" />
+          <circle cx={currentX} cy={paddingY - 5} r="3.5" fill="#f59e0b" />
         </svg>
       </div>
 
       {/* Current Beat Card & Analytics */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {/* Nearest Beat Highlight */}
-        <div className="col-span-2 flex items-start gap-3 rounded-lg border border-border bg-secondary/30 p-3">
-          <div className="p-2 rounded bg-accent/10 border border-accent/30 text-accent shrink-0">
-            <AlertTriangle className="h-4 w-4" />
+        <div className="col-span-2 flex items-start gap-3 rounded-lg border border-border bg-secondary/30 p-2.5">
+          <div className="p-1.5 rounded bg-accent/10 border border-accent/30 text-accent shrink-0">
+            <AlertTriangle className="h-3.5 w-3.5" />
           </div>
           <div className="space-y-1 min-w-0 flex-1">
             <div className="flex items-center justify-between">
@@ -296,7 +359,7 @@ export function TensionCurveView({
             <p className="text-[11px] text-muted-foreground leading-relaxed">
               {activeBeat.description}
             </p>
-            <div className="flex items-center gap-2 pt-1 text-[10px]">
+            <div className="flex items-center gap-2 pt-0.5 text-[10px]">
               <span className="text-muted-foreground">Focus:</span>
               <Badge variant="outline" className="text-[9px] py-0 px-1 border-accent/40 text-accent">
                 {activeBeat.characterFocus}
@@ -308,16 +371,16 @@ export function TensionCurveView({
         </div>
 
         {/* Real-time ClickHouse Pacing Engine Metric */}
-        <div className="flex flex-col justify-between rounded-lg border border-border bg-secondary/20 p-3">
+        <div className="flex flex-col justify-between rounded-lg border border-border bg-secondary/20 p-2.5">
           <div className="flex items-center justify-between">
             <span className="text-[10px] uppercase font-semibold text-muted-foreground">
               Retention Est.
             </span>
             <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
           </div>
-          <div>
-            <span className="text-xl font-bold font-mono text-foreground">94.8%</span>
-            <p className="text-[10px] text-muted-foreground">
+          <div className="my-1">
+            <span className="text-lg font-bold font-mono text-foreground">94.8%</span>
+            <p className="text-[10px] text-muted-foreground leading-tight">
               Strong mid-point hold via asymmetric secret reveal.
             </p>
           </div>
