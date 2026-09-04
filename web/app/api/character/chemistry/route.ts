@@ -4,7 +4,25 @@ import { testChemistry } from "@/lib/agent-service";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const result = await testChemistry(body);
+    const payload = {
+      char_a_name: body.char_a_name || body.character_a?.name || "Marcus Vance",
+      char_a_dna:
+        body.char_a_dna ||
+        body.character_a?.archetype ||
+        body.character_a?.dna ||
+        "Master safecracker, high paranoia",
+      char_b_name: body.char_b_name || body.character_b?.name || "Elena Rostova",
+      char_b_dna:
+        body.char_b_dna ||
+        body.character_b?.archetype ||
+        body.character_b?.dna ||
+        "Corrupt vault architect, ice-cold precision",
+      scenario:
+        body.scenario ||
+        body.setting ||
+        "Stuck in a service elevator with a ticking delivery countdown",
+    };
+    const result = await testChemistry(payload);
     return NextResponse.json(result);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
