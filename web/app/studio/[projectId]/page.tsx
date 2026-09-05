@@ -38,12 +38,34 @@ import {
   MultiverseTakesDialog,
   type MultiverseTake,
 } from "@/components/cinema/multiverse-takes-dialog";
+import { VersionControlDialog } from "@/components/cinema/version-control-dialog";
+import { AICommanderDialog } from "@/components/cinema/ai-commander-dialog";
+import { ClickHouseToolboxDialog } from "@/components/cinema/clickhouse-toolbox-dialog";
+import { AudioStudioView } from "@/components/cinema/audio-studio-view";
+import { VeoVideoDialog } from "@/components/cinema/veo-video-dialog";
+import {
+  StudioVersionControl,
+  type SnapshotState,
+  type HistoryCategory,
+} from "@/lib/version-control";
+import { autoTidyBacklot } from "@/lib/backlot-layout";
+import { executeStudioActions } from "@/lib/studio-commander";
+import type { CommanderExecutionResponse } from "@/lib/studio-actions";
+import type { ExtendedShowrunnerMessage } from "@/components/cinema/showrunner-chat";
 import {
   ClickHouseInspector,
   type ClickHouseQueryLog,
 } from "@/components/cinema/clickhouse-inspector";
 import { SlateLabel } from "@/components/cinema/slate-label";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -68,9 +90,12 @@ import {
   Plus,
   ArrowLeft,
   Shuffle,
+  Database,
   Sliders,
   Layers,
   Volume2,
+  Headphones,
+  Video,
   Users2,
   Flame,
   Square,
@@ -82,6 +107,12 @@ import {
   Minimize2,
   RefreshCw,
   Loader2,
+  History,
+  RotateCcw,
+  RotateCw,
+  Zap,
+  ChevronDown,
+  Check,
 } from "lucide-react";
 import type { ShowrunnerMessage } from "@/lib/agent-service";
 import {
@@ -100,7 +131,7 @@ const DURATION_SECONDS = 90 * 60; // 90 min feature runtime
 
 export const PRESET_SCENARIOS = SEED_PROJECTS;
 
-type StudioTab = "hotseat" | "showrunner" | "chemistry" | "screenplay" | "deck";
+type StudioTab = "hotseat" | "showrunner" | "chemistry" | "screenplay" | "deck" | "audio";
 type DeckSubTab = "blocking" | "tension" | "territory" | "stripboard";
 
 export default function StudioPage() {
@@ -141,9 +172,10 @@ export default function StudioPage() {
   const [knownFacts, setKnownFacts] = React.useState<KnowledgeFact[]>([]);
   const [hotSeatTurns, setHotSeatTurns] = React.useState<HotSeatTurn[]>([]);
 
-  // Showrunner Chat State
-  const [showrunnerMessages, setShowrunnerMessages] = React.useState<ShowrunnerMessage[]>([]);
+  // Showrunner Chat & Central AI Commander State
+  const [showrunnerMessages, setShowrunnerMessages] = React.useState<ExtendedShowrunnerMessage[]>([]);
   const [isShowrunnerThinking, setIsShowrunnerThinking] = React.useState(false);
+  const [aiCommanderOpen, setAiCommanderOpen] = React.useState(false);
 
   // Chemistry Bench State
   const [chemistryScenario, setChemistryScenario] = React.useState(
@@ -160,6 +192,13 @@ export default function StudioPage() {
   const [multiverseOpen, setMultiverseOpen] = React.useState(false);
   const [scriptViewerOpen, setScriptViewerOpen] = React.useState(false);
   const [showTableRead, setShowTableRead] = React.useState(false);
+  const [versionControlOpen, setVersionControlOpen] = React.useState(false);
+  const [clickhouseToolboxOpen, setClickhouseToolboxOpen] = React.useState(false);
+  const [veoVideoOpen, setVeoVideoOpen] = React.useState(false);
+  const [vcs, setVcs] = React.useState<StudioVersionControl | null>(null);
+  const [canUndo, setCanUndo] = React.useState(false);
+  const [canRedo, setCanRedo] = React.useState(false);
+  const [vcsHistoryCount, setVcsHistoryCount] = React.useState(0);
 
   // Pipeline Status & Logs
   const [isGenerating, setIsGenerating] = React.useState(false);
@@ -365,6 +404,98 @@ export default function StudioPage() {
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialGraph.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialGraph.edges);
+
+  // Initialize Studio Version Control
+  React.useEffect(() => {
+    if (!projectId) return;
+    const instance = new StudioVersionControl(projectId, {
+      nodes: initialGraph.nodes,
+      edges: initialGraph.edges,
+      characters,
+      sceneTitle,
+      sceneSummary,
+      screenplayText,
+    });
+    setVcs(instance);
+
+    const updateVcsState = () => {
+      setCanUndo(instance.canUndo());
+      setCanRedo(instance.canRedo());
+      setVcsHistoryCount(instance.getHistory().length);
+    };
+
+    updateVcsState();
+    return instance.subscribe(updateVcsState);
+  }, [projectId]);
+
+  // Apply VCS snapshot back into live canvas and project storage
+  const applySnapshot = React.useCallback(
+    (snap: SnapshotState) => {
+      if (snap.nodes) setNodes(snap.nodes);
+      if (snap.edges) setEdges(snap.edges);
+      if (snap.characters) setCharacters(snap.characters);
+      if (snap.sceneTitle) setSceneTitle(snap.sceneTitle);
+      if (snap.sceneSummary) setSceneSummary(snap.sceneSummary);
+      if (snap.screenplayText !== undefined) setScreenplayText(snap.screenplayText);
+
+      saveCurrentProject({
+        characters: snap.characters,
+        sceneTitle: snap.sceneTitle,
+        sceneSummary: snap.sceneSummary,
+        screenplayText: snap.screenplayText,
+      });
+    },
+    [setNodes, setEdges, saveCurrentProject]
+  );
+
+  const handleUndo = React.useCallback(() => {
+    if (!vcs) return;
+    const snap = vcs.undo();
+    if (snap) {
+      applySnapshot(snap);
+    }
+  }, [vcs, applySnapshot]);
+
+  const handleRedo = React.useCallback(() => {
+    if (!vcs) return;
+    const snap = vcs.redo();
+    if (snap) {
+      applySnapshot(snap);
+    }
+  }, [vcs, applySnapshot]);
+
+  const handleRevertSnapshot = React.useCallback(
+    (snap: SnapshotState) => {
+      applySnapshot(snap);
+    },
+    [applySnapshot]
+  );
+
+  const recordTakeChange = React.useCallback(
+    (summary: string, category: HistoryCategory, customSnapshot?: Partial<SnapshotState>) => {
+      if (!vcs) return;
+      vcs.recordChange(
+        summary,
+        category,
+        {
+          nodes,
+          edges,
+          characters,
+          sceneTitle,
+          sceneSummary,
+          screenplayText,
+          ...customSnapshot,
+        }
+      );
+    },
+    [vcs, nodes, edges, characters, sceneTitle, sceneSummary, screenplayText]
+  );
+
+  const handleAutoTidy = React.useCallback(() => {
+    const tidied = autoTidyBacklot(nodes);
+    setNodes(tidied);
+    recordTakeChange("Auto-Tidy Backlot Lanes", "layout", { nodes: tidied });
+  }, [nodes, setNodes, recordTakeChange]);
 
   // Update nodes and edges whenever project graph needs re-sync
   const syncGraphWithProject = React.useCallback(
@@ -590,45 +721,137 @@ export default function StudioPage() {
     }
   };
 
-  // Showrunner Central AI Chat
-  const handleSendShowrunner = async (message: string) => {
-    if (!message.trim() || isShowrunnerThinking) return;
-    setIsShowrunnerThinking(true);
+  // Centralized Studio Executive AI Commander (Autonomous CRUD Orchestrator)
+  const handleExecuteCommanderPrompt = React.useCallback(
+    async (prompt: string): Promise<CommanderExecutionResponse | null> => {
+      const trimmed = prompt.trim();
+      if (!trimmed) return null;
 
-    const userMsg: ShowrunnerMessage = { role: "user", content: message };
-    setShowrunnerMessages((prev) => [...prev, userMsg]);
+      setIsShowrunnerThinking(true);
+      const userMsg: ExtendedShowrunnerMessage = { role: "user", content: trimmed };
+      setShowrunnerMessages((prev) => [...prev, userMsg]);
 
-    const start = performance.now();
-    try {
-      const res = await fetch("/api/showrunner/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          projectTitle,
-          logline: premiseInput,
-          screenplayText,
-          characters: characters.map((c) => c.name),
-          message,
-          history: showrunnerMessages.slice(-6),
-        }),
-      });
+      const start = performance.now();
+      try {
+        const res = await fetch("/api/showrunner/execute", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userPrompt: trimmed,
+            project: {
+              id: projectId,
+              title: projectTitle,
+              genre,
+              premise: premiseInput,
+              sceneTitle,
+              sceneSummary,
+              screenplayText,
+              characters,
+              nodes,
+              edges,
+            },
+            history: showrunnerMessages.slice(-6).map((m) => ({
+              role: m.role,
+              content: m.content,
+            })),
+          }),
+        });
 
-      if (res.ok) {
-        const data = await res.json();
-        setShowrunnerMessages((prev) => [
-          ...prev,
-          { role: "showrunner", content: data.reply },
-        ]);
-        if (data.clickhouse_query_sql) {
-          const elapsed = Math.round(performance.now() - start);
-          logClickHouseQuery(data.clickhouse_query_sql, "precedents", elapsed);
+        if (!res.ok) {
+          throw new Error(`Commander execution failed (${res.status})`);
         }
+
+        const data: CommanderExecutionResponse = await res.json();
+
+        // Autonomously execute mutations across project & backlot canvas
+        let executedSummaries: string[] = [];
+        if (data.actions && data.actions.length > 0) {
+          const result = executeStudioActions(
+            data.actions,
+            {
+              nodes,
+              edges,
+              characters,
+              screenplayText,
+              sceneTitle,
+              sceneSummary,
+              genre,
+              projectId,
+              vcs,
+            },
+            {
+              setNodes,
+              setEdges,
+              setCharacters,
+              setScreenplayText,
+              setSceneTitle,
+              setSceneSummary,
+              saveProject: saveCurrentProject,
+              recordTakeChange,
+            }
+          );
+          executedSummaries = result.summaries;
+        }
+
+        const aiMsg: ExtendedShowrunnerMessage = {
+          role: "showrunner",
+          content: data.assistant_message,
+          thought_process: data.thought_process,
+          actions: data.actions,
+          execution_summaries: executedSummaries,
+        };
+
+        setShowrunnerMessages((prev) => [...prev, aiMsg]);
+
+        // Log ClickHouse telemetry
+        const elapsed = Math.round(performance.now() - start);
+        logClickHouseQuery(
+          `SELECT actions_executed FROM studio_commander WHERE prompt = '${trimmed.slice(0, 30)}...'`,
+          "precedents",
+          elapsed
+        );
+
+        return {
+          ...data,
+          execution_summary: executedSummaries,
+        };
+      } catch (err) {
+        console.error("Studio Commander execution error:", err);
+        const errMsg: ExtendedShowrunnerMessage = {
+          role: "showrunner",
+          content: `Executive AI encountered an issue executing your directive: ${err instanceof Error ? err.message : String(err)}`,
+        };
+        setShowrunnerMessages((prev) => [...prev, errMsg]);
+        return null;
+      } finally {
+        setIsShowrunnerThinking(false);
       }
-    } catch (err) {
-      console.error("Showrunner error:", err);
-    } finally {
-      setIsShowrunnerThinking(false);
-    }
+    },
+    [
+      projectId,
+      projectTitle,
+      genre,
+      premiseInput,
+      sceneTitle,
+      sceneSummary,
+      screenplayText,
+      characters,
+      nodes,
+      edges,
+      vcs,
+      showrunnerMessages,
+      setNodes,
+      setEdges,
+      setCharacters,
+      saveCurrentProject,
+      recordTakeChange,
+      logClickHouseQuery,
+    ]
+  );
+
+  // Showrunner Central AI Chat maps directly to Commander execution
+  const handleSendShowrunner = async (message: string) => {
+    await handleExecuteCommanderPrompt(message);
   };
 
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
@@ -735,10 +958,120 @@ export default function StudioPage() {
     [saveCurrentProject, setNodes]
   );
 
-  // Allow user to draw new connections between nodes
+  // Allow user to draw new connections between nodes (loose, deletable, multi-wired)
   const onConnect = React.useCallback(
-    (connection: Connection) => setEdges((eds) => addEdge(connection, eds)),
-    [setEdges]
+    (connection: Connection) => {
+      if (!connection.source || !connection.target || connection.source === connection.target) {
+        return;
+      }
+      setEdges((eds) => {
+        const next = addEdge(
+          {
+            ...connection,
+            id: `e-${connection.source}-${connection.target}-${Date.now().toString(36)}`,
+            type: "deletable",
+            animated: true,
+          },
+          eds
+        );
+        recordTakeChange(`Connected wire: ${connection.source} → ${connection.target}`, "wire_add", { edges: next });
+        return next;
+      });
+    },
+    [setEdges, recordTakeChange]
+  );
+
+  const handleDeleteEdge = React.useCallback(
+    (edgeId: string) => {
+      setEdges((eds) => {
+        const next = eds.filter((e) => e.id !== edgeId);
+        recordTakeChange("Unlinked connection wire", "wire_remove", { edges: next });
+        return next;
+      });
+    },
+    [setEdges, recordTakeChange]
+  );
+
+  const handleLinkMultipleNodes = React.useCallback(
+    (nodeIds: string[], mode: "chain" | "all") => {
+      if (nodeIds.length < 2) return;
+      setEdges((prevEdges) => {
+        let updated = [...prevEdges];
+        if (mode === "chain") {
+          for (let i = 0; i < nodeIds.length - 1; i++) {
+            const source = nodeIds[i];
+            const target = nodeIds[i + 1];
+            const exists = updated.some(
+              (e) =>
+                (e.source === source && e.target === target) ||
+                (e.source === target && e.target === source)
+            );
+            if (!exists) {
+              updated = addEdge(
+                {
+                  id: `e-${source}-${target}-${Date.now().toString(36)}`,
+                  source,
+                  target,
+                  type: "deletable",
+                  animated: true,
+                },
+                updated
+              );
+            }
+          }
+        } else {
+          for (let i = 0; i < nodeIds.length; i++) {
+            for (let j = i + 1; j < nodeIds.length; j++) {
+              const source = nodeIds[i];
+              const target = nodeIds[j];
+              const exists = updated.some(
+                (e) =>
+                  (e.source === source && e.target === target) ||
+                  (e.source === target && e.target === source)
+              );
+              if (!exists) {
+                updated = addEdge(
+                  {
+                    id: `e-${source}-${target}-${Date.now().toString(36)}`,
+                    source,
+                    target,
+                    type: "deletable",
+                    animated: true,
+                  },
+                  updated
+                );
+              }
+            }
+          }
+        }
+        recordTakeChange(`Batch linked ${nodeIds.length} nodes (${mode})`, "wire_add", { edges: updated });
+        return updated;
+      });
+    },
+    [setEdges, recordTakeChange]
+  );
+
+  const handleUnlinkSelectedNodes = React.useCallback(
+    (nodeIds: string[]) => {
+      const idSet = new Set(nodeIds);
+      setEdges((prevEdges) => {
+        const next = prevEdges.filter((e) => !(idSet.has(e.source) && idSet.has(e.target)));
+        recordTakeChange(`Severed connections between ${nodeIds.length} nodes`, "wire_remove", { edges: next });
+        return next;
+      });
+    },
+    [setEdges, recordTakeChange]
+  );
+
+  const handleUnlinkAllForNode = React.useCallback(
+    (nodeId: string) => {
+      setEdges((eds) => {
+        const next = eds.filter((e) => e.source !== nodeId && e.target !== nodeId);
+        recordTakeChange(`Severed all wires for node ${nodeId}`, "wire_remove", { edges: next });
+        return next;
+      });
+    },
+    [setEdges, recordTakeChange]
   );
 
   // Spawner for new blueprint nodes on canvas
@@ -943,7 +1276,11 @@ export default function StudioPage() {
         return;
     }
 
-    setNodes((nds) => [...nds, newNode]);
+    setNodes((nds) => {
+      const updated = [...nds, newNode];
+      recordTakeChange(`Spawned ${type} blueprint node`, "node_add", { nodes: updated });
+      return updated;
+    });
     setSelectedNode(newNode);
   };
 
@@ -970,148 +1307,250 @@ export default function StudioPage() {
             variant="ghost"
             size="sm"
             onClick={() => router.push("/")}
-            className="h-8 text-xs text-muted-foreground hover:text-foreground -ml-1"
+            className="h-8 px-2.5 gap-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-secondary cursor-pointer shrink-0 -ml-1"
           >
-            <ArrowLeft className="h-4 w-4 mr-1" />
-            Slate Hub
+            <ArrowLeft className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline font-mono">Hub</span>
           </Button>
 
-          <div className="h-4 w-[1px] bg-border" />
+          <div className="h-4 w-px bg-border/60 shrink-0" />
 
-          <div className="flex items-center gap-2">
-            <Film className="h-4 w-4 text-accent" />
-            <span className="font-heading text-sm font-bold text-foreground max-w-[200px] truncate">
-              {projectTitle}
-            </span>
-          </div>
-
-          {/* Dynamic Slate Switcher from localStorage & presets */}
-          <div className="flex items-center gap-1.5 ml-2 overflow-x-auto max-w-[400px]">
-            {allProjects.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => router.push(`/studio/${p.id}`)}
-                className={`rounded px-2 py-0.5 text-xs font-mono transition-colors whitespace-nowrap ${
-                  projectId === p.id
-                    ? "bg-accent/20 text-accent border border-accent/40 font-semibold"
-                    : "text-muted-foreground hover:bg-secondary"
-                }`}
+          {/* Unified Project Slate Dropdown Selector */}
+          <DropdownMenu>
+            <DropdownMenuTrigger className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-border/70 bg-secondary/30 hover:bg-secondary/70 hover:border-accent/40 text-xs font-semibold text-foreground transition-all cursor-pointer min-w-0">
+              <Film className="h-3.5 w-3.5 text-accent shrink-0" />
+              <span className="font-heading truncate max-w-[140px] sm:max-w-[200px] text-sm">
+                {projectTitle}
+              </span>
+              <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0 opacity-70" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-64 bg-card border-border shadow-2xl p-1.5 z-50">
+              <DropdownMenuLabel className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground px-2 py-1">
+                Production Slates ({allProjects.length})
+              </DropdownMenuLabel>
+              {allProjects.map((p) => (
+                <DropdownMenuItem
+                  key={p.id}
+                  onClick={() => router.push(`/studio/${p.id}`)}
+                  className={cn(
+                    "flex items-center justify-between px-2.5 py-1.5 rounded text-xs cursor-pointer",
+                    p.id === projectId
+                      ? "bg-accent/15 text-accent font-semibold"
+                      : "text-foreground hover:bg-secondary"
+                  )}
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <span className={cn("h-1.5 w-1.5 rounded-full", p.id === projectId ? "bg-accent" : "bg-muted-foreground/50")} />
+                    <span className="truncate">{p.title}</span>
+                  </div>
+                  {p.id === projectId && <Check className="h-3.5 w-3.5 text-accent shrink-0" />}
+                </DropdownMenuItem>
+              ))}
+              <div className="h-px bg-border/50 my-1" />
+              <DropdownMenuItem
+                onClick={() => setNewProjectOpen(true)}
+                className="flex items-center gap-2 px-2.5 py-1.5 rounded text-xs text-accent hover:bg-accent/10 cursor-pointer font-medium"
               >
-                {p.title}
-              </button>
-            ))}
-          </div>
+                <Plus className="h-3.5 w-3.5" />
+                <span>New Production Slate...</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
-        {/* Action Controls */}
-        <div className="flex items-center gap-2">
-          {/* Layout View Switcher */}
-          <div className="flex items-center rounded-lg border border-border/80 bg-secondary/40 p-0.5 mr-1 shadow-sm">
-            <button
-              type="button"
-              onClick={() => setViewMode("canvas-only")}
-              className={cn(
-                "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all cursor-pointer",
-                layoutMode === "canvas-only"
-                  ? "bg-accent text-accent-foreground shadow-sm font-semibold"
-                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-              )}
-              title="Canvas Only (Hide other panels)"
-            >
-              <Square className="h-3.5 w-3.5" />
-              <span className="hidden xl:inline">Canvas Only</span>
-            </button>
+        {/* Center: Sleek Segmented View Switcher */}
+        <div className="flex items-center rounded-lg border border-border/80 bg-secondary/30 p-0.5 shadow-sm shrink-0">
+          <button
+            type="button"
+            onClick={() => setViewMode("canvas-only")}
+            className={cn(
+              "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all cursor-pointer",
+              layoutMode === "canvas-only"
+                ? "bg-accent text-accent-foreground shadow-sm font-semibold"
+                : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+            )}
+            title="Full Backlot Canvas (Hide Dock)"
+          >
+            <Square className="h-3.5 w-3.5" />
+            <span className="hidden md:inline">Canvas</span>
+          </button>
 
-            <button
-              type="button"
-              onClick={() => setViewMode("split")}
-              className={cn(
-                "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all cursor-pointer",
-                layoutMode === "split"
-                  ? "bg-accent text-accent-foreground shadow-sm font-semibold"
-                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-              )}
-              title="Split View (Canvas + Bottom Cinema Dock)"
-            >
-              <Rows className="h-3.5 w-3.5" />
-              <span className="hidden xl:inline">Split View</span>
-            </button>
+          <button
+            type="button"
+            onClick={() => setViewMode("split")}
+            className={cn(
+              "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all cursor-pointer",
+              layoutMode === "split"
+                ? "bg-accent text-accent-foreground shadow-sm font-semibold"
+                : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+            )}
+            title="Split View (Canvas + Cinema Dock)"
+          >
+            <Rows className="h-3.5 w-3.5" />
+            <span className="hidden md:inline">Split</span>
+          </button>
 
-            <button
-              type="button"
-              onClick={() => setViewMode("dock-only")}
-              className={cn(
-                "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all cursor-pointer",
-                layoutMode === "dock-only"
-                  ? "bg-accent text-accent-foreground shadow-sm font-semibold"
-                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-              )}
-              title="Bottom Panel Only (Full Cinema Dock)"
-            >
-              <PanelBottom className="h-3.5 w-3.5" />
-              <span className="hidden xl:inline">Bottom Panel</span>
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setViewMode("dock-only")}
+            className={cn(
+              "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all cursor-pointer",
+              layoutMode === "dock-only"
+                ? "bg-accent text-accent-foreground shadow-sm font-semibold"
+                : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+            )}
+            title="Cinema Dock Only (Interrogation / Director Deck)"
+          >
+            <PanelBottom className="h-3.5 w-3.5" />
+            <span className="hidden md:inline">Dock</span>
+          </button>
+        </div>
 
+        {/* Right: Curated Studio Controls */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Screenplay Reader */}
           <Button
             size="sm"
             variant="outline"
             onClick={() => setScriptViewerOpen(true)}
-            className="gap-1.5 text-xs border-border/80 hover:bg-secondary"
+            className="h-8 gap-1.5 text-xs border-border/80 hover:bg-secondary cursor-pointer"
           >
             <FileText className="h-3.5 w-3.5 text-accent" />
-            <span>Screenplay</span>
+            <span className="hidden sm:inline">Screenplay</span>
           </Button>
 
+          {/* Veo 3.1 Cinema Video Generation */}
           <Button
             size="sm"
             variant="outline"
-            onClick={() => setShowTableRead(true)}
-            className="gap-1.5 text-xs border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10"
+            onClick={() => setVeoVideoOpen(true)}
+            className="h-8 gap-1.5 text-xs border-purple-500/30 text-purple-300 hover:bg-purple-500/10 cursor-pointer"
+            title="Render Scene with Google Veo 3.1 (16:9 Cinematic Video)"
           >
-            <Volume2 className="h-3.5 w-3.5" />
-            <span>Table Read</span>
+            <Video className="h-3.5 w-3.5 text-purple-400" />
+            <span className="hidden lg:inline">Veo Video</span>
           </Button>
 
+          {/* Production Labs Dropdown (Consolidates Table Read, Alternate Takes, Film Fusion) */}
+          <DropdownMenu>
+            <DropdownMenuTrigger className="inline-flex items-center h-8 gap-1.5 text-xs font-medium border border-border/80 rounded-md px-2.5 bg-background hover:bg-secondary text-foreground cursor-pointer">
+              <Sparkles className="h-3.5 w-3.5 text-purple-400" />
+              <span className="hidden sm:inline">Labs</span>
+              <ChevronDown className="h-3 w-3 text-muted-foreground opacity-70" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56 bg-card border-border shadow-2xl p-1.5 z-50">
+              <DropdownMenuLabel className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground px-2 py-1">
+                Production Labs &amp; Tools
+              </DropdownMenuLabel>
+              <DropdownMenuItem
+                onClick={() => setShowTableRead(true)}
+                className="flex items-center gap-2 px-2.5 py-1.5 rounded text-xs cursor-pointer hover:bg-secondary"
+              >
+                <Volume2 className="h-3.5 w-3.5 text-cyan-400" />
+                <div className="flex flex-col">
+                  <span className="font-medium">Table Read Player</span>
+                  <span className="text-[10px] text-muted-foreground">Voice synthesis &amp; cadence</span>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setMultiverseOpen(true)}
+                className="flex items-center gap-2 px-2.5 py-1.5 rounded text-xs cursor-pointer hover:bg-secondary"
+              >
+                <Shuffle className="h-3.5 w-3.5 text-purple-400" />
+                <div className="flex flex-col">
+                  <span className="font-medium">Alternate Takes</span>
+                  <span className="text-[10px] text-muted-foreground">Multiverse scene variations</span>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setFusionOpen(true)}
+                className="flex items-center gap-2 px-2.5 py-1.5 rounded text-xs cursor-pointer hover:bg-secondary"
+              >
+                <Sparkles className="h-3.5 w-3.5 text-accent" />
+                <div className="flex flex-col">
+                  <span className="font-medium">Film Fusion</span>
+                  <span className="text-[10px] text-muted-foreground">Crossover narrative synthesis</span>
+                </div>
+              </DropdownMenuItem>
+              <div className="h-px bg-border/50 my-1" />
+              <DropdownMenuItem
+                onClick={() => {
+                  setActiveTab("audio");
+                  setLayoutMode(layoutMode === "canvas-only" ? "split" : layoutMode);
+                }}
+                className="flex items-center gap-2 px-2.5 py-1.5 rounded text-xs cursor-pointer hover:bg-secondary"
+              >
+                <Headphones className="h-3.5 w-3.5 text-cyan-400" />
+                <div className="flex flex-col">
+                  <span className="font-medium">Audio Studio &amp; Mixing</span>
+                  <span className="text-[10px] text-muted-foreground">ADR, character voices &amp; stems</span>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setVeoVideoOpen(true)}
+                className="flex items-center gap-2 px-2.5 py-1.5 rounded text-xs cursor-pointer hover:bg-secondary"
+              >
+                <Video className="h-3.5 w-3.5 text-purple-400" />
+                <div className="flex flex-col">
+                  <span className="font-medium">Veo 3.1 Video Generation</span>
+                  <span className="text-[10px] text-muted-foreground">16:9 cinematic AI scene render</span>
+                </div>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Takes Version Control */}
           <Button
             size="sm"
             variant="outline"
-            onClick={() => setMultiverseOpen(true)}
-            className="gap-1.5 text-xs border-border/80 hover:bg-secondary"
+            onClick={() => setVersionControlOpen(true)}
+            className="h-8 gap-1.5 text-xs border-amber-500/30 text-amber-300 hover:bg-amber-500/10 cursor-pointer"
+            title="Open Hollywood Slate Version Control & Takes History"
           >
-            <Shuffle className="h-3.5 w-3.5 text-purple-400" />
-            <span>Alternate Takes</span>
+            <History className="h-3.5 w-3.5 text-amber-400" />
+            <span className="hidden md:inline">Takes</span>
+            {vcsHistoryCount > 0 && (
+              <Badge variant="outline" className="border-amber-500/40 bg-amber-500/20 text-amber-300 text-[10px] px-1 py-0 h-4">
+                {vcsHistoryCount}
+              </Badge>
+            )}
           </Button>
 
+          {/* Official Partner: ClickHouse MCP Server & Toolbox */}
           <Button
             size="sm"
             variant="outline"
-            onClick={() => setFusionOpen(true)}
-            className="gap-1.5 text-xs border-accent/30 text-accent hover:bg-accent/10"
+            onClick={() => setClickhouseToolboxOpen(true)}
+            className="h-8 gap-1.5 text-xs border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 cursor-pointer"
+            title="Open ClickHouse MCP Database Toolbox & Time-Gated Knowledge Firewall"
           >
-            <Sparkles className="h-3.5 w-3.5" />
-            <span>Film Fusion</span>
+            <Database className="h-3.5 w-3.5 text-emerald-400" />
+            <span className="hidden lg:inline">ClickHouse MCP</span>
           </Button>
 
+          <div className="h-4 w-px bg-border/60 mx-0.5" />
+
+          {/* Inspector Toggle */}
           <Button
             size="sm"
             variant={isSidebarOpen ? "secondary" : "outline"}
             onClick={toggleSidebar}
-            className="gap-1.5 text-xs border-border/80 text-foreground"
-            title="Toggle Studio Inspector Sidebar"
+            className="h-8 gap-1.5 text-xs border-border/80 text-foreground cursor-pointer px-2.5"
+            title="Toggle Studio Parameter Inspector"
           >
             <Sliders className="h-3.5 w-3.5 text-cyan-400" />
-            <span>{isSidebarOpen ? "Hide Inspector" : "Show Inspector"}</span>
+            <span className="hidden xl:inline">{isSidebarOpen ? "Hide Inspector" : "Inspector"}</span>
           </Button>
 
+          {/* AI Commander Primary Action Button */}
           <Button
             size="sm"
-            onClick={() => setNewProjectOpen(true)}
-            className="gap-1.5 text-xs bg-accent text-accent-foreground hover:bg-accent/90"
+            onClick={() => setAiCommanderOpen(true)}
+            className="h-8 gap-1.5 text-xs bg-accent text-accent-foreground hover:bg-accent/90 shadow-md font-semibold cursor-pointer px-3"
+            title="Summon Centralized Studio Executive AI Commander (Autonomous CRUD)"
           >
-            <Plus className="h-3.5 w-3.5" />
-            <span>New Slate</span>
+            <Zap className="h-3.5 w-3.5" />
+            <span>AI Commander</span>
           </Button>
         </div>
       </header>
@@ -1153,6 +1592,18 @@ export default function StudioPage() {
                     onConnect={onConnect}
                     onNodeClick={handleNodeClick}
                     onAddNode={handleAddBlueprintNode}
+                    onDeleteEdge={handleDeleteEdge}
+                    onLinkMultipleNodes={handleLinkMultipleNodes}
+                    onUnlinkSelectedNodes={handleUnlinkSelectedNodes}
+                    onUnlinkAllForNode={handleUnlinkAllForNode}
+                    canUndo={canUndo}
+                    canRedo={canRedo}
+                    onUndo={handleUndo}
+                    onRedo={handleRedo}
+                    onOpenRevisions={() => setVersionControlOpen(true)}
+                    revisionCount={vcsHistoryCount}
+                    onAutoTidy={handleAutoTidy}
+                    onOpenCommander={() => setAiCommanderOpen(true)}
                   />
 
                   {/* Canvas Only Quick Restore Pill */}
@@ -1190,11 +1641,22 @@ export default function StudioPage() {
                 <StudioInspector
                   selectedNode={selectedNode}
                   nodes={nodes}
+                  edges={edges}
                   onSelectNode={(nodeId) => {
                     const found = nodes.find((n) => n.id === nodeId);
                     if (found) setSelectedNode(found);
                   }}
                   onUpdateNodeData={handleUpdateNodeData}
+                  onDeleteEdge={handleDeleteEdge}
+                  onAddEdge={(src, tgt) =>
+                    onConnect({
+                      source: src,
+                      target: tgt,
+                      sourceHandle: null,
+                      targetHandle: null,
+                    })
+                  }
+                  onUnlinkAllForNode={handleUnlinkAllForNode}
                   onOpenHotSeat={(charName) => {
                     setActiveCharacterName(charName);
                     setActiveTab("hotseat");
@@ -1292,6 +1754,19 @@ export default function StudioPage() {
                 >
                   <Layers className="h-3.5 w-3.5" />
                   <span>Director&apos;s Deck Suite</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("audio")}
+                  className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-colors cursor-pointer ${
+                    activeTab === "audio"
+                      ? "bg-cyan-600 text-white shadow-sm"
+                      : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  }`}
+                >
+                  <Headphones className="h-3.5 w-3.5 text-cyan-400" />
+                  <span>Audio Studio &amp; ADR</span>
                 </button>
               </div>
 
@@ -1553,6 +2028,18 @@ export default function StudioPage() {
                 </div>
               </div>
             )}
+
+            {/* Tab 5: Dedicated Audio Studio & Multitrack Mixing Suite */}
+            {activeTab === "audio" && (
+              <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
+                <AudioStudioView
+                  characters={characters}
+                  screenplayText={screenplayText}
+                  sceneTitle={sceneTitle}
+                  onOpenVeoVideo={() => setVeoVideoOpen(true)}
+                />
+              </div>
+            )}
           </ResizablePanel>
         </ResizablePanelGroup>
       </div>
@@ -1596,6 +2083,41 @@ export default function StudioPage() {
           />
         </DialogContent>
       </Dialog>
+
+      {/* Hollywood Slate Version Control & Take Changelog Modal */}
+      <VersionControlDialog
+        open={versionControlOpen}
+        onOpenChange={setVersionControlOpen}
+        vcs={vcs}
+        onRevertSnapshot={handleRevertSnapshot}
+      />
+
+      {/* Centralized Studio Executive AI Commander Dialog */}
+      <AICommanderDialog
+        open={aiCommanderOpen}
+        onOpenChange={setAiCommanderOpen}
+        onExecutePrompt={handleExecuteCommanderPrompt}
+      />
+
+      {/* Official Partner: ClickHouse MCP Database Toolbox Modal */}
+      <ClickHouseToolboxDialog
+        open={clickhouseToolboxOpen}
+        onOpenChange={setClickhouseToolboxOpen}
+        projectId={projectId}
+        queryLogs={queryLogs}
+      />
+
+      {/* Google Veo 3.1 Cinema Video Generation Modal */}
+      <VeoVideoDialog
+        open={veoVideoOpen}
+        onOpenChange={setVeoVideoOpen}
+        sceneTitle={sceneTitle}
+        sceneSummary={sceneSummary}
+        visualPrompt={
+          (nodes.find((n) => n.type === "storyboard")?.data?.prompt as string) ||
+          `Cinematic 16:9 widescreen establishing shot of ${sceneTitle}. Moody shadows, photoreal 35mm film.`
+        }
+      />
 
       {/* Multiverse Alternate Takes Modal */}
       <MultiverseTakesDialog

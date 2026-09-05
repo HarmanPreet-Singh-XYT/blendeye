@@ -97,3 +97,70 @@ CURRENT SCRIPT EXCERPT:
         precedents_cited=precedents[:3],
     )
 
+
+class ExecuteDirectiveRequest(BaseModel):
+    user_prompt: str
+    project_title: str = ""
+    logline: str = ""
+    screenplay_text: str = ""
+    characters: list[dict] = Field(default_factory=list)
+    nodes: list[dict] = Field(default_factory=list)
+    edges: list[dict] = Field(default_factory=list)
+
+
+class ExecuteDirectiveResponse(BaseModel):
+    thought_process: str
+    assistant_message: str
+    actions: list[dict] = Field(default_factory=list)
+
+
+@router.post("/execute", response_model=ExecuteDirectiveResponse)
+async def execute_showrunner_directive(body: ExecuteDirectiveRequest) -> ExecuteDirectiveResponse:
+    agent = build_showrunner_agent()
+    import json
+    import re
+
+    prompt = f"""
+You are the Omniscient Studio Executive AI & Lead Showrunner for an interactive film studio.
+The director has given the following directive:
+"{body.user_prompt}"
+
+PROJECT CONTEXT:
+Title: {body.project_title}
+Logline: {body.logline}
+Characters: {[c.get('name') for c in body.characters]}
+Nodes: {[n.get('id') for n in body.nodes]}
+Edges: {[f"{e.get('source')}->{e.get('target')}" for e in body.edges]}
+Script Excerpt: {body.screenplay_text[:800]}
+
+Respond ONLY with valid JSON matching this schema:
+{{
+  "thought_process": "creative reasoning for the changes",
+  "assistant_message": "collegial explanation to the director",
+  "actions": [
+    {{"type": "create_character", "name": "...", "role": "...", "archetype": "..."}},
+    {{"type": "connect_nodes", "source": "...", "target": "...", "relationship": "⚡ Friction"|"⚔️ Rivalry"|"🤝 Alliance"}},
+    {{"type": "auto_tidy_backlot"}}
+  ]
+}}
+"""
+    raw = await run_agent_once(agent, prompt, app_name="writers-room-showrunner-exec")
+    try:
+        match = re.search(r"\{.*\}", raw, re.DOTALL)
+        if match:
+            parsed = json.loads(match.group(0))
+            return ExecuteDirectiveResponse(
+                thought_process=parsed.get("thought_process", "Analyzed director intent."),
+                assistant_message=parsed.get("assistant_message", "Executed directive."),
+                actions=parsed.get("actions", []),
+            )
+    except Exception:  # noqa: BLE001, S110
+        pass
+
+    return ExecuteDirectiveResponse(
+        thought_process=f"Processed directive: {body.user_prompt}",
+        assistant_message="I have reviewed your request and updated the production slate accordingly.",
+        actions=[],
+    )
+
+

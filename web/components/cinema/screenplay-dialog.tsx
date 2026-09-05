@@ -11,7 +11,7 @@ import {
 import { SlateLabel } from "@/components/cinema/slate-label";
 import { TableReadPlayer } from "@/components/cinema/table-read-player";
 import { Button } from "@/components/ui/button";
-import { Edit3, Eye, Sparkles, Check, RefreshCw } from "lucide-react";
+import { Edit3, Eye, Sparkles, Check, RefreshCw, Upload } from "lucide-react";
 
 interface ScreenplayDialogProps {
   open: boolean;
@@ -41,10 +41,27 @@ export function ScreenplayDialog({
   const [tuneInput, setTuneInput] = React.useState("I know what you did with the vault keys.");
   const [isTuning, setIsTuning] = React.useState(false);
   const [tunedResult, setTunedResult] = React.useState<string | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
 
   React.useEffect(() => {
     setEditedText(screenplayText);
   }, [screenplayText]);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      if (text) {
+        setEditedText(text);
+        setIsEditing(true);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
 
   const handleSaveOnly = () => {
     onSaveScript?.(editedText);
@@ -108,11 +125,29 @@ export function ScreenplayDialog({
             </div>
 
             <div className="flex items-center gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".txt,.fountain,.pdf,.md"
+                className="hidden"
+                onChange={handleFileUpload}
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+                className="text-xs gap-1.5 h-8 border-border text-muted-foreground hover:text-foreground cursor-pointer"
+                title="Import existing screenplay file (.fountain, .txt, .md)"
+              >
+                <Upload className="h-3.5 w-3.5 text-accent" />
+                <span className="hidden sm:inline">Import Script</span>
+              </Button>
+
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => setIsEditing(!isEditing)}
-                className="text-xs gap-1.5 h-8 border-border"
+                className="text-xs gap-1.5 h-8 border-border cursor-pointer"
               >
                 {isEditing ? (
                   <>

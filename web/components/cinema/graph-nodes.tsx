@@ -1,7 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { Handle, Position, type NodeProps } from "@xyflow/react";
+import {
+  Handle,
+  Position,
+  useNodeId,
+  useReactFlow,
+  useNodeConnections,
+  type NodeProps,
+} from "@xyflow/react";
 import { cn } from "@/lib/utils";
 import { SlateLabel } from "@/components/cinema/slate-label";
 import { FilmstripLoader } from "@/components/cinema/filmstrip-loader";
@@ -25,6 +32,7 @@ import {
   Unlock,
   Play,
   RotateCcw,
+  Unlink,
 } from "lucide-react";
 
 export type NodeState = "idle" | "generating" | "ready" | "stale" | "error";
@@ -38,7 +46,7 @@ const STATE_BADGE: Record<NodeState, { label: string; className: string }> = {
 };
 
 const handleBaseClass =
-  "!h-2.5 !w-2.5 !border-2 !border-background transition-transform hover:!scale-150";
+  "!h-3 !w-3 !border-2 !border-background transition-all hover:!scale-150 hover:ring-4 hover:ring-accent/40 cursor-crosshair z-20";
 
 /**
  * Shared themed shell for all nodes in the Unreal Engine Blueprint-style graph.
@@ -63,6 +71,11 @@ function BlueprintNodeShell({
   children?: React.ReactNode;
 }) {
   const badge = STATE_BADGE[state];
+  const nodeId = useNodeId();
+  const { setEdges } = useReactFlow();
+  const connections = useNodeConnections();
+  const connCount = connections ? connections.length : 0;
+
   const borderColors = {
     default: selected ? "border-accent ring-2 ring-accent/30" : "border-border/80",
     purple: selected ? "border-purple-500 ring-2 ring-purple-500/30" : "border-purple-500/40",
@@ -95,6 +108,24 @@ function BlueprintNodeShell({
           </div>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
+          {connCount > 0 && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (nodeId) {
+                  setEdges((eds) =>
+                    eds.filter((edge) => edge.source !== nodeId && edge.target !== nodeId)
+                  );
+                }
+              }}
+              className="flex items-center gap-1 rounded bg-secondary/90 hover:bg-rose-500/20 hover:text-rose-400 hover:border-rose-500/40 border border-border/80 px-1.5 py-0.5 text-[9px] font-mono text-muted-foreground transition-all cursor-pointer"
+              title={`Unlink all ${connCount} wires attached to this node`}
+            >
+              <Unlink className="h-2.5 w-2.5" />
+              <span>{connCount}</span>
+            </button>
+          )}
           {headerRight}
           <Badge className={cn("text-[9px] py-0 px-1.5", badge.className)}>{badge.label}</Badge>
         </div>
@@ -159,15 +190,26 @@ export function ClipNode({ data, selected }: NodeProps & { data: ClipNodeData })
           </div>
         )}
 
-        {/* Output Port */}
-        <div className="relative mt-1 flex items-center justify-end pt-1 border-t border-border/30">
-          <span className="text-[10px] font-mono text-purple-400 mr-2">style_ref →</span>
-          <Handle
-            type="source"
-            position={Position.Right}
-            id="style_ref"
-            className={cn(handleBaseClass, "!bg-purple-500 -right-5")}
-          />
+        {/* Output & Universal Input Ports */}
+        <div className="relative mt-1 flex items-center justify-between pt-1 border-t border-border/30">
+          <div className="flex items-center">
+            <Handle
+              type="target"
+              position={Position.Left}
+              id="flow_in"
+              className={cn(handleBaseClass, "!bg-purple-500 -left-5")}
+            />
+            <span className="text-[10px] font-mono text-purple-400 ml-1">← in</span>
+          </div>
+          <div className="flex items-center">
+            <span className="text-[10px] font-mono text-purple-400 mr-2">style_ref →</span>
+            <Handle
+              type="source"
+              position={Position.Right}
+              id="style_ref"
+              className={cn(handleBaseClass, "!bg-purple-500 -right-5")}
+            />
+          </div>
         </div>
       </div>
     </BlueprintNodeShell>
@@ -184,6 +226,14 @@ export interface NoteNodeData extends Record<string, unknown> {
 }
 
 export function NoteNode({ data, selected }: NodeProps & { data: NoteNodeData }) {
+  const [isEditing, setIsEditing] = React.useState(false);
+  const [content, setContent] = React.useState(data.content || "");
+
+  const handleBlur = () => {
+    setIsEditing(false);
+    data.content = content;
+  };
+
   return (
     <BlueprintNodeShell
       kind={data.noteType || "Idea Note"}
@@ -199,18 +249,46 @@ export function NoteNode({ data, selected }: NodeProps & { data: NoteNodeData })
             <span className="font-mono">Voice Memo ({data.audioDuration})</span>
           </div>
         )}
-        <p className="rounded border border-border/50 bg-background/60 p-2 text-xs leading-relaxed text-foreground/90 line-clamp-3 italic">
-          &ldquo;{data.content}&rdquo;
-        </p>
 
-        <div className="relative mt-1 flex items-center justify-end pt-1 border-t border-border/30">
-          <span className="text-[10px] font-mono text-amber-400 mr-2">plot_seed →</span>
-          <Handle
-            type="source"
-            position={Position.Right}
-            id="plot_seed"
-            className={cn(handleBaseClass, "!bg-amber-500 -right-5")}
+        {isEditing ? (
+          <textarea
+            autoFocus
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            onBlur={handleBlur}
+            rows={3}
+            className="w-full rounded border border-accent bg-background/90 p-1.5 text-xs text-foreground outline-none font-sans resize-none"
           />
+        ) : (
+          <p
+            onClick={() => setIsEditing(true)}
+            className="rounded border border-border/50 bg-background/60 p-2 text-xs leading-relaxed text-foreground/90 line-clamp-3 italic cursor-text hover:border-accent/60 transition-colors"
+            title="Click to edit brainstorm note inline"
+          >
+            &ldquo;{content}&rdquo;
+          </p>
+        )}
+
+        {/* Output & Universal Input Ports */}
+        <div className="relative mt-1 flex items-center justify-between pt-1 border-t border-border/30">
+          <div className="flex items-center">
+            <Handle
+              type="target"
+              position={Position.Left}
+              id="flow_in"
+              className={cn(handleBaseClass, "!bg-amber-500 -left-5")}
+            />
+            <span className="text-[10px] font-mono text-amber-400 ml-1">← in</span>
+          </div>
+          <div className="flex items-center">
+            <span className="text-[10px] font-mono text-amber-400 mr-2">plot_seed →</span>
+            <Handle
+              type="source"
+              position={Position.Right}
+              id="plot_seed"
+              className={cn(handleBaseClass, "!bg-amber-500 -right-5")}
+            />
+          </div>
         </div>
       </div>
     </BlueprintNodeShell>
@@ -246,14 +324,26 @@ export function ActorNode({ data, selected }: NodeProps & { data: ActorNodeData 
           <span className="font-mono text-foreground font-medium">{data.vocalWeight}</span>
         </div>
 
-        <div className="relative mt-1 flex items-center justify-end pt-1 border-t border-border/30">
-          <span className="text-[10px] font-mono text-emerald-400 mr-2">actor_out →</span>
-          <Handle
-            type="source"
-            position={Position.Right}
-            id="actor_out"
-            className={cn(handleBaseClass, "!bg-emerald-500 -right-5")}
-          />
+        {/* Output & Universal Input Ports */}
+        <div className="relative mt-1 flex items-center justify-between pt-1 border-t border-border/30">
+          <div className="flex items-center">
+            <Handle
+              type="target"
+              position={Position.Left}
+              id="flow_in"
+              className={cn(handleBaseClass, "!bg-emerald-500 -left-5")}
+            />
+            <span className="text-[10px] font-mono text-emerald-400 ml-1">← in</span>
+          </div>
+          <div className="flex items-center">
+            <span className="text-[10px] font-mono text-emerald-400 mr-2">actor_out →</span>
+            <Handle
+              type="source"
+              position={Position.Right}
+              id="actor_out"
+              className={cn(handleBaseClass, "!bg-emerald-500 -right-5")}
+            />
+          </div>
         </div>
       </div>
     </BlueprintNodeShell>
@@ -272,6 +362,28 @@ export interface PersonalityNodeData extends Record<string, unknown> {
 }
 
 export function PersonalityNode({ data, selected }: NodeProps & { data: PersonalityNodeData }) {
+  const [confidence, setConfidence] = React.useState(data.confidence ?? 60);
+  const [speed, setSpeed] = React.useState(data.speed ?? 45);
+  const [subtext, setSubtext] = React.useState(data.subtext ?? 75);
+
+  const handleConfidenceChange = (val: number) => {
+    setConfidence(val);
+    data.confidence = val;
+    data.onTweak?.({ confidence: val, speed, subtext });
+  };
+
+  const handleSpeedChange = (val: number) => {
+    setSpeed(val);
+    data.speed = val;
+    data.onTweak?.({ confidence, speed: val, subtext });
+  };
+
+  const handleSubtextChange = (val: number) => {
+    setSubtext(val);
+    data.subtext = val;
+    data.onTweak?.({ confidence, speed, subtext: val });
+  };
+
   return (
     <BlueprintNodeShell
       kind="Personality Dials"
@@ -281,53 +393,74 @@ export function PersonalityNode({ data, selected }: NodeProps & { data: Personal
       selected={selected}
     >
       <div className="flex flex-col gap-2.5 text-xs">
+        {/* Confidence Dial Slider */}
         <div className="space-y-1">
           <div className="flex justify-between text-[10px] font-mono text-muted-foreground">
             <span>Confidence</span>
-            <span className="text-cyan-400">{data.confidence ?? 60}%</span>
+            <span className="text-cyan-400 font-bold">{confidence}%</span>
           </div>
-          <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden">
-            <div
-              className="h-full bg-cyan-500 rounded-full transition-all"
-              style={{ width: `${data.confidence ?? 60}%` }}
-            />
-          </div>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={confidence}
+            onChange={(e) => handleConfidenceChange(Number(e.target.value))}
+            className="w-full h-1.5 accent-cyan-400 bg-secondary rounded-lg appearance-none cursor-pointer nodrag"
+          />
         </div>
 
+        {/* Verbal Pacing Dial Slider */}
         <div className="space-y-1">
           <div className="flex justify-between text-[10px] font-mono text-muted-foreground">
             <span>Verbal Pacing (Staccato ↔ Manic)</span>
-            <span className="text-cyan-400">{data.speed ?? 45}%</span>
+            <span className="text-cyan-400 font-bold">{speed}%</span>
           </div>
-          <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden">
-            <div
-              className="h-full bg-cyan-500 rounded-full transition-all"
-              style={{ width: `${data.speed ?? 45}%` }}
-            />
-          </div>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={speed}
+            onChange={(e) => handleSpeedChange(Number(e.target.value))}
+            className="w-full h-1.5 accent-cyan-400 bg-secondary rounded-lg appearance-none cursor-pointer nodrag"
+          />
         </div>
 
+        {/* Subtext & Sarcasm Dial Slider */}
         <div className="space-y-1">
           <div className="flex justify-between text-[10px] font-mono text-muted-foreground">
             <span>Subtext & Sarcasm</span>
-            <span className="text-cyan-400">{data.subtext ?? 75}%</span>
+            <span className="text-cyan-400 font-bold">{subtext}%</span>
           </div>
-          <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden">
-            <div
-              className="h-full bg-cyan-500 rounded-full transition-all"
-              style={{ width: `${data.subtext ?? 75}%` }}
-            />
-          </div>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={subtext}
+            onChange={(e) => handleSubtextChange(Number(e.target.value))}
+            className="w-full h-1.5 accent-cyan-400 bg-secondary rounded-lg appearance-none cursor-pointer nodrag"
+          />
         </div>
 
-        <div className="relative mt-1 flex items-center justify-end pt-1 border-t border-border/30">
-          <span className="text-[10px] font-mono text-cyan-400 mr-2">personality_out →</span>
-          <Handle
-            type="source"
-            position={Position.Right}
-            id="personality_out"
-            className={cn(handleBaseClass, "!bg-cyan-500 -right-5")}
-          />
+        {/* Output & Universal Input Ports */}
+        <div className="relative mt-1 flex items-center justify-between pt-1 border-t border-border/30">
+          <div className="flex items-center">
+            <Handle
+              type="target"
+              position={Position.Left}
+              id="flow_in"
+              className={cn(handleBaseClass, "!bg-cyan-500 -left-5")}
+            />
+            <span className="text-[10px] font-mono text-cyan-400 ml-1">← in</span>
+          </div>
+          <div className="flex items-center">
+            <span className="text-[10px] font-mono text-cyan-400 mr-2">personality_out →</span>
+            <Handle
+              type="source"
+              position={Position.Right}
+              id="personality_out"
+              className={cn(handleBaseClass, "!bg-cyan-500 -right-5")}
+            />
+          </div>
         </div>
       </div>
     </BlueprintNodeShell>
@@ -361,14 +494,26 @@ export function QuirksNode({ data, selected }: NodeProps & { data: QuirksNodeDat
           </div>
         ))}
 
-        <div className="relative mt-1 flex items-center justify-end pt-1 border-t border-border/30">
-          <span className="text-[10px] font-mono text-rose-400 mr-2">quirks_out →</span>
-          <Handle
-            type="source"
-            position={Position.Right}
-            id="quirks_out"
-            className={cn(handleBaseClass, "!bg-rose-500 -right-5")}
-          />
+        {/* Output & Universal Input Ports */}
+        <div className="relative mt-1 flex items-center justify-between pt-1 border-t border-border/30">
+          <div className="flex items-center">
+            <Handle
+              type="target"
+              position={Position.Left}
+              id="flow_in"
+              className={cn(handleBaseClass, "!bg-rose-500 -left-5")}
+            />
+            <span className="text-[10px] font-mono text-rose-400 ml-1">← in</span>
+          </div>
+          <div className="flex items-center">
+            <span className="text-[10px] font-mono text-rose-400 mr-2">quirks_out →</span>
+            <Handle
+              type="source"
+              position={Position.Right}
+              id="quirks_out"
+              className={cn(handleBaseClass, "!bg-rose-500 -right-5")}
+            />
+          </div>
         </div>
       </div>
     </BlueprintNodeShell>
@@ -392,6 +537,11 @@ export interface CharacterCoreNodeData extends Record<string, unknown> {
 }
 
 export function CharacterCoreNode({ data, selected }: NodeProps & { data: CharacterCoreNodeData }) {
+  const nodeId = useNodeId();
+  const { setEdges } = useReactFlow();
+  const connections = useNodeConnections();
+  const connCount = connections ? connections.length : 0;
+
   return (
     <div
       className={cn(
@@ -404,7 +554,18 @@ export function CharacterCoreNode({ data, selected }: NodeProps & { data: Charac
       )}
     >
       {/* Target Input Ports on Left */}
-      <div className="absolute -left-3 top-7 flex flex-col gap-5 z-20">
+      <div className="absolute -left-3 top-5 flex flex-col gap-4 z-20">
+        <div className="relative group">
+          <Handle
+            type="target"
+            position={Position.Left}
+            id="general_in"
+            className={cn(handleBaseClass, "!bg-purple-500")}
+          />
+          <span className="absolute left-4 top-0 hidden rounded bg-popover px-1.5 py-0.5 text-[9px] font-mono text-purple-400 group-hover:block whitespace-nowrap shadow">
+            link_in (character / note / clip)
+          </span>
+        </div>
         <div className="relative group">
           <Handle
             type="target"
@@ -451,16 +612,36 @@ export function CharacterCoreNode({ data, selected }: NodeProps & { data: Charac
             <h3 className="font-heading text-sm font-bold text-foreground leading-tight">{data.name}</h3>
           </div>
         </div>
-        <Badge
-          className={cn(
-            "text-[9px]",
-            data.isStale
-              ? "border-warning/40 bg-warning/15 text-warning animate-pulse"
-              : "border-success/40 bg-success/15 text-success"
+        <div className="flex items-center gap-1.5 shrink-0">
+          {connCount > 0 && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (nodeId) {
+                  setEdges((eds) =>
+                    eds.filter((edge) => edge.source !== nodeId && edge.target !== nodeId)
+                  );
+                }
+              }}
+              className="flex items-center gap-1 rounded bg-secondary/90 hover:bg-rose-500/20 hover:text-rose-400 hover:border-rose-500/40 border border-border/80 px-1.5 py-0.5 text-[9px] font-mono text-muted-foreground transition-all cursor-pointer"
+              title={`Unlink all ${connCount} wires attached to ${data.name}`}
+            >
+              <Unlink className="h-2.5 w-2.5" />
+              <span>{connCount}</span>
+            </button>
           )}
-        >
-          {data.isStale ? "Pending Sync" : "Bound"}
-        </Badge>
+          <Badge
+            className={cn(
+              "text-[9px]",
+              data.isStale
+                ? "border-warning/40 bg-warning/15 text-warning animate-pulse"
+                : "border-success/40 bg-success/15 text-success"
+            )}
+          >
+            {data.isStale ? "Pending Sync" : "Bound"}
+          </Badge>
+        </div>
       </div>
 
       {/* Body Details */}
@@ -544,8 +725,14 @@ export function ChemistryNode({ data, selected }: NodeProps & { data: ChemistryN
       selected={selected}
     >
       <div className="relative flex flex-col gap-2 text-xs">
-        {/* Target Ports for Char A and Char B */}
-        <div className="absolute -left-6 top-2 flex flex-col gap-4">
+        {/* Target Ports for Char A and Char B and Universal */}
+        <div className="absolute -left-6 top-2 flex flex-col gap-3">
+          <Handle
+            type="target"
+            position={Position.Left}
+            id="flow_in"
+            className={cn(handleBaseClass, "!bg-rose-400")}
+          />
           <Handle
             type="target"
             position={Position.Left}
@@ -617,8 +804,14 @@ export function SceneNode({ data, selected }: NodeProps & { data: SceneNodeData 
       selected={selected}
     >
       <div className="relative flex flex-col gap-2 text-xs">
-        {/* Input Ports for Characters, Style Ref, Plot Seed */}
-        <div className="absolute -left-6 top-2 flex flex-col gap-4">
+        {/* Input Ports for Characters, Style Ref, Plot Seed, Scene Chaining */}
+        <div className="absolute -left-6 top-2 flex flex-col gap-3">
+          <Handle
+            type="target"
+            position={Position.Left}
+            id="flow_in"
+            className={cn(handleBaseClass, "!bg-cyan-400")}
+          />
           <Handle
             type="target"
             position={Position.Left}
@@ -762,9 +955,44 @@ export interface StoryboardNodeData extends Record<string, unknown> {
   prompt: string;
   shotType?: string;
   lighting?: string;
+  imageUrl?: string;
 }
 
 export function StoryboardNode({ data, selected }: NodeProps & { data: StoryboardNodeData }) {
+  const [currentImage, setCurrentImage] = React.useState<string | undefined>(
+    (data.imageUrl as string) || undefined
+  );
+  const [isRendering, setIsRendering] = React.useState(false);
+
+  const handleRender = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isRendering) return;
+    setIsRendering(true);
+
+    try {
+      const res = await fetch("/api/media/image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: data.prompt || "cinematic anamorphic film frame, dramatic lighting",
+          aspect_ratio: "16:9",
+        }),
+      });
+
+      if (res.ok) {
+        const result = await res.json();
+        if (result.image_url) {
+          setCurrentImage(result.image_url);
+          data.imageUrl = result.image_url;
+        }
+      }
+    } catch (err) {
+      console.error("Storyboard Imagen render error:", err);
+    } finally {
+      setIsRendering(false);
+    }
+  };
+
   return (
     <BlueprintNodeShell
       kind="Visual Concept"
@@ -773,7 +1001,7 @@ export function StoryboardNode({ data, selected }: NodeProps & { data: Storyboar
       colorScheme="purple"
       selected={selected}
     >
-      <div className="relative flex flex-col gap-1.5 text-xs">
+      <div className="relative flex flex-col gap-2 text-xs">
         <Handle
           type="target"
           position={Position.Left}
@@ -781,23 +1009,69 @@ export function StoryboardNode({ data, selected }: NodeProps & { data: Storyboar
           className={cn(handleBaseClass, "!bg-purple-500 -left-5")}
         />
 
-        <div className="letterbox relative mt-1 w-full overflow-hidden rounded border border-border/70 bg-gradient-to-br from-secondary/80 via-card to-background flex items-center justify-center p-3 text-center">
-          <div className="z-10 flex flex-col gap-1">
-            <span className="text-[9px] font-mono uppercase tracking-widest text-accent">
+        {currentImage ? (
+          <div className="group relative w-full overflow-hidden rounded-lg border border-purple-500/40 bg-black shadow-lg">
+            <img
+              src={currentImage}
+              alt="Imagen 3 Storyboard Frame"
+              className="w-full h-32 object-cover transition-transform duration-300 group-hover:scale-105"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-2 pointer-events-none">
+              <span className="text-[9px] font-mono uppercase tracking-widest text-accent font-semibold">
+                {data.shotType || "2.39:1 Anamorphic Scope"}
+              </span>
+              <p className="text-[10px] text-white/90 line-clamp-1 italic">
+                &ldquo;{data.prompt}&rdquo;
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleRender}
+              disabled={isRendering}
+              className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity bg-black/70 hover:bg-black text-[10px] text-accent px-2 py-0.5 rounded border border-accent/40 font-mono flex items-center gap-1 cursor-pointer"
+            >
+              <Sparkles className="h-2.5 w-2.5" />
+              <span>{isRendering ? "Rendering..." : "Re-roll"}</span>
+            </button>
+          </div>
+        ) : (
+          <div className="relative w-full overflow-hidden rounded-lg border border-border/70 bg-gradient-to-br from-secondary/80 via-card to-background p-3 text-center flex flex-col items-center gap-2">
+            <span className="text-[9px] font-mono uppercase tracking-widest text-accent font-semibold">
               {data.shotType || "2.39:1 Anamorphic Scope"}
             </span>
             <p className="text-[11px] leading-snug text-foreground/90 line-clamp-2 italic">
               &ldquo;{data.prompt}&rdquo;
             </p>
-          </div>
-        </div>
 
-        {data.lighting && (
-          <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-1">
-            <span>Atmosphere: {data.lighting}</span>
-            <span className="font-mono text-accent font-medium">Imagen 3</span>
+            <button
+              type="button"
+              onClick={handleRender}
+              disabled={isRendering}
+              className="mt-1 flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/50 text-purple-300 text-[11px] font-medium transition-all cursor-pointer shadow-sm disabled:opacity-50"
+            >
+              <Sparkles className="h-3 w-3 text-purple-400" />
+              <span>{isRendering ? "Painting Frame with Imagen 3..." : "Render 16:9 Frame (Imagen 3)"}</span>
+            </button>
           </div>
         )}
+
+        {data.lighting && (
+          <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-0.5">
+            <span>Atmosphere: {data.lighting}</span>
+            <span className="font-mono text-purple-400 font-medium">Google Imagen 3</span>
+          </div>
+        )}
+
+        {/* Output Port */}
+        <div className="relative mt-1 flex items-center justify-end pt-1 border-t border-border/30">
+          <span className="text-[10px] font-mono text-purple-400 mr-2">concept_out →</span>
+          <Handle
+            type="source"
+            position={Position.Right}
+            id="storyboard_out"
+            className={cn(handleBaseClass, "!bg-purple-500 -right-5")}
+          />
+        </div>
       </div>
     </BlueprintNodeShell>
   );
@@ -813,6 +1087,8 @@ export interface FloorPlanNodeData extends Record<string, unknown> {
 }
 
 export function FloorPlanNode({ data, selected }: NodeProps & { data: FloorPlanNodeData }) {
+  const [activeCam, setActiveCam] = React.useState<"35mm" | "50mm" | "85mm">("35mm");
+
   return (
     <BlueprintNodeShell
       kind="Camera Blocking"
@@ -821,7 +1097,7 @@ export function FloorPlanNode({ data, selected }: NodeProps & { data: FloorPlanN
       colorScheme="blue"
       selected={selected}
     >
-      <div className="relative flex flex-col gap-1.5 text-xs">
+      <div className="relative flex flex-col gap-2 text-xs">
         <Handle
           type="target"
           position={Position.Left}
@@ -831,18 +1107,63 @@ export function FloorPlanNode({ data, selected }: NodeProps & { data: FloorPlanN
 
         <div className="flex items-center justify-between text-[10px] text-muted-foreground">
           <span>{data.sceneTitle}</span>
-          <span className="text-accent font-semibold">{data.cameraCount || 3} Cams · Scope</span>
+          <span className="text-blue-400 font-semibold">{data.cameraCount || 3} Setups · Scope</span>
         </div>
 
-        <div className="w-full h-12 bg-secondary/30 rounded border border-border/50 relative overflow-hidden flex items-center justify-center">
+        {/* Camera Lens Selector Buttons */}
+        <div className="grid grid-cols-3 gap-1 nodrag">
+          {(["35mm", "50mm", "85mm"] as const).map((cam) => (
+            <button
+              key={cam}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setActiveCam(cam);
+              }}
+              className={cn(
+                "py-0.5 text-[9px] font-mono rounded border transition-all",
+                activeCam === cam
+                  ? "bg-blue-500/30 text-blue-300 border-blue-400/50 shadow-sm"
+                  : "bg-secondary/40 text-muted-foreground border-border/40 hover:bg-secondary/70 hover:text-foreground"
+              )}
+            >
+              {cam === "35mm" ? "35mm Wide" : cam === "50mm" ? "50mm OTS" : "85mm CU"}
+            </button>
+          ))}
+        </div>
+
+        {/* Dynamic 2D Floor Plan SVG */}
+        <div className="w-full h-14 bg-black/40 rounded border border-blue-500/20 relative overflow-hidden flex items-center justify-center">
           <svg className="w-full h-full" viewBox="0 0 100 40">
-            <rect x="5" y="5" width="90" height="30" fill="none" stroke="var(--border)" strokeWidth="1" />
-            <circle cx="35" cy="20" r="3" fill="var(--accent)" />
-            <circle cx="65" cy="18" r="3" fill="#10b981" />
-            <line x1="20" y1="32" x2="35" y2="20" stroke="var(--accent)" strokeWidth="1" strokeDasharray="2 2" />
-            <circle cx="20" cy="32" r="2" fill="var(--secondary)" stroke="var(--accent)" />
-            <line x1="75" y1="12" x2="65" y2="18" stroke="var(--accent)" strokeWidth="1" strokeDasharray="2 2" />
-            <circle cx="75" cy="12" r="2" fill="var(--secondary)" stroke="var(--accent)" />
+            <rect x="5" y="5" width="90" height="30" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
+            {/* Actor positions */}
+            <circle cx="38" cy="20" r="3.5" fill="#38bdf8" />
+            <text x="38" y="14" fontSize="5" fill="#94a3b8" textAnchor="middle">A1</text>
+            <circle cx="68" cy="19" r="3.5" fill="#34d399" />
+            <text x="68" y="13" fontSize="5" fill="#94a3b8" textAnchor="middle">A2</text>
+
+            {/* Dynamic Camera Frustums based on active lens */}
+            {activeCam === "35mm" && (
+              <>
+                <polygon points="12,35 48,10 25,10" fill="rgba(56,189,248,0.18)" stroke="#38bdf8" strokeWidth="0.8" strokeDasharray="1.5 1.5" />
+                <circle cx="12" cy="35" r="2.5" fill="#38bdf8" />
+                <text x="12" y="38" fontSize="4.5" fill="#38bdf8" textAnchor="middle">CAM A</text>
+              </>
+            )}
+            {activeCam === "50mm" && (
+              <>
+                <polygon points="25,32 68,14 62,25" fill="rgba(244,114,182,0.18)" stroke="#f472b6" strokeWidth="0.8" strokeDasharray="1.5 1.5" />
+                <circle cx="25" cy="32" r="2.5" fill="#f472b6" />
+                <text x="25" y="38" fontSize="4.5" fill="#f472b6" textAnchor="middle">CAM B</text>
+              </>
+            )}
+            {activeCam === "85mm" && (
+              <>
+                <polygon points="80,34 38,18 42,24" fill="rgba(250,204,21,0.18)" stroke="#facc15" strokeWidth="0.8" strokeDasharray="1.5 1.5" />
+                <circle cx="80" cy="34" r="2.5" fill="#facc15" />
+                <text x="80" y="38" fontSize="4.5" fill="#facc15" textAnchor="middle">CAM C</text>
+              </>
+            )}
           </svg>
         </div>
 
@@ -852,10 +1173,32 @@ export function FloorPlanNode({ data, selected }: NodeProps & { data: FloorPlanN
             e.stopPropagation();
             data.onOpenDeck?.();
           }}
-          className="w-full mt-1 py-1 rounded bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 text-[10px] font-medium transition-colors text-center border border-blue-500/30"
+          className="w-full mt-0.5 py-1 rounded bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 text-[10px] font-medium transition-colors text-center border border-blue-500/30 nodrag"
         >
           Open Director Blocking Deck →
         </button>
+
+        {/* Universal In/Out Ports */}
+        <div className="relative mt-1 flex items-center justify-between pt-1 border-t border-border/30">
+          <div className="flex items-center">
+            <Handle
+              type="target"
+              position={Position.Left}
+              id="flow_in"
+              className={cn(handleBaseClass, "!bg-blue-500 -left-5")}
+            />
+            <span className="text-[10px] font-mono text-blue-400 ml-1">← in</span>
+          </div>
+          <div className="flex items-center">
+            <span className="text-[10px] font-mono text-blue-400 mr-2">floorplan_out →</span>
+            <Handle
+              type="source"
+              position={Position.Right}
+              id="floorplan_out"
+              className={cn(handleBaseClass, "!bg-blue-500 -right-5")}
+            />
+          </div>
+        </div>
       </div>
     </BlueprintNodeShell>
   );
@@ -921,6 +1264,17 @@ export function TensionCurveNode({ data, selected }: NodeProps & { data: Tension
         >
           View Full 3-Act Curve →
         </button>
+
+        {/* Output Port */}
+        <div className="relative mt-1 flex items-center justify-end pt-1 border-t border-border/30">
+          <span className="text-[10px] font-mono text-rose-400 mr-2">tension_out →</span>
+          <Handle
+            type="source"
+            position={Position.Right}
+            id="tension_out"
+            className={cn(handleBaseClass, "!bg-rose-500 -right-5")}
+          />
+        </div>
       </div>
     </BlueprintNodeShell>
   );
@@ -979,6 +1333,17 @@ export function TableReadNode({ data, selected }: NodeProps & { data: TableReadN
           <Play className="h-3 w-3 fill-current" />
           Play Multi-Speaker Table Read
         </button>
+
+        {/* Output Port */}
+        <div className="relative mt-1 flex items-center justify-end pt-1 border-t border-border/30">
+          <span className="text-[10px] font-mono text-cyan-400 mr-2">audio_out →</span>
+          <Handle
+            type="source"
+            position={Position.Right}
+            id="audio_out"
+            className={cn(handleBaseClass, "!bg-cyan-500 -right-5")}
+          />
+        </div>
       </div>
     </BlueprintNodeShell>
   );
@@ -1030,6 +1395,17 @@ export function MarketNode({ data, selected }: NodeProps & { data: MarketNodeDat
         >
           Inspect World Choropleth Map →
         </button>
+
+        {/* Output Port */}
+        <div className="relative mt-1 flex items-center justify-end pt-1 border-t border-border/30">
+          <span className="text-[10px] font-mono text-emerald-400 mr-2">market_out →</span>
+          <Handle
+            type="source"
+            position={Position.Right}
+            id="market_out"
+            className={cn(handleBaseClass, "!bg-emerald-500 -right-5")}
+          />
+        </div>
       </div>
     </BlueprintNodeShell>
   );

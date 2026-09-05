@@ -6,11 +6,35 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { SlateLabel } from "@/components/cinema/slate-label";
 import { MarkdownRenderer } from "@/components/cinema/markdown-renderer";
-import { SendIcon, Sparkles, Bot, User } from "lucide-react";
-import type { ShowrunnerMessage } from "@/lib/agent-service";
+import {
+  SendIcon,
+  Sparkles,
+  Bot,
+  User,
+  Zap,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  Brain,
+  Sliders,
+  Scissors,
+  Link2,
+  FileText,
+  UserPlus,
+  LayoutGrid,
+} from "lucide-react";
+import type { StudioAction } from "@/lib/studio-actions";
+
+export interface ExtendedShowrunnerMessage {
+  role: "user" | "showrunner";
+  content: string;
+  thought_process?: string;
+  actions?: StudioAction[];
+  execution_summaries?: string[];
+}
 
 interface ShowrunnerChatProps {
-  messages: ShowrunnerMessage[];
+  messages: ExtendedShowrunnerMessage[];
   onSendMessage: (msg: string) => void;
   isThinking: boolean;
   suggestedPrompts?: string[];
@@ -22,14 +46,16 @@ export function ShowrunnerChat({
   onSendMessage,
   isThinking,
   suggestedPrompts = [
-    "Critique this scene's dramatic tension",
-    "How can we heighten Elena's subtext?",
-    "Check continuity: What does Marcus know right now?",
-    "Suggest a sharper reversal for the scene climax",
+    "Introduce a rival cyber-agent named Viktor and wire him to Elena with ⚔️ Rivalry",
+    "Crank Elena's subtext to 95% and verbal pacing to 85%",
+    "Auto-tidy the entire backlot canvas into production columns",
+    "Rewrite the scene climax with a sudden power blackout",
+    "Sever all connections between the clip reference and Marcus",
   ],
   className,
 }: ShowrunnerChatProps) {
   const [draft, setDraft] = React.useState("");
+  const [openThoughts, setOpenThoughts] = React.useState<Record<number, boolean>>({});
   const scrollRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
@@ -40,6 +66,13 @@ export function ShowrunnerChat({
       });
     }
   }, [messages.length, isThinking]);
+
+  const toggleThought = (idx: number) => {
+    setOpenThoughts((prev) => ({
+      ...prev,
+      [idx]: !prev[idx],
+    }));
+  };
 
   const submit = () => {
     const trimmed = draft.trim();
@@ -58,28 +91,42 @@ export function ShowrunnerChat({
       {/* Header */}
       <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-2.5 bg-secondary/30">
         <div className="flex items-center gap-2">
-          <Bot className="h-4 w-4 text-accent" />
+          <div className="h-7 w-7 rounded-lg bg-accent/15 border border-accent/30 flex items-center justify-center text-accent shadow-sm">
+            <Zap className="h-4 w-4" />
+          </div>
           <div className="flex flex-col gap-0.5">
-            <span className="text-sm font-semibold text-foreground">Showrunner AI</span>
-            <SlateLabel>Omniscient Writers&apos; Room Co-Pilot</SlateLabel>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-foreground">Studio Executive AI</span>
+              <span className="flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.2 text-[9px] font-mono font-medium text-emerald-400">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Live CRUD Mode
+              </span>
+            </div>
+            <SlateLabel>Omniscient Writers&apos; Room &amp; Backlot Commander</SlateLabel>
           </div>
         </div>
-        <span className="rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] text-accent font-mono font-medium">
-          Gemini 3.7
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className="rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] text-accent font-mono font-medium">
+            Gemini 3.7 / 2.5
+          </span>
+        </div>
       </div>
 
       {/* Transcript */}
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 && (
-          <div className="py-8 text-center text-xs text-muted-foreground space-y-2">
-            <div className="h-8 w-8 mx-auto rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center">
-              <Sparkles className="h-4 w-4 text-accent" />
+          <div className="py-8 text-center text-xs text-muted-foreground space-y-3">
+            <div className="h-10 w-10 mx-auto rounded-full bg-accent/10 border border-accent/30 flex items-center justify-center text-accent shadow-lg">
+              <Zap className="h-5 w-5" />
             </div>
-            <p className="font-medium text-foreground text-sm">Writers&apos; Room Assistant Ready</p>
-            <p className="max-w-xs mx-auto leading-relaxed">
-              Ask for script critiques, dialogue subtext adjustments, continuity sentry checks, or alternate twists.
-            </p>
+            <div>
+              <p className="font-heading font-bold text-foreground text-sm">
+                Centralized Studio Executive AI Ready
+              </p>
+              <p className="max-w-md mx-auto mt-1 leading-relaxed text-muted-foreground">
+                Give any natural language command. The AI will reason step-by-step and autonomously execute CRUD mutations across nodes, wires, characters, dials, and screenplays.
+              </p>
+            </div>
           </div>
         )}
 
@@ -88,34 +135,95 @@ export function ShowrunnerChat({
             <div key={idx} className="flex justify-end">
               <div className="max-w-[85%] rounded-lg bg-accent/15 border border-accent/30 text-foreground px-3.5 py-2 text-xs leading-relaxed shadow-sm">
                 <div className="flex items-center gap-1.5 mb-1 text-[10px] font-mono text-accent font-medium justify-end">
-                  <span>DIRECTOR</span>
+                  <span>DIRECTOR DIRECTIVE</span>
                   <User className="h-3 w-3" />
                 </div>
-                <div>{msg.content}</div>
+                <div className="font-medium">{msg.content}</div>
               </div>
             </div>
           ) : (
             <div key={idx} className="flex justify-start">
-              <div className="max-w-[92%] w-full rounded-lg border border-border bg-secondary/25 hover:bg-secondary/35 transition-colors px-4 py-3 text-xs leading-relaxed space-y-2 text-foreground/90 shadow-sm">
+              <div className="max-w-[94%] w-full rounded-lg border border-border bg-secondary/25 hover:bg-secondary/35 transition-colors px-4 py-3 text-xs leading-relaxed space-y-3 text-foreground/90 shadow-sm">
+                {/* Header */}
                 <div className="flex items-center justify-between border-b border-border/50 pb-1.5">
                   <div className="flex items-center gap-1.5">
                     <Bot className="h-3.5 w-3.5 text-accent" />
                     <span className="font-mono text-[10px] uppercase tracking-wider text-accent font-semibold">
-                      SHOWRUNNER AI
+                      STUDIO EXECUTIVE
                     </span>
                   </div>
-                  <span className="text-[10px] text-muted-foreground font-mono">Screenplay Insight</span>
+                  <span className="text-[10px] text-muted-foreground font-mono">
+                    {msg.actions && msg.actions.length > 0
+                      ? `${msg.actions.length} Action${msg.actions.length > 1 ? "s" : ""} Dispatched`
+                      : "Analysis & Critique"}
+                  </span>
                 </div>
-                <MarkdownRenderer content={msg.content} />
+
+                {/* Collapsible Chain-of-Thought / Creative Rationale */}
+                {msg.thought_process && (
+                  <div className="rounded border border-border/60 bg-background/50 overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => toggleThought(idx)}
+                      className="w-full flex items-center justify-between px-2.5 py-1.5 text-[11px] font-mono text-muted-foreground hover:text-foreground hover:bg-secondary/40 transition-colors text-left"
+                    >
+                      <span className="flex items-center gap-1.5 text-accent">
+                        <Brain className="h-3 w-3" />
+                        <span>AI Executive Thinking &amp; Reasoning</span>
+                      </span>
+                      {openThoughts[idx] ? (
+                        <ChevronDown className="h-3 w-3" />
+                      ) : (
+                        <ChevronRight className="h-3 w-3" />
+                      )}
+                    </button>
+                    {openThoughts[idx] && (
+                      <div className="px-2.5 py-2 border-t border-border/40 text-[11px] text-muted-foreground/90 leading-relaxed font-mono bg-card/40 whitespace-pre-wrap">
+                        {msg.thought_process}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Executed Live CRUD Operations Banner */}
+                {msg.execution_summaries && msg.execution_summaries.length > 0 && (
+                  <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-2.5 space-y-1.5">
+                    <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider text-emerald-400 font-bold">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                      <span>Live Project Mutations Executed</span>
+                    </div>
+                    <div className="space-y-1">
+                      {msg.execution_summaries.map((summary, sIdx) => (
+                        <div
+                          key={sIdx}
+                          className="flex items-start gap-1.5 text-[11px] text-foreground font-mono"
+                        >
+                          <span className="text-emerald-400 font-bold">✓</span>
+                          <span>{summary}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Conversational Assistant Reply */}
+                <div className="prose prose-invert max-w-none text-xs leading-relaxed">
+                  <MarkdownRenderer content={msg.content} />
+                </div>
               </div>
             </div>
           )
         )}
 
         {isThinking && (
-          <div className="flex items-center gap-2 text-xs text-accent animate-pulse py-2 px-1">
-            <Sparkles className="h-3.5 w-3.5 animate-spin" />
-            <span>Showrunner is analyzing the screenplay and character arcs...</span>
+          <div className="flex items-center gap-2.5 text-xs text-accent animate-pulse py-2 px-1">
+            <Sparkles className="h-4 w-4 animate-spin text-accent" />
+            <div className="flex flex-col gap-0.5">
+              <span className="font-semibold">Studio Executive is analyzing prompt &amp; deciding actions...</span>
+              <span className="text-[10px] text-muted-foreground font-mono">
+                Reasoning narrative arc · formulating CRUD mutations
+              </span>
+            </div>
           </div>
         )}
       </div>
@@ -124,7 +232,7 @@ export function ShowrunnerChat({
       {suggestedPrompts.length > 0 && !isThinking && (
         <div className="shrink-0 border-t border-border/50 bg-secondary/15 px-3 py-2">
           <span className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1 font-mono">
-            Director Commands
+            Executive Directives (Click to Execute)
           </span>
           <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto">
             {suggestedPrompts.map((p, i) => (
@@ -132,7 +240,7 @@ export function ShowrunnerChat({
                 key={i}
                 type="button"
                 onClick={() => onSendMessage(p)}
-                className="rounded border border-border/80 bg-background/80 px-2.5 py-1 text-[11px] text-muted-foreground hover:text-foreground hover:border-accent hover:bg-accent/10 transition-colors text-left"
+                className="rounded border border-border/80 bg-background/80 px-2 py-1 text-[10.5px] text-muted-foreground hover:text-foreground hover:border-accent hover:bg-accent/10 transition-colors text-left font-sans cursor-pointer"
               >
                 &ldquo;{p}&rdquo;
               </button>
@@ -141,24 +249,25 @@ export function ShowrunnerChat({
         </div>
       )}
 
-      {/* Input */}
+      {/* Input bar */}
       <div className="shrink-0 flex items-center gap-2 border-t border-border p-2.5 bg-background/50">
         <Input
           value={draft}
           disabled={isThinking}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && submit()}
-          placeholder="Direct the showrunner (e.g. 'Make Elena more menacing', 'Critique the pacing')..."
+          placeholder="Command the Studio Executive (e.g. 'Add rival Viktor, wire to Elena, crank subtext to 95%')..."
           className="flex-1 text-xs sm:text-sm h-9 bg-card"
         />
         <Button
-          size="icon"
-          className="h-9 w-9 shrink-0"
+          size="sm"
+          className="h-9 px-3 shrink-0 gap-1.5 bg-accent text-accent-foreground hover:bg-accent/90 cursor-pointer"
           aria-label="Send command"
           disabled={isThinking || !draft.trim()}
           onClick={submit}
         >
-          <SendIcon className="h-4 w-4" />
+          <SendIcon className="h-3.5 w-3.5" />
+          <span className="text-xs font-semibold hidden sm:inline">Execute</span>
         </Button>
       </div>
     </div>

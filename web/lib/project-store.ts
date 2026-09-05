@@ -10,6 +10,10 @@ export interface ProjectCharacter {
   objective?: string;
   dialsSummary?: string;
   quirks?: string[];
+  role?: string;
+  personalityPreset?: string;
+  confidence?: number;
+  verbalPacing?: number;
 }
 
 export interface ProjectData {

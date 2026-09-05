@@ -367,6 +367,44 @@ export function predictMarket(genre: string, logline: string) {
   return postJson<MarketPredictResponse>("/market/predict", { genre, logline });
 }
 
+export interface GenerateMediaImageResponse {
+  image_url: string;
+  prompt: string;
+  model: string;
+}
 
+export function generateMediaImage(prompt: string, aspectRatio = "16:9") {
+  return postJson<GenerateMediaImageResponse>("/media/image", { prompt, aspect_ratio: aspectRatio });
+}
 
+export interface GenerateMediaTTSResponse {
+  audio_url: string;
+  speaker: string;
+  voice_name: string;
+  duration_estimate_sec: number;
+}
 
+export function generateMediaTTS(text: string, speaker?: string, voiceName?: string) {
+  return postJson<GenerateMediaTTSResponse>("/media/tts", { text, speaker, voice_name: voiceName });
+}
+
+export interface GenerateMediaVideoResponse {
+  operation_name: string;
+  prompt: string;
+  status: string;
+  video_url?: string;
+}
+
+export function generateMediaVideo(prompt: string, durationSeconds = 5, stylePreset = "35mm Anamorphic Film") {
+  return postJson<GenerateMediaVideoResponse>("/media/video", {
+    prompt,
+    duration_seconds: durationSeconds,
+    style_preset: stylePreset,
+  });
+}
+
+export function getVideoStatus(operationName: string) {
+  return getJson<{ status: string; video_url?: string; error?: string }>(
+    `/media/video/status?operation_name=${encodeURIComponent(operationName)}`
+  );
+}

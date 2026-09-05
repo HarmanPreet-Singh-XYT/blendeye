@@ -28,13 +28,21 @@ import {
   X,
   ExternalLink,
   RefreshCw,
+  Link2,
+  Unlink,
+  Scissors,
 } from "lucide-react";
+import type { Edge } from "@xyflow/react";
 
 export interface StudioInspectorProps {
   selectedNode: Node | null;
   nodes: Node[];
+  edges?: Edge[];
   onSelectNode: (nodeId: string) => void;
   onUpdateNodeData?: (nodeId: string, newData: Record<string, unknown>) => void;
+  onDeleteEdge?: (edgeId: string) => void;
+  onAddEdge?: (sourceId: string, targetId: string) => void;
+  onUnlinkAllForNode?: (nodeId: string) => void;
   onOpenHotSeat?: (charName: string) => void;
   onOpenScriptReader?: () => void;
   onOpenDeck?: (subTab: "blocking" | "tension" | "territory" | "stripboard") => void;
@@ -46,8 +54,12 @@ export interface StudioInspectorProps {
 export function StudioInspector({
   selectedNode,
   nodes,
+  edges = [],
   onSelectNode,
   onUpdateNodeData,
+  onDeleteEdge,
+  onAddEdge,
+  onUnlinkAllForNode,
   onOpenHotSeat,
   onOpenScriptReader,
   onOpenDeck,
@@ -56,6 +68,17 @@ export function StudioInspector({
   className,
 }: StudioInspectorProps) {
   const [activeTab, setActiveTab] = React.useState<"inspector" | "outliner">("inspector");
+  const [targetToConnect, setTargetToConnect] = React.useState("");
+
+  const inboundEdges = React.useMemo(() => {
+    if (!selectedNode) return [];
+    return edges.filter((e) => e.target === selectedNode.id);
+  }, [edges, selectedNode]);
+
+  const outboundEdges = React.useMemo(() => {
+    if (!selectedNode) return [];
+    return edges.filter((e) => e.source === selectedNode.id);
+  }, [edges, selectedNode]);
 
   const nodeData = (selectedNode?.data || {}) as Record<string, any>;
 
@@ -827,12 +850,142 @@ export function StudioInspector({
                 <Button
                   size="sm"
                   onClick={() => onOpenDeck?.("territory")}
-                  className="gap-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 w-full"
+                  className="gap-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 w-full cursor-pointer"
                 >
                   <Globe2 className="h-3.5 w-3.5" />
                   <span>Open ClickHouse Territory Map</span>
                 </Button>
               )}
+
+              {/* Node Wiring & Connections Section */}
+              <div className="rounded-lg border border-border/70 bg-secondary/20 p-3 flex flex-col gap-2.5 text-xs mt-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground font-semibold flex items-center gap-1.5">
+                    <Link2 className="h-3 w-3 text-accent" />
+                    Wiring & Connections ({inboundEdges.length + outboundEdges.length})
+                  </span>
+                  {(inboundEdges.length > 0 || outboundEdges.length > 0) && (
+                    <button
+                      type="button"
+                      onClick={() => onUnlinkAllForNode?.(selectedNode.id)}
+                      className="flex items-center gap-1 text-[10px] font-mono text-rose-400 hover:text-rose-300 hover:underline cursor-pointer"
+                      title="Sever all incoming and outgoing wires from this node"
+                    >
+                      <Unlink className="h-2.5 w-2.5" />
+                      <span>Unlink All</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Inbound wires */}
+                {inboundEdges.length > 0 && (
+                  <div className="space-y-1">
+                    <span className="text-[9px] font-mono text-muted-foreground uppercase">
+                      Inbound ({inboundEdges.length}):
+                    </span>
+                    <div className="flex flex-col gap-1">
+                      {inboundEdges.map((e) => {
+                        const srcNode = nodes.find((n) => n.id === e.source);
+                        const srcLabel =
+                          (srcNode?.data as any)?.title ||
+                          (srcNode?.data as any)?.name ||
+                          e.source;
+                        return (
+                          <div
+                            key={e.id}
+                            className="flex items-center justify-between rounded bg-background/60 border border-border/50 px-2 py-1 text-[11px]"
+                          >
+                            <span className="truncate text-foreground/90 font-mono">
+                              ← {srcLabel}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => onDeleteEdge?.(e.id)}
+                              className="text-rose-400 hover:text-rose-300 ml-2 shrink-0 cursor-pointer"
+                              title="Unlink wire"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Outbound wires */}
+                {outboundEdges.length > 0 && (
+                  <div className="space-y-1">
+                    <span className="text-[9px] font-mono text-muted-foreground uppercase">
+                      Outbound ({outboundEdges.length}):
+                    </span>
+                    <div className="flex flex-col gap-1">
+                      {outboundEdges.map((e) => {
+                        const tgtNode = nodes.find((n) => n.id === e.target);
+                        const tgtLabel =
+                          (tgtNode?.data as any)?.title ||
+                          (tgtNode?.data as any)?.name ||
+                          e.target;
+                        return (
+                          <div
+                            key={e.id}
+                            className="flex items-center justify-between rounded bg-background/60 border border-border/50 px-2 py-1 text-[11px]"
+                          >
+                            <span className="truncate text-foreground/90 font-mono">
+                              → {tgtLabel}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => onDeleteEdge?.(e.id)}
+                              className="text-rose-400 hover:text-rose-300 ml-2 shrink-0 cursor-pointer"
+                              title="Unlink wire"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Quick Link Selector */}
+                <div className="pt-1 border-t border-border/40 flex items-center gap-1.5">
+                  <select
+                    value={targetToConnect}
+                    onChange={(e) => setTargetToConnect(e.target.value)}
+                    className="flex-1 rounded border border-border bg-background px-2 py-1 text-[11px] text-foreground"
+                  >
+                    <option value="">Link to node...</option>
+                    {nodes
+                      .filter((n) => n.id !== selectedNode.id)
+                      .map((n) => {
+                        const label =
+                          (n.data as any)?.title || (n.data as any)?.name || n.id;
+                        return (
+                          <option key={n.id} value={n.id}>
+                            {label}
+                          </option>
+                        );
+                      })}
+                  </select>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!targetToConnect}
+                    onClick={() => {
+                      if (targetToConnect) {
+                        onAddEdge?.(selectedNode.id, targetToConnect);
+                        setTargetToConnect("");
+                      }
+                    }}
+                    className="h-7 px-2 text-[11px] gap-1 cursor-pointer"
+                  >
+                    <Link2 className="h-3 w-3" />
+                    <span>Link</span>
+                  </Button>
+                </div>
+              </div>
             </div>
           ) : (
             <div className="flex flex-1 flex-col items-center justify-center p-6 text-center text-muted-foreground gap-3">

@@ -28,7 +28,12 @@ export function TableReadPlayer({
   const [currentIndex, setCurrentIndex] = React.useState<number>(0);
   const [speechRate, setSpeechRate] = React.useState<number>(1.0);
   const [isMuted, setIsMuted] = React.useState(false);
+  const [voiceEngine, setVoiceEngine] = React.useState<"gemini" | "browser">("gemini");
+  const [isSynthesizing, setIsSynthesizing] = React.useState(false);
+  const [activeVoiceName, setActiveVoiceName] = React.useState<string>("Fenrir");
+
   const activeUtteranceRef = React.useRef<SpeechSynthesisUtterance | null>(null);
+  const activeAudioRef = React.useRef<HTMLAudioElement | null>(null);
 
   // Parse screenplay into structural tokens
   const lines: ScriptLine[] = React.useMemo(() => {
@@ -62,11 +67,20 @@ export function TableReadPlayer({
     return parsed;
   }, [screenplayText]);
 
+  const stopAllAudio = React.useCallback(() => {
+    if (activeAudioRef.current) {
+      activeAudioRef.current.pause();
+      activeAudioRef.current = null;
+    }
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+  }, []);
+
   // Handle speaking a specific line
   const speakLine = React.useCallback(
-    (index: number) => {
-      if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-      window.speechSynthesis.cancel();
+    async (index: number) => {
+      stopAllAudio();
 
       if (index >= lines.length) {
         setIsPlaying(false);
@@ -77,8 +91,59 @@ export function TableReadPlayer({
       const item = lines[index];
       if (!item) return;
 
-      // Skip empty or purely typographic markers if needed, but speaking them adds cinematic flavor
       let spokenText = item.text;
+      if (item.type === "parenthetical") {
+        spokenText = item.text.replace(/[()]/g, "");
+      }
+
+      // Try Gemini 3.1 Flash TTS first if engine selected
+      if (voiceEngine === "gemini") {
+        setIsSynthesizing(true);
+        try {
+          const res = await fetch("/api/media/tts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              text: spokenText,
+              speaker: item.speaker || "NARRATOR",
+            }),
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            if (data.audio_url && !data._fallback) {
+              setActiveVoiceName(data.voice_name || "Fenrir");
+              if (!isMuted) {
+                const audio = new Audio(data.audio_url);
+                activeAudioRef.current = audio;
+                audio.playbackRate = speechRate;
+                audio.onended = () => {
+                  if (isPlaying && index + 1 < lines.length) {
+                    setCurrentIndex(index + 1);
+                    speakLine(index + 1);
+                  } else {
+                    setIsPlaying(false);
+                  }
+                };
+                audio.onerror = () => {
+                  setIsPlaying(false);
+                };
+                await audio.play();
+                setIsSynthesizing(false);
+                return;
+              }
+            }
+          }
+        } catch {
+          // Graceful fallback to browser speech synthesis
+        } finally {
+          setIsSynthesizing(false);
+        }
+      }
+
+      // Fallback: Browser Web Speech API
+      if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+
       let pitch = 1.0;
       let rate = speechRate;
 
@@ -86,11 +151,9 @@ export function TableReadPlayer({
         spokenText = `${item.text}`;
         pitch = 1.1;
       } else if (item.type === "parenthetical") {
-        spokenText = item.text.replace(/[()]/g, "");
         pitch = 0.9;
         rate = speechRate * 0.9;
       } else if (item.type === "dialogue") {
-        spokenText = item.text;
         const s = (item.speaker || "").toUpperCase();
         if (s.includes("MARCUS")) {
           pitch = 0.95;
@@ -98,14 +161,7 @@ export function TableReadPlayer({
         } else if (s.includes("ELENA")) {
           pitch = 1.25;
           rate = speechRate * 0.92;
-        } else if (s.includes("VANCE")) {
-          pitch = 0.85;
-          rate = speechRate * 0.95;
-        } else if (s.includes("RAY")) {
-          pitch = 1.15;
-          rate = speechRate * 1.1;
         } else {
-          // Dynamic pitch & rate hashing for any custom character
           const hash = Array.from(s).reduce((acc, c) => acc + c.charCodeAt(0), 0);
           pitch = 0.85 + (hash % 6) * 0.08;
           rate = speechRate * (0.92 + (hash % 4) * 0.06);
@@ -116,7 +172,6 @@ export function TableReadPlayer({
       utterance.rate = rate;
       utterance.pitch = pitch;
 
-      // Available voices
       const voices = window.speechSynthesis.getVoices();
       if (voices.length > 0) {
         const s = (item.speaker || "").toUpperCase();
@@ -126,15 +181,6 @@ export function TableReadPlayer({
         } else if (s.includes("MARCUS") || s.includes("VANCE")) {
           const maleVoice = voices.find((v) => v.name.includes("Alex") || v.name.includes("Daniel") || v.name.includes("David"));
           if (maleVoice) utterance.voice = maleVoice;
-        } else if (s) {
-          const hash = Array.from(s).reduce((acc, c) => acc + c.charCodeAt(0), 0);
-          const isFemale = hash % 2 === 1;
-          const matchedVoice = voices.find((v) =>
-            isFemale
-              ? v.name.includes("Female") || v.name.includes("Samantha") || v.name.includes("Karen") || v.name.includes("Victoria")
-              : v.name.includes("Male") || v.name.includes("Alex") || v.name.includes("Daniel") || v.name.includes("Fred")
-          );
-          if (matchedVoice) utterance.voice = matchedVoice;
         }
       }
 
@@ -156,7 +202,7 @@ export function TableReadPlayer({
         window.speechSynthesis.speak(utterance);
       }
     },
-    [lines, isPlaying, speechRate, isMuted]
+    [lines, isPlaying, speechRate, isMuted, voiceEngine, stopAllAudio]
   );
 
   // Play / Pause Toggle
@@ -209,29 +255,57 @@ export function TableReadPlayer({
             <div className="flex items-center gap-2">
               <Volume2 className="h-4 w-4 text-accent" />
               <SlateLabel>Audio Table Read · Multi-Voice Simulation</SlateLabel>
+              <Badge variant="outline" className="text-[10px] font-mono border-accent/40 bg-accent/10 text-accent">
+                {voiceEngine === "gemini" ? `Gemini 3.1 TTS (${activeVoiceName})` : "Browser Web Speech"}
+              </Badge>
             </div>
             <span className="text-xs text-muted-foreground">
               Synchronized actor voice synthesis for script rhythm &amp; cadence testing
             </span>
           </div>
 
-          {/* Speed Selector */}
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setSpeechRate((r) => (r === 1.0 ? 1.25 : 1.0))}
-              className="font-mono text-[11px] px-2 py-1 rounded border border-border bg-secondary/40 hover:bg-secondary text-muted-foreground hover:text-foreground"
-            >
-              {speechRate}x
-            </button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 w-7 p-0 text-muted-foreground"
-              onClick={() => setIsMuted((m) => !m)}
-            >
-              {isMuted ? <VolumeX className="h-3.5 w-3.5 text-destructive" /> : <Volume2 className="h-3.5 w-3.5" />}
-            </Button>
+          {/* Engine & Speed Selectors */}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center rounded-md border border-border bg-secondary/30 p-0.5 text-[11px] font-mono">
+              <button
+                type="button"
+                onClick={() => setVoiceEngine("gemini")}
+                className={`px-2 py-0.5 rounded transition-all cursor-pointer ${
+                  voiceEngine === "gemini" ? "bg-accent text-accent-foreground font-semibold" : "text-muted-foreground hover:text-foreground"
+                }`}
+                title="Gemini 3.1 Flash TTS Multi-Speaker Expressive Speech"
+              >
+                Gemini TTS
+              </button>
+              <button
+                type="button"
+                onClick={() => setVoiceEngine("browser")}
+                className={`px-2 py-0.5 rounded transition-all cursor-pointer ${
+                  voiceEngine === "browser" ? "bg-accent text-accent-foreground font-semibold" : "text-muted-foreground hover:text-foreground"
+                }`}
+                title="Client Browser Web Speech API"
+              >
+                Browser
+              </button>
+            </div>
+
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setSpeechRate((r) => (r === 1.0 ? 1.25 : 1.0))}
+                className="font-mono text-[11px] px-2 py-1 rounded border border-border bg-secondary/40 hover:bg-secondary text-muted-foreground hover:text-foreground cursor-pointer"
+              >
+                {speechRate}x
+              </button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 w-7 p-0 text-muted-foreground"
+                onClick={() => setIsMuted((m) => !m)}
+              >
+                {isMuted ? <VolumeX className="h-3.5 w-3.5 text-destructive" /> : <Volume2 className="h-3.5 w-3.5" />}
+              </Button>
+            </div>
           </div>
         </div>
       )}
