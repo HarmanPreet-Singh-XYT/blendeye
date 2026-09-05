@@ -31,6 +31,16 @@ export default function FilmHubLandingPage() {
       logline: data.logline,
       genre: data.genre,
       characters: data.characters,
+      directorStyle: data.directorStyle,
+      coreSecret: data.coreSecret,
+      primaryLocation: data.primaryLocation,
+      targetTerritories: data.targetTerritories,
+      customCharacters: data.customCharacters,
+      narrativeFormat: data.narrativeFormat,
+      targetRuntimeMinutes: data.targetRuntimeMinutes,
+      scenePlacementSeconds: data.scenePlacementSeconds,
+      sceneDurationSeconds: data.sceneDurationSeconds,
+      totalScenesEstimate: data.totalScenesEstimate,
     });
     router.push(`/studio/${project.id}?pipeline=1`);
   };

@@ -1,12 +1,17 @@
 import base64
 import io
+import logging
+import uuid
 import wave
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 from google import genai
 from pydantic import BaseModel, Field
 
 from app.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/media", tags=["media"])
 
@@ -159,11 +164,40 @@ async def generate_tts(req: GenerateTTSRequest):
     raise HTTPException(status_code=502, detail=f"TTS synthesis failed: {last_err}")
 
 
+def resolve_image_bytes(image_url: str | None) -> tuple[bytes | None, str | None]:
+    """Extract raw image bytes and mime type from data URI, public static path, or HTTP URL."""
+    if not image_url:
+        return None, None
+    try:
+        if image_url.startswith("data:image/"):
+            header, encoded = image_url.split(",", 1)
+            mime = header.split(";")[0].replace("data:", "")
+            return base64.b64decode(encoded), mime
+        if image_url.startswith("http://") or image_url.startswith("https://"):
+            import httpx
+            with httpx.Client(timeout=10.0) as http_client:
+                res = http_client.get(image_url)
+                if res.is_success:
+                    mime = res.headers.get("content-type", "image/jpeg").split(";")[0]
+                    return res.content, mime
+        if image_url.startswith("/"):
+            cleaned = image_url.lstrip("/")
+            p = Path(__file__).resolve().parent.parent.parent.parent / "web" / "public" / cleaned
+            if p.exists() and p.is_file():
+                mime = "image/png" if p.suffix.lower() == ".png" else "image/jpeg"
+                return p.read_bytes(), mime
+    except Exception as e:
+        logger.warning("Could not resolve image bytes from %s: %s", image_url[:60], e)
+    return None, None
+
+
 class GenerateVideoRequest(BaseModel):
     prompt: str = Field(..., description="Cinematic scene visual and camera movement prompt")
     duration_seconds: int = Field(default=5, description="Video duration in seconds (4-8)")
     aspect_ratio: str = Field(default="16:9", description="Aspect ratio (16:9)")
     style_preset: str | None = Field(default="35mm Anamorphic Film", description="Film style preset")
+    image_url: str | None = Field(default=None, description="Optional character concept or storyboard image reference")
+    character_name: str | None = Field(default=None, description="Optional focused character name")
 
 
 class GenerateVideoResponse(BaseModel):
@@ -171,6 +205,7 @@ class GenerateVideoResponse(BaseModel):
     prompt: str
     status: str
     video_url: str | None = None
+    error: str | None = None
 
 
 @router.post("/video", response_model=GenerateVideoResponse)
@@ -183,45 +218,50 @@ async def generate_video(req: GenerateVideoRequest):
 
     client = genai.Client(api_key=api_key)
 
+    character_clause = f" Focus the shot on {req.character_name}." if req.character_name else ""
     cinematic_prompt = (
         f"Cinematic {req.aspect_ratio} film scene, {req.style_preset}. "
-        f"Masterful Hollywood cinematography, dynamic camera movement, photorealistic depth: {req.prompt}"
+        f"Masterful Hollywood cinematography, dynamic camera movement, photorealistic depth: {req.prompt}."
+        f"{character_clause}"
     )
 
     duration = max(4, min(8, req.duration_seconds))
 
+    img_bytes, mime = resolve_image_bytes(req.image_url)
+    image_arg = None
+    if img_bytes:
+        from google.genai import types
+        image_arg = types.Image(image_bytes=img_bytes, mime_type=mime or "image/jpeg")
+        logger.info("Conditioning Veo 3.1 video generation with image reference (%d bytes, %s)", len(img_bytes), mime)
+
     try:
-        op = client.models.generate_videos(
-            model="models/veo-3.1-fast-generate-preview",
-            prompt=cinematic_prompt,
-            config={
+        kwargs = {
+            "model": "models/veo-3.1-fast-generate-preview",
+            "prompt": cinematic_prompt,
+            "config": {
                 "aspect_ratio": req.aspect_ratio,
                 "duration_seconds": duration,
             },
-        )
+        }
+        if image_arg is not None:
+            kwargs["image"] = image_arg
+
+        op = client.models.generate_videos(**kwargs)
         return GenerateVideoResponse(
             operation_name=op.name,
             prompt=req.prompt,
             status="processing",
         )
-    except Exception:  # noqa: BLE001
-        # Fallback with sample cinematic video for instant previews
-        return GenerateVideoResponse(
-            operation_name="demo-preview",
-            prompt=req.prompt,
-            status="completed",
-            video_url="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4",
-        )
+    except Exception as e:  # noqa: BLE001
+        logger.error("Veo dispatch failed: %s", e)
+        raise HTTPException(status_code=502, detail=f"Video generation failed: {e}")
 
 
 @router.get("/video/status")
 async def get_video_status(operation_name: str):
     """Check status of a Google Veo 3.1 video generation job."""
-    if not operation_name or operation_name == "demo-preview":
-        return {
-            "status": "completed",
-            "video_url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4",
-        }
+    if not operation_name:
+        raise HTTPException(status_code=400, detail="Missing operation_name")
 
     settings = get_settings()
     api_key = settings.google_api_key
@@ -235,24 +275,50 @@ async def get_video_status(operation_name: str):
 
         op = client.operations.get(types.GenerateVideosOperation(name=operation_name))
         if op.done:
-            video_uri = None
+            video_url = None
             if hasattr(op, "response") and op.response and hasattr(op.response, "generated_videos"):
                 videos = op.response.generated_videos
                 if videos and len(videos) > 0:
-                    video_uri = videos[0].video.uri
+                    try:
+                        # Save the generated video physically to web/public/videos/
+                        target_dir = Path(__file__).resolve().parent.parent.parent.parent / "web" / "public" / "videos"
+                        target_dir.mkdir(parents=True, exist_ok=True)
+                        file_id = uuid.uuid4().hex[:12]
+                        filename = f"veo_{file_id}.mp4"
+                        target_path = target_dir / filename
+
+                        # Download the video directly from Google GenAI
+                        client.files.download(file=videos[0].video, destination=str(target_path))
+                        if target_path.exists() and target_path.stat().st_size > 0:
+                            video_url = f"/videos/{filename}"
+                    except Exception as dl_err:
+                        logger.error("Could not stream Veo file to disk: %s", dl_err)
+                        return {
+                            "status": "error",
+                            "error": f"Video finished rendering but could not be retrieved: {dl_err}",
+                            "video_url": None,
+                        }
+
+            if not video_url:
+                return {
+                    "status": "error",
+                    "error": "Veo operation completed but returned no video",
+                    "video_url": None,
+                }
 
             return {
                 "status": "completed",
-                "video_url": video_uri or "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4",
+                "video_url": video_url,
             }
         return {
             "status": "processing",
             "video_url": None,
         }
     except Exception as e:  # noqa: BLE001
+        logger.error("Veo status check failed: %s", e)
         return {
             "status": "error",
             "error": str(e),
-            "video_url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4",
+            "video_url": None,
         }
 

@@ -3,18 +3,21 @@ import { generateMediaImage } from "@/lib/agent-service";
 import { getCachedGeneration, setCachedGeneration } from "@/lib/generation-cache";
 
 export async function POST(req: NextRequest) {
+  let promptStr = "";
+  let aspectRatioStr = "16:9";
+
   try {
     const body = await req.json();
-    const prompt = body.prompt;
-    const aspectRatio = body.aspect_ratio || "16:9";
+    promptStr = body.prompt || "";
+    aspectRatioStr = body.aspect_ratio || "16:9";
 
-    if (!prompt) {
+    if (!promptStr) {
       return NextResponse.json({ error: "Missing prompt" }, { status: 400 });
     }
 
     const cachePayload = {
-      prompt: prompt.trim(),
-      aspect_ratio: aspectRatio,
+      prompt: promptStr.trim(),
+      aspect_ratio: aspectRatioStr,
     };
 
     const cached = await getCachedGeneration<any>("image", cachePayload);
@@ -22,7 +25,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ...cached, _cached: true });
     }
 
-    const result = await generateMediaImage(prompt, aspectRatio);
+    const result = await generateMediaImage(promptStr, aspectRatioStr);
     if (result && result.image_url) {
       await setCachedGeneration("image", cachePayload, result);
     }
@@ -31,11 +34,37 @@ export async function POST(req: NextRequest) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("Media image generation proxy error:", message);
 
-    // If agent-service is unreachable or rate-limited, provide an elegant high-quality cinematic SVG fallback
-    const encodedPrompt = encodeURIComponent("16:9 Cinematic Anamorphic Frame");
+    // If agent-service is unreachable or rate-limited, provide an elegant high-quality cinematic fallback tailored to the requested shot type
+    const lowerPrompt = promptStr.toLowerCase();
+    let fallbackUrl = "https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=1280&q=80"; // 16:9 widescreen landscape
+
+    if (
+      lowerPrompt.includes("full-body") ||
+      lowerPrompt.includes("full body") ||
+      lowerPrompt.includes("wardrobe") ||
+      lowerPrompt.includes("costume") ||
+      lowerPrompt.includes("stance") ||
+      aspectRatioStr === "9:16"
+    ) {
+      // High quality cinematic full body character portrait
+      fallbackUrl = "https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&w=800&q=80";
+    } else if (
+      lowerPrompt.includes("portrait") ||
+      lowerPrompt.includes("face") ||
+      lowerPrompt.includes("headshot") ||
+      lowerPrompt.includes("character") ||
+      aspectRatioStr === "1:1" ||
+      aspectRatioStr === "3:4"
+    ) {
+      // High quality cinematic dramatic face portrait
+      fallbackUrl = lowerPrompt.includes("female") || lowerPrompt.includes("woman") || lowerPrompt.includes("elena")
+        ? "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80"
+        : "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=800&q=80";
+    }
+
     return NextResponse.json({
-      image_url: `https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=1280&q=80`,
-      prompt: "Cinematic establishing shot",
+      image_url: fallbackUrl,
+      prompt: promptStr || "Cinematic character shot",
       model: "imagen-3.0-fallback",
       _fallback: true,
       _error: message,

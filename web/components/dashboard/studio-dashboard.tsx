@@ -24,6 +24,7 @@ import {
   Compass,
   Zap,
   X,
+  FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +42,8 @@ import {
 } from "@/components/cinema/new-project-dialog";
 import { FilmFusionDialog } from "@/components/cinema/film-fusion-dialog";
 import { ClickHouseToolboxDialog } from "@/components/cinema/clickhouse-toolbox-dialog";
+import { CharacterLabDialog } from "@/components/cinema/character-lab-dialog";
+import { ScratchpadDialog } from "@/components/cinema/scratchpad-dialog";
 import { StudioChatWorkspace } from "./studio-chat-workspace";
 
 type DashboardTab = "home" | "projects" | "starred" | "recent" | "fusion";
@@ -105,6 +108,8 @@ export function StudioDashboard() {
   const [newProjectOpen, setNewProjectOpen] = React.useState(false);
   const [fusionOpen, setFusionOpen] = React.useState(false);
   const [toolboxOpen, setToolboxOpen] = React.useState(false);
+  const [characterLabOpen, setCharacterLabOpen] = React.useState(false);
+  const [scratchpadOpen, setScratchpadOpen] = React.useState(false);
 
   // Load projects from localStorage
   const refreshProjects = React.useCallback(() => {
@@ -122,6 +127,16 @@ export function StudioDashboard() {
       logline: data.logline,
       genre: data.genre,
       characters: data.characters,
+      directorStyle: data.directorStyle,
+      coreSecret: data.coreSecret,
+      primaryLocation: data.primaryLocation,
+      targetTerritories: data.targetTerritories,
+      customCharacters: data.customCharacters,
+      narrativeFormat: data.narrativeFormat,
+      targetRuntimeMinutes: data.targetRuntimeMinutes,
+      scenePlacementSeconds: data.scenePlacementSeconds,
+      sceneDurationSeconds: data.sceneDurationSeconds,
+      totalScenesEstimate: data.totalScenesEstimate,
     });
     refreshProjects();
     router.push(`/studio/${project.id}?pipeline=1`);
@@ -411,8 +426,28 @@ export function StudioDashboard() {
 
           {/* Studio Suite Section Label */}
           <div className="px-2 py-1 text-[10px] font-mono tracking-wider text-muted-foreground uppercase">
-            Studio Infrastructure
+            Studio Creative Suite
           </div>
+
+          {/* Modular Character Lab */}
+          <button
+            onClick={() => setCharacterLabOpen(true)}
+            className="w-full flex items-center gap-3 rounded-lg px-2.5 py-2 text-xs font-medium text-muted-foreground hover:bg-secondary/40 hover:text-foreground transition-colors"
+            title="Modular Character Lab & Talent Vault"
+          >
+            <Users className="h-4 w-4 shrink-0 text-emerald-400" />
+            <span className="truncate">Character Lab</span>
+          </button>
+
+          {/* Showrunner Scratchpad */}
+          <button
+            onClick={() => setScratchpadOpen(true)}
+            className="w-full flex items-center gap-3 rounded-lg px-2.5 py-2 text-xs font-medium text-muted-foreground hover:bg-secondary/40 hover:text-foreground transition-colors"
+            title="Showrunner Scratchpad & Ideas"
+          >
+            <FileText className="h-4 w-4 shrink-0 text-amber-400" />
+            <span className="truncate">Ideas Scratchpad</span>
+          </button>
 
           {/* ClickHouse Telemetry */}
           <button
@@ -520,6 +555,26 @@ export function StudioDashboard() {
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
               ClickHouse Live · 0.4ms
             </button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCharacterLabOpen(true)}
+              className="h-8 text-xs border-emerald-500/30 bg-emerald-500/5 text-emerald-400 hover:bg-emerald-500/15 gap-1.5 hidden md:flex"
+            >
+              <Users className="h-3.5 w-3.5 text-emerald-400" />
+              Character Lab
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setScratchpadOpen(true)}
+              className="h-8 text-xs border-amber-500/30 bg-amber-500/5 text-amber-400 hover:bg-amber-500/15 gap-1.5 hidden md:flex"
+            >
+              <FileText className="h-3.5 w-3.5 text-amber-400" />
+              Scratchpad
+            </Button>
 
             <Button
               variant="outline"
@@ -856,6 +911,57 @@ export function StudioDashboard() {
         onOpenChange={setToolboxOpen}
         projectId="studio-dashboard"
       />
+
+      {/* Character Lab & Talent Vault Dialog */}
+      <CharacterLabDialog
+        open={characterLabOpen}
+        onOpenChange={setCharacterLabOpen}
+        characters={
+          projects[0]?.characters && projects[0].characters.length > 0
+            ? projects[0].characters
+            : [
+                {
+                  name: "Marcus",
+                  role: "Lead Protagonist",
+                  archetype: "Desperate specialist racing against a closing escape window",
+                  actorComp: "Jake Gyllenhaal",
+                  speechStyle: "Breathless, guarded",
+                  subtextRatio: "high",
+                  confidence: 75,
+                  verbalPacing: 70,
+                },
+                {
+                  name: "Elena",
+                  role: "Strategic Foil",
+                  archetype: "Mastermind concealing a clandestine syndicate contract",
+                  actorComp: "Florence Pugh",
+                  speechStyle: "Chillingly measured, quiet",
+                  subtextRatio: "extreme",
+                  confidence: 95,
+                  verbalPacing: 45,
+                },
+              ]
+        }
+        onUpdateCharacters={(newChars) => {
+          if (projects[0]) {
+            const updated = { ...projects[0], characters: newChars };
+            saveProject(updated);
+            refreshProjects();
+          }
+        }}
+        onOpenHotSeat={(name) => {
+          setCharacterLabOpen(false);
+          if (projects[0]) {
+            router.push(`/studio/${projects[0].id}`);
+          }
+        }}
+      />
+
+      {/* Showrunner Scratchpad Dialog */}
+      <ScratchpadDialog
+        open={scratchpadOpen}
+        onOpenChange={setScratchpadOpen}
+      />
     </div>
   );
 }
@@ -960,6 +1066,15 @@ function ProjectCard({ project, onOpen, onToggleStar, onDelete }: ProjectCardPro
       {/* Footer Strip */}
       <div className="flex items-center justify-between pt-2 border-t border-border/40 text-[10px] font-mono text-muted-foreground">
         <div className="flex items-center gap-2">
+          {project.targetRuntimeMinutes ? (
+            <>
+              <span className="text-accent font-semibold flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                {project.targetRuntimeMinutes}m
+              </span>
+              <span>•</span>
+            </>
+          ) : null}
           <span>{project.nodes ? `${project.nodes.length} Nodes` : "14 Nodes"}</span>
           <span>•</span>
           <span>{formattedDate}</span>

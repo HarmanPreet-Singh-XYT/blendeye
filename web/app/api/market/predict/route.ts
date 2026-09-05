@@ -7,15 +7,16 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const genre = body.genre || "Heist Thriller";
     const logline = body.logline || "Vault heist breach";
+    const targetTerritories = Array.isArray(body.target_territories) ? body.target_territories : [];
 
-    const cached = await getCachedGeneration<any>("market", { genre, logline });
+    const cached = await getCachedGeneration<any>("market", { genre, logline, targetTerritories });
     if (cached && cached.territories) {
       return NextResponse.json({ ...cached, _cached: true });
     }
 
-    const result = await predictMarket(genre, logline);
+    const result = await predictMarket(genre, logline, targetTerritories);
     if (result && result.territories) {
-      await setCachedGeneration("market", { genre, logline }, result);
+      await setCachedGeneration("market", { genre, logline, targetTerritories }, result);
     }
     return NextResponse.json(result);
   } catch (err: unknown) {

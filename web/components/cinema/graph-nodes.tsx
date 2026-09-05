@@ -228,13 +228,14 @@ export interface NoteNodeData extends Record<string, unknown> {
   audioDuration?: string;
 }
 
-export function NoteNode({ data, selected }: NodeProps & { data: NoteNodeData }) {
+export function NoteNode({ id, data, selected }: NodeProps & { data: NoteNodeData }) {
+  const { updateNodeData } = useReactFlow();
   const [isEditing, setIsEditing] = React.useState(false);
   const [content, setContent] = React.useState(data.content || "");
 
   const handleBlur = () => {
     setIsEditing(false);
-    data.content = content;
+    updateNodeData(id, { content });
   };
 
   return (
@@ -364,26 +365,27 @@ export interface PersonalityNodeData extends Record<string, unknown> {
   onTweak?: (dials: { confidence: number; speed: number; subtext: number }) => void;
 }
 
-export function PersonalityNode({ data, selected }: NodeProps & { data: PersonalityNodeData }) {
+export function PersonalityNode({ id, data, selected }: NodeProps & { data: PersonalityNodeData }) {
+  const { updateNodeData } = useReactFlow();
   const [confidence, setConfidence] = React.useState(data.confidence ?? 60);
   const [speed, setSpeed] = React.useState(data.speed ?? 45);
   const [subtext, setSubtext] = React.useState(data.subtext ?? 75);
 
   const handleConfidenceChange = (val: number) => {
     setConfidence(val);
-    data.confidence = val;
+    updateNodeData(id, { confidence: val });
     data.onTweak?.({ confidence: val, speed, subtext });
   };
 
   const handleSpeedChange = (val: number) => {
     setSpeed(val);
-    data.speed = val;
+    updateNodeData(id, { speed: val });
     data.onTweak?.({ confidence, speed: val, subtext });
   };
 
   const handleSubtextChange = (val: number) => {
     setSubtext(val);
-    data.subtext = val;
+    updateNodeData(id, { subtext: val });
     data.onTweak?.({ confidence, speed, subtext: val });
   };
 
@@ -961,7 +963,8 @@ export interface StoryboardNodeData extends Record<string, unknown> {
   imageUrl?: string;
 }
 
-export function StoryboardNode({ data, selected }: NodeProps & { data: StoryboardNodeData }) {
+export function StoryboardNode({ id, data, selected }: NodeProps & { data: StoryboardNodeData }) {
+  const { updateNodeData } = useReactFlow();
   const [currentImage, setCurrentImage] = React.useState<string | undefined>(
     (data.imageUrl as string) || undefined
   );
@@ -986,7 +989,7 @@ export function StoryboardNode({ data, selected }: NodeProps & { data: Storyboar
         const result = await res.json();
         if (result.image_url) {
           setCurrentImage(result.image_url);
-          data.imageUrl = result.image_url;
+          updateNodeData(id, { imageUrl: result.image_url });
           notifyIfFallback(result, "Storyboard Render");
         } else {
           toast.add({ title: "Storyboard render failed", description: "No image returned. Try again.", type: "error" });

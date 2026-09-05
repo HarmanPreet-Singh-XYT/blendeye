@@ -424,8 +424,12 @@ export interface MarketPredictResponse {
   clickhouse_query_executed: string;
 }
 
-export function predictMarket(genre: string, logline: string) {
-  return postJson<MarketPredictResponse>("/market/predict", { genre, logline });
+export function predictMarket(genre: string, logline: string, targetTerritories?: string[]) {
+  return postJson<MarketPredictResponse>("/market/predict", {
+    genre,
+    logline,
+    target_territories: targetTerritories || [],
+  });
 }
 
 export interface GenerateMediaImageResponse {
@@ -456,11 +460,21 @@ export interface GenerateMediaVideoResponse {
   video_url?: string;
 }
 
-export function generateMediaVideo(prompt: string, durationSeconds = 5, stylePreset = "35mm Anamorphic Film") {
+export function generateMediaVideo(
+  prompt: string,
+  durationSeconds = 5,
+  stylePreset = "35mm Anamorphic Film",
+  imageUrl?: string,
+  characterName?: string,
+  aspectRatio?: string
+) {
   return postJson<GenerateMediaVideoResponse>("/media/video", {
     prompt,
     duration_seconds: durationSeconds,
     style_preset: stylePreset,
+    image_url: imageUrl,
+    character_name: characterName,
+    aspect_ratio: aspectRatio,
   });
 }
 

@@ -45,6 +45,8 @@ import { AudioStudioView } from "@/components/cinema/audio-studio-view";
 import { VeoVideoDialog } from "@/components/cinema/veo-video-dialog";
 import { GenerationStudioView } from "@/components/cinema/generation-studio-view";
 import { DirectorLookbookDialog } from "@/components/cinema/director-lookbook-dialog";
+import { CharacterLabDialog } from "@/components/cinema/character-lab-dialog";
+import { ScratchpadDialog } from "@/components/cinema/scratchpad-dialog";
 import { toast } from "@/components/ui/toast";
 import { notifyIfFallback } from "@/lib/fallback-notice";
 import {
@@ -69,6 +71,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import {
   Dialog,
@@ -121,6 +124,9 @@ import {
   Activity,
   Camera,
   MessageSquare,
+  Clock,
+  Timer,
+  Milestone,
 } from "lucide-react";
 import type { ShowrunnerMessage } from "@/lib/agent-service";
 import {
@@ -131,11 +137,13 @@ import {
   buildProjectNodesAndEdges,
   type ProjectData,
   type ProjectCharacter,
+  type NarrativeFormat,
+  NARRATIVE_FORMATS,
+  updateProjectTimeframe,
   type NodeCallbacks,
   SEED_PROJECTS,
 } from "@/lib/project-store";
-
-const DURATION_SECONDS = 90 * 60; // 90 min feature runtime
+import { ProjectTimeframeDialog } from "@/components/cinema/project-timeframe-dialog";
 
 export const PRESET_SCENARIOS = SEED_PROJECTS;
 
@@ -168,6 +176,34 @@ export default function StudioPage() {
     initialProject.characters[0]?.name || "Marcus"
   );
 
+  // Timeframe Scope & Narrative Placement State
+  const [timeframeModalOpen, setTimeframeModalOpen] = React.useState(false);
+  const [narrativeFormat, setNarrativeFormat] = React.useState<NarrativeFormat>(
+    initialProject.narrativeFormat || "feature"
+  );
+  const [targetRuntimeMinutes, setTargetRuntimeMinutes] = React.useState<number>(
+    initialProject.targetRuntimeMinutes || 95
+  );
+  const [scenePlacementSeconds, setScenePlacementSeconds] = React.useState<number>(
+    initialProject.scenePlacementSeconds ?? 34 * 60
+  );
+  const [sceneDurationSeconds, setSceneDurationSeconds] = React.useState<number>(
+    initialProject.sceneDurationSeconds ?? 6 * 60
+  );
+  const [directorStyle, setDirectorStyle] = React.useState<string>(
+    initialProject.directorStyle || ""
+  );
+  const [coreSecret, setCoreSecret] = React.useState<string>(
+    initialProject.coreSecret || ""
+  );
+  const [primaryLocation, setPrimaryLocation] = React.useState<string>(
+    initialProject.primaryLocation || ""
+  );
+  const [targetTerritories, setTargetTerritories] = React.useState<string[]>(
+    initialProject.targetTerritories || []
+  );
+  const durationSeconds = targetRuntimeMinutes * 60;
+
   // Slates list for navigation
   const [allProjects, setAllProjects] = React.useState<ProjectData[]>([]);
 
@@ -175,8 +211,88 @@ export default function StudioPage() {
     setAllProjects(getAllProjects());
   }, [projectId]);
 
+  // Synchronize state when initialProject changes
+  React.useEffect(() => {
+    if (initialProject) {
+      setProjectId(initialProject.id);
+      setProjectTitle(initialProject.title);
+      setGenre(initialProject.genre);
+      setPremiseInput(initialProject.premise);
+      setSceneTitle(initialProject.sceneTitle);
+      setSceneSummary(initialProject.sceneSummary);
+      setScreenplayText(initialProject.screenplayText);
+      setCharacters(initialProject.characters);
+      setActiveCharacterName(initialProject.characters[0]?.name || "Marcus");
+      setEvents(initialProject.initialEvents || []);
+      setNarrativeFormat(initialProject.narrativeFormat || "feature");
+      setTargetRuntimeMinutes(initialProject.targetRuntimeMinutes || 95);
+      const placement = initialProject.scenePlacementSeconds ?? 34 * 60;
+      setScenePlacementSeconds(placement);
+      setTimeSeconds(placement);
+      setSceneDurationSeconds(initialProject.sceneDurationSeconds ?? 6 * 60);
+      setDirectorStyle(initialProject.directorStyle || "");
+      setCoreSecret(initialProject.coreSecret || "");
+      setPrimaryLocation(initialProject.primaryLocation || "");
+      setTargetTerritories(initialProject.targetTerritories || []);
+    }
+  }, [initialProject]);
+
+  const handleSaveTimeframe = (updates: {
+    targetRuntimeMinutes: number;
+    narrativeFormat: NarrativeFormat;
+    scenePlacementSeconds: number;
+    sceneDurationSeconds: number;
+    directorStyle?: string;
+    coreSecret?: string;
+    primaryLocation?: string;
+    targetTerritories?: string[];
+    genre?: string;
+  }) => {
+    setTargetRuntimeMinutes(updates.targetRuntimeMinutes);
+    setNarrativeFormat(updates.narrativeFormat);
+    setScenePlacementSeconds(updates.scenePlacementSeconds);
+    setSceneDurationSeconds(updates.sceneDurationSeconds);
+    setTimeSeconds(updates.scenePlacementSeconds);
+    if (updates.directorStyle !== undefined) setDirectorStyle(updates.directorStyle);
+    if (updates.coreSecret !== undefined) setCoreSecret(updates.coreSecret);
+    if (updates.primaryLocation !== undefined) setPrimaryLocation(updates.primaryLocation);
+    if (updates.targetTerritories !== undefined) setTargetTerritories(updates.targetTerritories);
+    if (updates.genre !== undefined) setGenre(updates.genre);
+
+    updateProjectTimeframe(projectId, updates);
+    setAllProjects(getAllProjects());
+  };
+
+  const handleExtendRuntime = (minutes = 15) => {
+    setTargetRuntimeMinutes((prev) => {
+      const next = Math.min(240, prev + minutes);
+      updateProjectTimeframe(projectId, { targetRuntimeMinutes: next });
+      setAllProjects(getAllProjects());
+      return next;
+    });
+  };
+
+  const handleShrinkRuntime = (minutes = 15) => {
+    setTargetRuntimeMinutes((prev) => {
+      const next = Math.max(2, prev - minutes);
+      const nextDuration = next * 60;
+      if (scenePlacementSeconds > nextDuration) {
+        const clamped = Math.max(0, nextDuration - sceneDurationSeconds);
+        setScenePlacementSeconds(clamped);
+        updateProjectTimeframe(projectId, {
+          targetRuntimeMinutes: next,
+          scenePlacementSeconds: clamped,
+        });
+      } else {
+        updateProjectTimeframe(projectId, { targetRuntimeMinutes: next });
+      }
+      setAllProjects(getAllProjects());
+      return next;
+    });
+  };
+
   // Timeline & Interrogation State
-  const [timeSeconds, setTimeSeconds] = React.useState(34 * 60);
+  const [timeSeconds, setTimeSeconds] = React.useState(initialProject.scenePlacementSeconds ?? 34 * 60);
   const [events, setEvents] = React.useState<StoryEventMarker[]>(initialProject.initialEvents || []);
   const [knownFacts, setKnownFacts] = React.useState<KnowledgeFact[]>([]);
   const [hotSeatTurns, setHotSeatTurns] = React.useState<HotSeatTurn[]>([]);
@@ -240,7 +356,10 @@ export default function StudioPage() {
   const [versionControlOpen, setVersionControlOpen] = React.useState(false);
   const [clickhouseToolboxOpen, setClickhouseToolboxOpen] = React.useState(false);
   const [veoVideoOpen, setVeoVideoOpen] = React.useState(false);
+  const [veoCharacterContext, setVeoCharacterContext] = React.useState<ProjectCharacter | null>(null);
   const [lookbookOpen, setLookbookOpen] = React.useState(false);
+  const [characterLabOpen, setCharacterLabOpen] = React.useState(false);
+  const [scratchpadOpen, setScratchpadOpen] = React.useState(false);
   const [stagedCameraMotion, setStagedCameraMotion] = React.useState<string>("");
   const [stagedPromptNote, setStagedPromptNote] = React.useState<string>("");
 
@@ -364,7 +483,9 @@ export default function StudioPage() {
   // Helper to persist current state
   const saveCurrentProject = React.useCallback(
     (partial?: Partial<ProjectData>) => {
+      const existingProject = getProjectById(projectId) || initialProject;
       const proj: ProjectData = {
+        ...existingProject,
         id: projectId,
         title: projectTitle,
         genre: genre,
@@ -374,9 +495,20 @@ export default function StudioPage() {
         screenplayText: screenplayText,
         characters: characters,
         initialEvents: events,
-        createdAt: initialProject.createdAt,
+        nodes: nodesRef.current,
+        edges: edgesRef.current,
+        createdAt: existingProject?.createdAt || initialProject.createdAt,
         updatedAt: Date.now(),
-        isCustom: initialProject.isCustom,
+        isCustom: existingProject?.isCustom ?? initialProject.isCustom,
+        isStarred: existingProject?.isStarred ?? initialProject.isStarred,
+        directorStyle: directorStyle,
+        coreSecret: coreSecret,
+        primaryLocation: primaryLocation,
+        targetTerritories: targetTerritories,
+        narrativeFormat: narrativeFormat,
+        targetRuntimeMinutes: targetRuntimeMinutes,
+        scenePlacementSeconds: scenePlacementSeconds,
+        sceneDurationSeconds: sceneDurationSeconds,
         ...partial,
       };
       saveProject(proj);
@@ -393,6 +525,14 @@ export default function StudioPage() {
       characters,
       events,
       initialProject,
+      directorStyle,
+      coreSecret,
+      primaryLocation,
+      targetTerritories,
+      narrativeFormat,
+      targetRuntimeMinutes,
+      scenePlacementSeconds,
+      sceneDurationSeconds,
     ]
   );
 
@@ -441,7 +581,12 @@ export default function StudioPage() {
     }
   };
 
-  // Dynamic Blueprint Node Callbacks
+  // Forward ref to handleUpdateNodeData (defined later, after setNodes exists)
+  // so nodeCallbacks can call it without reordering the whole hook chain.
+  const handleUpdateNodeDataRef = React.useRef<
+    (nodeId: string, newData: Record<string, unknown>) => void
+  >(null);
+
   // Dynamic Blueprint Node Callbacks
   const nodeCallbacks: NodeCallbacks = React.useMemo(
     () => ({
@@ -473,17 +618,50 @@ export default function StudioPage() {
         setSimulationTab("chemistry");
         handleRunChemistry();
       },
+      onTweakDials: (charName, dials) => {
+        // Delegate to handleUpdateNodeData's node-dial-* branch (defined below)
+        // via a ref, since nodeCallbacks must exist before useNodesState/setNodes.
+        handleUpdateNodeDataRef.current?.(`node-dial-${charName.toLowerCase()}`, dials);
+      },
     }),
     [projectId, premiseInput]
   );
 
-  // Generate initial React Flow nodes & edges directly from project data
+  // Generate initial React Flow nodes & edges directly from project data, then
+  // overlay any persisted per-node customization (dials, quirks, images, style)
+  // from the last save — the structural rebuild keeps callbacks/positions live,
+  // the overlay keeps edits from vanishing on refresh.
   const initialGraph = React.useMemo(() => {
-    return buildProjectNodesAndEdges(initialProject, nodeCallbacks, isGenerating);
+    const fresh = buildProjectNodesAndEdges(initialProject, nodeCallbacks, isGenerating);
+    const savedNodesById = new Map((initialProject.nodes || []).map((n) => [n.id, n]));
+    const mergedNodes = fresh.nodes.map((n) => {
+      const saved = savedNodesById.get(n.id);
+      if (!saved || !saved.data) return n;
+      // Saved customization (dials, quirks, images, extracted style) wins;
+      // callback functions must always come from the fresh build since they
+      // close over the current nodeCallbacks/isGenerating.
+      const mergedData: Record<string, unknown> = { ...n.data, ...saved.data };
+      for (const key of Object.keys(n.data || {})) {
+        if (/^on[A-Z]/.test(key)) mergedData[key] = (n.data as Record<string, unknown>)[key];
+      }
+      return { ...n, data: mergedData };
+    });
+    return { nodes: mergedNodes, edges: fresh.edges };
   }, [initialProject, nodeCallbacks, isGenerating]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialGraph.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialGraph.edges);
+
+  // Refs mirror node/edge state for saveCurrentProject to read without
+  // taking nodes/edges as a dependency (which would thrash on every drag).
+  const nodesRef = React.useRef(nodes);
+  const edgesRef = React.useRef(edges);
+  React.useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
+  React.useEffect(() => {
+    edgesRef.current = edges;
+  }, [edges]);
 
   // Initialize Studio Version Control
   React.useEffect(() => {
@@ -598,10 +776,31 @@ export default function StudioPage() {
     pipelineAbortRef.current = controller;
     try {
       setGenerationStage("Drafting Master Screenplay (Gemini 3.7 Flash)...");
+      let enrichedPremise = premise;
+      const effectiveDirectorStyle = directorStyle || initialProject.directorStyle;
+      const effectiveCoreSecret = coreSecret || initialProject.coreSecret;
+      const effectivePrimaryLocation = primaryLocation || initialProject.primaryLocation;
+
+      if (effectiveDirectorStyle) {
+        enrichedPremise += `\nDirectorial Tone: Style of ${effectiveDirectorStyle}.`;
+      }
+      if (effectiveCoreSecret) {
+        enrichedPremise += `\nAsymmetric Knowledge / Hidden Secret: ${effectiveCoreSecret}.`;
+      }
+      if (effectivePrimaryLocation) {
+        enrichedPremise += `\nPrimary Setting / Dramatic Location: ${effectivePrimaryLocation}.`;
+      }
+      if (characters && characters.length > 0) {
+        const charRoster = characters
+          .map((c) => `${c.name} (${c.role || c.archetype}${c.actorComp ? `, comp: ${c.actorComp}` : ""})`)
+          .join("; ");
+        enrichedPremise += `\nFeatured Characters: ${charRoster}.`;
+      }
+
       const scriptRes = await fetch("/api/script/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ premise }),
+        body: JSON.stringify({ premise: enrichedPremise }),
         signal: controller.signal,
       });
       if (!scriptRes.ok) {
@@ -635,16 +834,40 @@ export default function StudioPage() {
 
       let newCharacters: ProjectCharacter[] = characters;
       if (Array.isArray(shardData.characters) && shardData.characters.length > 0) {
-        newCharacters = shardData.characters.map((c: any) => ({
-          name: c.name,
-          archetype: c.archetype,
-          speechStyle: c.speech_style || "naturalistic",
-          subtextRatio: c.subtext_ratio || "high",
-          actorComp: `${c.name} Comp`,
-          objective: "Confront the central crisis",
-        }));
+        // Intelligently preserve authored character profiles
+        newCharacters = shardData.characters.map((sc: any) => {
+          const existing = characters.find(
+            (c) => c.name.toLowerCase() === sc.name.toLowerCase()
+          );
+          if (existing) {
+            return {
+              ...existing,
+              archetype: existing.archetype || sc.archetype,
+              speechStyle: existing.speechStyle || sc.speech_style || "naturalistic",
+              subtextRatio: existing.subtextRatio || sc.subtext_ratio || "high",
+            };
+          }
+          return {
+            name: sc.name,
+            archetype: sc.archetype,
+            speechStyle: sc.speech_style || "naturalistic",
+            subtextRatio: sc.subtext_ratio || "high",
+            actorComp: `${sc.name} Comp`,
+            objective: "Confront the central crisis",
+          };
+        });
+
+        // Retain any authored characters that weren't mentioned in the shard
+        for (const authored of characters) {
+          if (!newCharacters.some((nc) => nc.name.toLowerCase() === authored.name.toLowerCase())) {
+            newCharacters.push(authored);
+          }
+        }
+
         setCharacters(newCharacters);
-        setActiveCharacterName(newCharacters[0].name);
+        if (newCharacters.length > 0) {
+          setActiveCharacterName(newCharacters[0].name);
+        }
       }
 
       logClickHouseQuery(
@@ -656,7 +879,9 @@ export default function StudioPage() {
       setGenerationStage("Finalizing Timeline & Syncing Graph...");
       await fetchProjectEvents(pid);
 
+      const existingProject = getProjectById(pid) || initialProject;
       const updatedProject: ProjectData = {
+        ...existingProject,
         id: pid,
         title: projectTitle,
         genre: genre,
@@ -666,13 +891,22 @@ export default function StudioPage() {
         screenplayText: generatedScript,
         characters: newCharacters,
         initialEvents: events,
-        createdAt: initialProject.createdAt,
+        createdAt: existingProject?.createdAt || initialProject.createdAt,
         updatedAt: Date.now(),
         isCustom: true,
+        directorStyle: effectiveDirectorStyle,
+        coreSecret: effectiveCoreSecret,
+        primaryLocation: effectivePrimaryLocation,
+        targetTerritories: targetTerritories.length > 0 ? targetTerritories : (existingProject?.targetTerritories || []),
+        narrativeFormat,
+        targetRuntimeMinutes,
+        scenePlacementSeconds,
+        sceneDurationSeconds,
       };
 
       saveProject(updatedProject);
       syncGraphWithProject(updatedProject);
+      setAllProjects(getAllProjects());
       setMainTab("planning");
     } catch (err) {
       console.error("Pipeline failed:", err);
@@ -731,7 +965,9 @@ export default function StudioPage() {
 
       setScreenplayText(newScript);
 
+      const existingProject = getProjectById(projectId) || initialProject;
       const updatedProject: ProjectData = {
+        ...existingProject,
         id: projectId,
         title: projectTitle,
         genre: genre,
@@ -741,13 +977,22 @@ export default function StudioPage() {
         screenplayText: newScript,
         characters: updatedChars,
         initialEvents: events,
-        createdAt: initialProject.createdAt,
+        createdAt: existingProject?.createdAt || initialProject.createdAt,
         updatedAt: Date.now(),
         isCustom: true,
+        directorStyle: directorStyle || existingProject?.directorStyle,
+        coreSecret: coreSecret || existingProject?.coreSecret,
+        primaryLocation: primaryLocation || existingProject?.primaryLocation,
+        targetTerritories: targetTerritories.length > 0 ? targetTerritories : (existingProject?.targetTerritories || []),
+        narrativeFormat,
+        targetRuntimeMinutes,
+        scenePlacementSeconds,
+        sceneDurationSeconds,
       };
 
       saveProject(updatedProject);
       syncGraphWithProject(updatedProject);
+      setAllProjects(getAllProjects());
 
       logClickHouseQuery(
         `INSERT INTO story_events VALUES (${shardData.events_written} events committed)`,
@@ -909,9 +1154,18 @@ export default function StudioPage() {
           actions: data.actions,
           execution_summaries: executedSummaries,
           precedents_cited: data.precedents_cited,
+          is_fallback: data._fallback,
         };
 
         setShowrunnerMessages((prev) => [...prev, aiMsg]);
+
+        if (data._fallback) {
+          toast.add({
+            title: "Executive AI running in degraded mode",
+            description: data._error || "The AI backend was unreachable — this directive was handled by a local fallback, not live reasoning.",
+            type: "warning",
+          });
+        }
 
         // Log the real ClickHouse precedent query the commander used to ground
         // its creative reasoning (only if precedent rows actually came back).
@@ -1062,10 +1316,39 @@ export default function StudioPage() {
           setScreenplayText(newData.previewText as string);
           saveCurrentProject({ screenplayText: newData.previewText as string });
         }
+      } else if (nodeId.startsWith("node-dial-")) {
+        const charName = nodeId.slice("node-dial-".length);
+        let nextSummary: string | undefined;
+        setCharacters((prevChars) => {
+          const updated = prevChars.map((c) => {
+            if (c.name.toLowerCase() !== charName) return c;
+            const nextConfidence = (newData.confidence as number) ?? c.confidence ?? 60;
+            const nextSpeed = (newData.speed as number) ?? c.verbalPacing ?? 75;
+            const nextSubtext = (newData.subtext as number) ?? 85;
+            nextSummary = `Confidence ${nextConfidence}% · Speed ${nextSpeed}% · Subtext ${nextSubtext}%`;
+            return {
+              ...c,
+              confidence: nextConfidence,
+              verbalPacing: nextSpeed,
+              dialsSummary: nextSummary,
+            };
+          });
+          saveCurrentProject({ characters: updated });
+          return updated;
+        });
+        if (nextSummary) {
+          const summary = nextSummary;
+          setNodes((nds) =>
+            nds.map((n) =>
+              n.id === `node-core-${charName}` ? { ...n, data: { ...n.data, dialsSummary: summary } } : n
+            )
+          );
+        }
       }
     },
     [saveCurrentProject, setNodes]
   );
+  handleUpdateNodeDataRef.current = handleUpdateNodeData;
 
   // Allow user to draw new connections between nodes (loose, deletable, multi-wired)
   const onConnect = React.useCallback(
@@ -1414,26 +1697,30 @@ export default function StudioPage() {
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground selection:bg-accent/30 selection:text-accent-foreground">
       {/* Studio Header Bar */}
       <header className="flex h-11 shrink-0 items-center justify-between border-b border-border/70 bg-[#0a0c10]/95 px-3 backdrop-blur select-none z-20">
-        {/* Left: Slate Identity & Switcher */}
-        <div className="flex items-center gap-2.5">
+        {/* Left: Slate Identity & Scope */}
+        <div className="flex items-center gap-2 shrink-0">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => router.push("/")}
             className="h-7 px-2 gap-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-secondary/60 cursor-pointer shrink-0"
+            title="Back to Studio Dashboard"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             <span className="hidden sm:inline font-mono">Hub</span>
           </Button>
 
-          <div className="h-3.5 w-px bg-border/60 shrink-0" />
+          <div className="h-4 w-px bg-border/60 shrink-0" />
 
           {/* Unified Project Slate Dropdown Selector */}
           <DropdownMenu>
-            <DropdownMenuTrigger className="flex items-center gap-2 px-2.5 py-1 rounded-md border border-border/60 bg-secondary/25 hover:bg-secondary/60 text-xs font-semibold text-foreground transition-all cursor-pointer min-w-0">
+            <DropdownMenuTrigger className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-border/60 bg-secondary/25 hover:bg-secondary/60 text-xs font-semibold text-foreground transition-all cursor-pointer min-w-0">
               <Film className="h-3.5 w-3.5 text-accent shrink-0" />
-              <span className="font-heading truncate max-w-[140px] sm:max-w-[180px] text-xs">
+              <span className="font-heading truncate max-w-[130px] sm:max-w-[170px] text-xs">
                 {projectTitle}
+              </span>
+              <span className="hidden xl:inline text-[10px] font-mono text-muted-foreground font-normal">
+                · {genre}
               </span>
               <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0 opacity-60" />
             </DropdownMenuTrigger>
@@ -1470,9 +1757,20 @@ export default function StudioPage() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <span className="hidden lg:inline text-[10px] font-mono px-2 py-0.5 rounded bg-secondary/30 text-muted-foreground border border-border/40">
-            {genre}
-          </span>
+          {/* Timeframe Scope Dial */}
+          <button
+            type="button"
+            onClick={() => setTimeframeModalOpen(true)}
+            className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-mono bg-secondary/30 border border-border/60 text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-all cursor-pointer group"
+            title={`Runtime: ${targetRuntimeMinutes}m (${narrativeFormat}) · Scene at ${Math.floor(scenePlacementSeconds / 60)}m mark. Click to configure blueprint & timeframe.`}
+          >
+            <Clock className="h-3 w-3 text-accent group-hover:scale-110 transition-transform" />
+            <span className="font-medium text-foreground">{targetRuntimeMinutes}m</span>
+            <span className="hidden md:inline text-[10px] text-muted-foreground">
+              · {Math.floor(scenePlacementSeconds / 60)}m mark
+            </span>
+            <ChevronDown className="h-2.5 w-2.5 opacity-50" />
+          </button>
         </div>
 
         {/* Center: 3 Core Tabs Architecture (Planning | Simulation | Generation) */}
@@ -1525,116 +1823,178 @@ export default function StudioPage() {
           </div>
         </div>
 
-        {/* Right: Studio Operations (Clean & Non-redundant) */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          {/* Labs Dropdown (Creative Tools) */}
-          <DropdownMenu>
-            <DropdownMenuTrigger className="inline-flex items-center h-7 gap-1 text-xs font-medium border border-border/70 rounded-md px-2 bg-secondary/25 hover:bg-secondary text-muted-foreground hover:text-foreground cursor-pointer">
-              <Sparkles className="h-3 w-3 text-purple-400" />
-              <span className="hidden md:inline">Labs</span>
-              <ChevronDown className="h-3 w-3 opacity-60" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56 bg-card border-border shadow-2xl p-1.5 z-50">
-              <DropdownMenuLabel className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground px-2 py-1">
-                Studio Creative Labs
-              </DropdownMenuLabel>
-              <DropdownMenuItem
-                onClick={() => setFusionOpen(true)}
-                className="flex items-center gap-2 px-2.5 py-1.5 rounded text-xs cursor-pointer hover:bg-secondary"
-              >
-                <Sparkles className="h-3.5 w-3.5 text-accent" />
-                <div className="flex flex-col">
-                  <span className="font-medium">Film Fusion</span>
-                  <span className="text-[10px] text-muted-foreground">Crossover narrative synthesis</span>
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => setMultiverseOpen(true)}
-                className="flex items-center gap-2 px-2.5 py-1.5 rounded text-xs cursor-pointer hover:bg-secondary"
-              >
-                <Shuffle className="h-3.5 w-3.5 text-purple-400" />
-                <div className="flex flex-col">
-                  <span className="font-medium">Alternate Takes</span>
-                  <span className="text-[10px] text-muted-foreground">Multiverse scene variations</span>
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => setShowTableRead(true)}
-                className="flex items-center gap-2 px-2.5 py-1.5 rounded text-xs cursor-pointer hover:bg-secondary"
-              >
-                <Volume2 className="h-3.5 w-3.5 text-cyan-400" />
-                <div className="flex flex-col">
-                  <span className="font-medium">Table Read Player</span>
-                  <span className="text-[10px] text-muted-foreground">Synchronized voice read</span>
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => setLookbookOpen(true)}
-                className="flex items-center gap-2 px-2.5 py-1.5 rounded text-xs cursor-pointer hover:bg-secondary"
-              >
-                <Film className="h-3.5 w-3.5 text-amber-400" />
-                <div className="flex flex-col">
-                  <span className="font-medium">Director&apos;s Lookbook</span>
-                  <span className="text-[10px] text-muted-foreground">Executive pitch &amp; production bible</span>
-                </div>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+        {/* Right: Studio Tools, Telemetry & Executive Commander */}
+        <div className="flex items-center gap-1 shrink-0">
+          {/* Directorial Quick Tools */}
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setCharacterLabOpen(true)}
+            className="h-7 px-2 gap-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-secondary/60 cursor-pointer"
+            title="Modular Character DNA Lab & Talent Vault"
+          >
+            <Users2 className="h-3.5 w-3.5 text-emerald-400" />
+            <span className="hidden xl:inline">Characters</span>
+          </Button>
+
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setScratchpadOpen(true)}
+            className="h-7 px-2 gap-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-secondary/60 cursor-pointer"
+            title="Showrunner Creative Scratchpad & Memos"
+          >
+            <FileText className="h-3.5 w-3.5 text-amber-400" />
+            <span className="hidden xl:inline">Scratchpad</span>
+          </Button>
 
           {/* Takes Version Control History */}
           <Button
             size="sm"
-            variant="outline"
+            variant="ghost"
             onClick={() => setVersionControlOpen(true)}
-            className="h-7 gap-1 text-xs border-border/70 bg-secondary/20 hover:bg-secondary text-muted-foreground hover:text-foreground cursor-pointer px-2"
+            className="h-7 px-2 gap-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-secondary/60 cursor-pointer"
             title="Takes History & Revisions"
           >
-            <History className="h-3 w-3 text-amber-400" />
-            <span className="hidden md:inline">Takes</span>
+            <History className="h-3.5 w-3.5 text-accent" />
+            <span className="hidden lg:inline">Takes</span>
             {vcsHistoryCount > 0 && (
-              <Badge variant="outline" className="border-amber-500/40 bg-amber-500/20 text-amber-300 text-[9px] px-1 py-0 h-3.5 ml-0.5">
+              <Badge variant="outline" className="border-accent/40 bg-accent/15 text-accent text-[9px] px-1 py-0 h-3.5 ml-0.5">
                 {vcsHistoryCount}
               </Badge>
             )}
           </Button>
 
-          {/* ClickHouse MCP Database Toolbox */}
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setClickhouseToolboxOpen(true)}
-            className="h-7 gap-1 text-xs border-emerald-500/30 bg-emerald-500/5 text-emerald-400 hover:bg-emerald-500/15 cursor-pointer px-2"
-            title="ClickHouse MCP Database Explorer"
-          >
-            <Database className="h-3 w-3 text-emerald-400" />
-            <span className="hidden md:inline">ClickHouse</span>
-          </Button>
+          {/* Unified Creative Tools Dropdown Menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger className="inline-flex items-center h-7 gap-1.5 text-xs font-medium border border-border/70 rounded-md px-2.5 bg-secondary/30 hover:bg-secondary/70 text-foreground cursor-pointer transition-colors">
+              <Sparkles className="h-3.5 w-3.5 text-purple-400" />
+              <span>Tools</span>
+              <ChevronDown className="h-3 w-3 opacity-60" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64 bg-card border-border shadow-2xl p-1.5 z-50">
+              <DropdownMenuLabel className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground px-2 py-1">
+                Directorial &amp; Story Design
+              </DropdownMenuLabel>
+              <DropdownMenuItem
+                onClick={() => setCharacterLabOpen(true)}
+                className="flex items-center gap-2.5 px-2.5 py-1.5 rounded text-xs cursor-pointer hover:bg-secondary"
+              >
+                <Users2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                <div className="flex flex-col">
+                  <span className="font-medium">Character DNA Lab</span>
+                  <span className="text-[10px] text-muted-foreground">Modular casting &amp; voice chemistry</span>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setScratchpadOpen(true)}
+                className="flex items-center gap-2.5 px-2.5 py-1.5 rounded text-xs cursor-pointer hover:bg-secondary"
+              >
+                <FileText className="h-4 w-4 text-amber-400 shrink-0" />
+                <div className="flex flex-col">
+                  <span className="font-medium">Showrunner Scratchpad</span>
+                  <span className="text-[10px] text-muted-foreground">Creative memos &amp; unformatted notes</span>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setLookbookOpen(true)}
+                className="flex items-center gap-2.5 px-2.5 py-1.5 rounded text-xs cursor-pointer hover:bg-secondary"
+              >
+                <Film className="h-4 w-4 text-cyan-400 shrink-0" />
+                <div className="flex flex-col">
+                  <span className="font-medium">Director&apos;s Lookbook</span>
+                  <span className="text-[10px] text-muted-foreground">Executive pitch &amp; production bible</span>
+                </div>
+              </DropdownMenuItem>
 
-          {/* Inspector Toggle (Only relevant in Planning mode) */}
+              <DropdownMenuSeparator className="my-1 bg-border/50" />
+
+              <DropdownMenuLabel className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground px-2 py-1">
+                Audio &amp; Multiverse Simulation
+              </DropdownMenuLabel>
+              <DropdownMenuItem
+                onClick={() => setShowTableRead(true)}
+                className="flex items-center gap-2.5 px-2.5 py-1.5 rounded text-xs cursor-pointer hover:bg-secondary"
+              >
+                <Volume2 className="h-4 w-4 text-cyan-400 shrink-0" />
+                <div className="flex flex-col">
+                  <span className="font-medium">Multi-Voice Table Read</span>
+                  <span className="text-[10px] text-muted-foreground">Synchronized character voice playback</span>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setMultiverseOpen(true)}
+                className="flex items-center gap-2.5 px-2.5 py-1.5 rounded text-xs cursor-pointer hover:bg-secondary"
+              >
+                <Shuffle className="h-4 w-4 text-purple-400 shrink-0" />
+                <div className="flex flex-col">
+                  <span className="font-medium">Alternate Takes</span>
+                  <span className="text-[10px] text-muted-foreground">Multiverse branching scene takes</span>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setFusionOpen(true)}
+                className="flex items-center gap-2.5 px-2.5 py-1.5 rounded text-xs cursor-pointer hover:bg-secondary"
+              >
+                <Sparkles className="h-4 w-4 text-accent shrink-0" />
+                <div className="flex flex-col">
+                  <span className="font-medium">Film Fusion</span>
+                  <span className="text-[10px] text-muted-foreground">Crossover narrative synthesis</span>
+                </div>
+              </DropdownMenuItem>
+
+              <DropdownMenuSeparator className="my-1 bg-border/50" />
+
+              <DropdownMenuLabel className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground px-2 py-1">
+                Database &amp; Telemetry
+              </DropdownMenuLabel>
+              <DropdownMenuItem
+                onClick={() => setClickhouseToolboxOpen(true)}
+                className="flex items-center gap-2.5 px-2.5 py-1.5 rounded text-xs cursor-pointer hover:bg-secondary"
+              >
+                <Database className="h-4 w-4 text-emerald-400 shrink-0" />
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-medium">ClickHouse MCP Toolbox</span>
+                    <Badge variant="outline" className="text-[9px] border-emerald-500/30 text-emerald-400 py-0 px-1">
+                      Official
+                    </Badge>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground">Live story queries &amp; state audit (Shift+C)</span>
+                </div>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <div className="h-4 w-px bg-border/60 mx-1 shrink-0" />
+
+          {/* Inspector Toggle (Planning mode only) */}
           {mainTab === "planning" && (
             <Button
               size="sm"
-              variant={isSidebarOpen ? "secondary" : "outline"}
+              variant={isSidebarOpen ? "secondary" : "ghost"}
               onClick={toggleSidebar}
-              className="h-7 gap-1 text-xs border-border/70 text-foreground cursor-pointer px-2"
-              title="Toggle Studio Inspector"
+              className={cn(
+                "h-7 w-7 p-0 cursor-pointer transition-colors shrink-0",
+                isSidebarOpen
+                  ? "bg-secondary text-accent border border-accent/40 shadow-2xs"
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary/60"
+              )}
+              title={isSidebarOpen ? "Hide Inspector Sidebar" : "Show Inspector Sidebar"}
             >
-              <Sliders className="h-3 w-3 text-cyan-400" />
-              <span className="hidden xl:inline">{isSidebarOpen ? "Hide Inspector" : "Inspector"}</span>
+              <Sliders className="h-3.5 w-3.5" />
             </Button>
           )}
-
-          <div className="h-3.5 w-px bg-border/60 mx-0.5" />
 
           {/* AI Commander Primary Action Button */}
           <Button
             size="sm"
             onClick={() => setAiCommanderOpen(true)}
-            className="h-7 gap-1.5 text-xs bg-accent text-accent-foreground hover:bg-accent/90 font-semibold cursor-pointer px-2.5 shadow-xs"
+            className="h-7 gap-1.5 text-xs bg-accent text-accent-foreground hover:bg-accent/90 font-semibold cursor-pointer px-2.5 shadow-xs shrink-0"
             title="Summon Studio AI Commander"
           >
-            <Zap className="h-3 w-3" />
-            <span>AI Commander</span>
+            <Zap className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">AI Commander</span>
           </Button>
         </div>
       </header>
@@ -1908,10 +2268,16 @@ export default function StudioPage() {
             {/* Timeline Scrubber Bar for Staging Deck */}
             <div className="border-b border-border/50 px-4 py-2 bg-background/50 shrink-0">
               <TimelineScrubber
-                durationSeconds={DURATION_SECONDS}
+                durationSeconds={durationSeconds}
                 value={timeSeconds}
                 onChange={setTimeSeconds}
                 events={events}
+                scenePlacementSeconds={scenePlacementSeconds}
+                sceneDurationSeconds={sceneDurationSeconds}
+                sceneTitle={sceneTitle}
+                onOpenTimeframeModal={() => setTimeframeModalOpen(true)}
+                onExtend={handleExtendRuntime}
+                onShrink={handleShrinkRuntime}
               />
             </div>
 
@@ -1921,6 +2287,7 @@ export default function StudioPage() {
                 <FloorPlanView
                   sceneTitle={sceneTitle}
                   characters={characters}
+                  primaryLocation={primaryLocation}
                   onSendToVeo={handleSendStagingToVeo}
                 />
               )}
@@ -1938,6 +2305,7 @@ export default function StudioPage() {
                   genre={genre}
                   projectTitle={projectTitle}
                   logline={premiseInput}
+                  targetTerritories={targetTerritories}
                 />
               )}
               {deckSubTab === "stripboard" && (
@@ -2052,10 +2420,16 @@ export default function StudioPage() {
                 <div className="border-b border-border/50 px-4 py-2 bg-background/50 shrink-0 flex items-center justify-between gap-4">
                   <div className="flex-1">
                     <TimelineScrubber
-                      durationSeconds={DURATION_SECONDS}
+                      durationSeconds={durationSeconds}
                       value={timeSeconds}
                       onChange={setTimeSeconds}
                       events={events}
+                      scenePlacementSeconds={scenePlacementSeconds}
+                      sceneDurationSeconds={sceneDurationSeconds}
+                      sceneTitle={sceneTitle}
+                      onOpenTimeframeModal={() => setTimeframeModalOpen(true)}
+                      onExtend={handleExtendRuntime}
+                      onShrink={handleShrinkRuntime}
                     />
                   </div>
 
@@ -2181,6 +2555,8 @@ export default function StudioPage() {
         {/* TAB 3: Google Veo 3.1 & Master Cinema Video Generator */}
         {mainTab === "generation" && (
           <GenerationStudioView
+            projectId={projectId}
+            nodes={nodes}
             sceneTitle={sceneTitle}
             sceneSummary={sceneSummary}
             screenplayText={screenplayText}
@@ -2203,19 +2579,73 @@ export default function StudioPage() {
         onClose={() => setIsClickHouseInspectorOpen(false)}
       />
 
-      {/* Screenplay Reader & Editor Modal */}
+      {/* Screenplay Reader & Editor Modal with Multi-POV Support */}
       <ScreenplayDialog
         open={scriptViewerOpen}
         onOpenChange={setScriptViewerOpen}
         title={sceneTitle}
         summary={sceneSummary}
         screenplayText={screenplayText}
+        characters={characters}
+        currentTimecode={formatTimecode(timeSeconds)}
+        onOpenHotSeat={(name) => {
+          setScriptViewerOpen(false);
+          setActiveCharacterName(name);
+          setMainTab("simulation");
+          setSimulationTab("hotseat");
+        }}
         onSaveScript={(newScript) => {
           setScreenplayText(newScript);
           saveCurrentProject({ screenplayText: newScript });
         }}
         onReshard={handleReshardScript}
         isResharding={isGenerating}
+      />
+
+      {/* Modular Character Lab & Talent Vault Modal */}
+      <CharacterLabDialog
+        open={characterLabOpen}
+        onOpenChange={setCharacterLabOpen}
+        characters={characters}
+        onUpdateCharacters={(updatedChars) => {
+          setCharacters(updatedChars);
+          saveCurrentProject({ characters: updatedChars });
+          if (updatedChars.length > 0) {
+            setActiveCharacterName(updatedChars[0].name);
+          }
+          syncGraphWithProject({
+            ...initialProject,
+            characters: updatedChars,
+          });
+        }}
+        onOpenHotSeat={(name) => {
+          setCharacterLabOpen(false);
+          setActiveCharacterName(name);
+          setMainTab("simulation");
+          setSimulationTab("hotseat");
+        }}
+        onSendToVeo={(char) => {
+          setVeoCharacterContext(char);
+          setCharacterLabOpen(false);
+          setVeoVideoOpen(true);
+        }}
+      />
+
+      {/* Showrunner Scratchpad & Creative Brain */}
+      <ScratchpadDialog
+        open={scratchpadOpen}
+        onOpenChange={setScratchpadOpen}
+        projectId={projectId}
+        onApplyNoteToScript={(noteText) => {
+          const updated = `${screenplayText}\n\n// SCRATCHPAD BEAT:\n${noteText}`;
+          setScreenplayText(updated);
+          saveCurrentProject({ screenplayText: updated });
+          toast.add({
+            title: "Appended to Screenplay",
+            description: "Scratchpad memo inserted into master screenplay.",
+            type: "success",
+          });
+        }}
       />
 
       {/* Director's Pitch Lookbook & Production Bible */}
@@ -2228,6 +2658,10 @@ export default function StudioPage() {
         sceneTitle={sceneTitle}
         sceneSummary={sceneSummary}
         characters={characters}
+        directorStyle={directorStyle}
+        coreSecret={coreSecret}
+        primaryLocation={primaryLocation}
+        targetTerritories={targetTerritories}
       />
 
       {/* Audio Table Read Modal */}
@@ -2278,12 +2712,30 @@ export default function StudioPage() {
       {/* Google Veo 3.1 Cinema Video Generation Modal */}
       <VeoVideoDialog
         open={veoVideoOpen}
-        onOpenChange={setVeoVideoOpen}
+        onOpenChange={(isOpen) => {
+          setVeoVideoOpen(isOpen);
+          if (!isOpen) {
+            setVeoCharacterContext(null);
+          }
+        }}
+        projectId={projectId}
+        nodes={nodes}
         sceneTitle={sceneTitle}
         sceneSummary={sceneSummary}
+        screenplayText={screenplayText}
+        genre={genre}
+        characters={characters}
+        characterContext={veoCharacterContext || undefined}
+        activeCharacterName={activeCharacterName}
         visualPrompt={
-          (nodes.find((n) => n.type === "storyboard")?.data?.prompt as string) ||
-          `Cinematic 16:9 widescreen establishing shot of ${sceneTitle}. Moody shadows, photoreal 35mm film.`
+          veoCharacterContext
+            ? `Cinematic 16:9 take featuring ${veoCharacterContext.name}${
+                veoCharacterContext.actorComp ? ` (likeness resembling ${veoCharacterContext.actorComp})` : ""
+              }${veoCharacterContext.wardrobe ? `, wearing ${veoCharacterContext.wardrobe}` : ""}. ${
+                veoCharacterContext.visualDescription || ""
+              } in ${sceneTitle}. 35mm anamorphic scope.`
+            : ((nodes.find((n) => n.type === "storyboard")?.data?.prompt as string) ||
+              `Cinematic 16:9 widescreen establishing shot of ${sceneTitle}. Moody shadows, photoreal 35mm film.`)
         }
       />
 
@@ -2316,6 +2768,16 @@ export default function StudioPage() {
             logline: data.logline,
             genre: data.genre,
             characters: data.characters,
+            directorStyle: data.directorStyle,
+            coreSecret: data.coreSecret,
+            primaryLocation: data.primaryLocation,
+            targetTerritories: data.targetTerritories,
+            customCharacters: data.customCharacters,
+            narrativeFormat: data.narrativeFormat,
+            targetRuntimeMinutes: data.targetRuntimeMinutes,
+            scenePlacementSeconds: data.scenePlacementSeconds,
+            sceneDurationSeconds: data.sceneDurationSeconds,
+            totalScenesEstimate: data.totalScenesEstimate,
           });
           setProjectId(newProject.id);
           setProjectTitle(newProject.title);
@@ -2325,6 +2787,16 @@ export default function StudioPage() {
           setSceneSummary(newProject.sceneSummary);
           setCharacters(newProject.characters);
           setActiveCharacterName(newProject.characters[0]?.name || "Lead");
+          setDirectorStyle(newProject.directorStyle || "");
+          setCoreSecret(newProject.coreSecret || "");
+          setPrimaryLocation(newProject.primaryLocation || "");
+          setTargetTerritories(newProject.targetTerritories || []);
+          setNarrativeFormat(newProject.narrativeFormat || "feature");
+          setTargetRuntimeMinutes(newProject.targetRuntimeMinutes || 95);
+          const placement = newProject.scenePlacementSeconds ?? 34 * 60;
+          setScenePlacementSeconds(placement);
+          setTimeSeconds(placement);
+          setSceneDurationSeconds(newProject.sceneDurationSeconds ?? 6 * 60);
           setScreenplayText("");
           setEvents([]);
           setHotSeatTurns([]);
@@ -2332,6 +2804,24 @@ export default function StudioPage() {
           router.push(`/studio/${newProject.id}`);
           await runFullPipeline(newProject.id, newProject.premise);
         }}
+      />
+
+      {/* Project Timeframe & Scope Configuration Dialog */}
+      <ProjectTimeframeDialog
+        open={timeframeModalOpen}
+        onOpenChange={setTimeframeModalOpen}
+        projectId={projectId}
+        projectTitle={projectTitle}
+        genre={genre}
+        targetRuntimeMinutes={targetRuntimeMinutes}
+        narrativeFormat={narrativeFormat}
+        scenePlacementSeconds={scenePlacementSeconds}
+        sceneDurationSeconds={sceneDurationSeconds}
+        directorStyle={directorStyle}
+        coreSecret={coreSecret}
+        primaryLocation={primaryLocation}
+        targetTerritories={targetTerritories}
+        onSave={handleSaveTimeframe}
       />
 
       {/* Real-time Autonomous Agent Generation Overlay */}

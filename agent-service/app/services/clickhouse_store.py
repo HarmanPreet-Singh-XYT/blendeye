@@ -156,26 +156,70 @@ class ClickHouseStore:
         )
 
     def get_cinematic_precedents(self, genre: str = "") -> list[dict]:
-        """Queries ClickHouse cinematic_precedents table for grounding flourish."""
-        query = "SELECT genre, trope, historical_reference, tension_level, commercial_territory, audience_retention_pct, precedent_example FROM cinematic_precedents"
-        params = {}
+        """Queries ClickHouse cinematic_precedents table for grounding flourish with hybrid genre fallback."""
+        base_query = "SELECT genre, trope, historical_reference, tension_level, commercial_territory, audience_retention_pct, precedent_example FROM cinematic_precedents"
         if genre:
-            query += " WHERE genre LIKE {genre:String}"
-            params["genre"] = f"%{genre}%"
-        query += " ORDER BY audience_retention_pct DESC"
-        result = self._client.query(query, parameters=params)
-        return [
-            {
-                "genre": row[0],
-                "trope": row[1],
-                "historical_reference": row[2],
-                "tension_level": row[3],
-                "commercial_territory": row[4],
-                "audience_retention_pct": float(row[5]),
-                "precedent_example": row[6],
-            }
-            for row in result.result_rows
-        ]
+            try:
+                result = self._client.query(
+                    f"{base_query} WHERE genre LIKE {{genre:String}} ORDER BY audience_retention_pct DESC",
+                    parameters={"genre": f"%{genre}%"},
+                )
+                if result.result_rows:
+                    return [
+                        {
+                            "genre": row[0],
+                            "trope": row[1],
+                            "historical_reference": row[2],
+                            "tension_level": row[3],
+                            "commercial_territory": row[4],
+                            "audience_retention_pct": float(row[5]),
+                            "precedent_example": row[6],
+                        }
+                        for row in result.result_rows
+                    ]
+            except Exception:
+                pass
+
+            # Fallback to token matching for composite / hybrid genres
+            tokens = [t.strip() for t in genre.replace("/", " ").replace("-", " ").split() if len(t.strip()) >= 4]
+            for tok in tokens:
+                try:
+                    result = self._client.query(
+                        f"{base_query} WHERE genre LIKE {{tok:String}} ORDER BY audience_retention_pct DESC",
+                        parameters={"tok": f"%{tok}%"},
+                    )
+                    if result.result_rows:
+                        return [
+                            {
+                                "genre": row[0],
+                                "trope": row[1],
+                                "historical_reference": row[2],
+                                "tension_level": row[3],
+                                "commercial_territory": row[4],
+                                "audience_retention_pct": float(row[5]),
+                                "precedent_example": row[6],
+                            }
+                            for row in result.result_rows
+                        ]
+                except Exception:
+                    pass
+
+        try:
+            result = self._client.query(f"{base_query} ORDER BY audience_retention_pct DESC")
+            return [
+                {
+                    "genre": row[0],
+                    "trope": row[1],
+                    "historical_reference": row[2],
+                    "tension_level": row[3],
+                    "commercial_territory": row[4],
+                    "audience_retention_pct": float(row[5]),
+                    "precedent_example": row[6],
+                }
+                for row in result.result_rows
+            ]
+        except Exception:
+            return []
 
 
 

@@ -14,11 +14,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(result);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({
-      status: "completed",
-      video_url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4",
-      _fallback: true,
-      _error: message,
-    });
+    return NextResponse.json(
+      {
+        status: "error",
+        error: message,
+        video_url: null,
+      },
+      { status: 502 }
+    );
   }
 }

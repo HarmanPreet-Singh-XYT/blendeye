@@ -14,7 +14,350 @@ export interface ProjectCharacter {
   personalityPreset?: string;
   confidence?: number;
   verbalPacing?: number;
+  imageUrl?: string;
+  fullBodyImageUrl?: string;
+  visualDescription?: string;
+  wardrobe?: string;
 }
+
+export interface ScratchpadNote {
+  id: string;
+  projectId?: string;
+  title: string;
+  content: string;
+  category: "concept" | "character" | "scene" | "dialogue" | "location";
+  createdAt: number;
+}
+
+export interface VideoTake {
+  id: string;
+  takeNumber: number;
+  title: string;
+  cameraMotion: string;
+  stylePreset: string;
+  durationSec: number;
+  createdAt: number;
+  videoUrl: string;
+  prompt?: string;
+  characterName?: string;
+  isMaster?: boolean;
+}
+
+export type NarrativeFormat = "feature" | "pilot" | "short" | "teaser" | "series" | "custom";
+
+export interface NarrativeFormatConfig {
+  id: NarrativeFormat;
+  label: string;
+  tag: string;
+  defaultMinutes: number;
+  minMinutes: number;
+  maxMinutes: number;
+  typicalScenes: number;
+  pacingDescription: string;
+  pacing?: string;
+  structure: {
+    act1Name: string;
+    act1Pct: number;
+    midpointPct: number;
+    act3Pct: number;
+  };
+}
+
+export const NARRATIVE_FORMATS: Record<NarrativeFormat, NarrativeFormatConfig> = {
+  feature: {
+    id: "feature",
+    label: "Feature Film",
+    tag: "90 - 130 min · 3-Act Structure",
+    defaultMinutes: 105,
+    minMinutes: 75,
+    maxMinutes: 180,
+    typicalScenes: 36,
+    pacingDescription: "Classic cinematic 3-act narrative with rising tension, midpoint reversal, and third-act resolution.",
+    structure: {
+      act1Name: "Act I: Setup & Catalyst",
+      act1Pct: 0.25,
+      midpointPct: 0.50,
+      act3Pct: 0.75,
+    },
+  },
+  pilot: {
+    id: "pilot",
+    label: "TV Pilot / Episodic",
+    tag: "45 - 60 min · 4-5 Act Television Arc",
+    defaultMinutes: 52,
+    minMinutes: 30,
+    maxMinutes: 75,
+    typicalScenes: 22,
+    pacingDescription: "Multi-strand A/B character subplots, rapid commercial act cliffhangers, and serial hook.",
+    structure: {
+      act1Name: "Teaser & Act I Hook",
+      act1Pct: 0.20,
+      midpointPct: 0.50,
+      act3Pct: 0.80,
+    },
+  },
+  short: {
+    id: "short",
+    label: "Festival Short Film",
+    tag: "12 - 25 min · Tight Focus",
+    defaultMinutes: 18,
+    minMinutes: 8,
+    maxMinutes: 35,
+    typicalScenes: 8,
+    pacingDescription: "Laser-focused narrative collision, single pivotal moral dilemmas, intense psychological compression.",
+    structure: {
+      act1Name: "Inciting Hook",
+      act1Pct: 0.20,
+      midpointPct: 0.50,
+      act3Pct: 0.75,
+    },
+  },
+  teaser: {
+    id: "teaser",
+    label: "Proof of Concept / Teaser",
+    tag: "2 - 5 min · Pitch Vignette",
+    defaultMinutes: 3,
+    minMinutes: 1,
+    maxMinutes: 7,
+    typicalScenes: 2,
+    pacingDescription: "High-impact visual proof of concept, immediate kinetic hook, cliffhanger pitch delivery.",
+    structure: {
+      act1Name: "Opening Hook",
+      act1Pct: 0.25,
+      midpointPct: 0.50,
+      act3Pct: 0.75,
+    },
+  },
+  series: {
+    id: "series",
+    label: "Limited Mini-Series Part",
+    tag: "60 - 75 min · Prestige Cinema",
+    defaultMinutes: 65,
+    minMinutes: 45,
+    maxMinutes: 90,
+    typicalScenes: 28,
+    pacingDescription: "Deep character world-building, expansive ensemble arcs, slow-burn psychological reveals.",
+    structure: {
+      act1Name: "World Setup & Catalyst",
+      act1Pct: 0.22,
+      midpointPct: 0.50,
+      act3Pct: 0.78,
+    },
+  },
+  custom: {
+    id: "custom",
+    label: "Custom Narrative Scope",
+    tag: "Variable Runtime & Custom Flow",
+    defaultMinutes: 45,
+    minMinutes: 1,
+    maxMinutes: 240,
+    typicalScenes: 15,
+    pacingDescription: "Director-defined custom runtime and scene distribution.",
+    structure: {
+      act1Name: "Opening Act",
+      act1Pct: 0.25,
+      midpointPct: 0.50,
+      act3Pct: 0.75,
+    },
+  },
+};
+
+export interface GenreOption {
+  id: string;
+  label: string;
+  tag: string;
+  category: "thriller" | "scifi" | "noir" | "horror" | "drama" | "action" | "epic";
+  color?: string;
+  palette?: string;
+}
+
+export const GENRE_OPTIONS: GenreOption[] = [
+  // ── Thrillers & Suspense ──
+  {
+    id: "Heist / Crime Thriller",
+    label: "Heist Thriller",
+    tag: "High-Stakes & Suspense",
+    category: "thriller",
+    color: "text-amber-400 border-amber-500/30",
+    palette: "Vault metallics, security laser red, countdown amber",
+  },
+  {
+    id: "Psychological Suspense",
+    label: "Psychological Thriller",
+    tag: "Mind Games & Paranoia",
+    category: "thriller",
+    color: "text-rose-400 border-rose-500/30",
+    palette: "Disorienting mirrors, desaturated slate, claustrophobic shadows",
+  },
+  {
+    id: "Espionage / Cold War",
+    label: "Espionage & Spies",
+    tag: "Hidden Loyalties & Secrets",
+    category: "thriller",
+    color: "text-emerald-400 border-emerald-500/30",
+    palette: "Trenchcoat olive, embassy mahogany, surveillance monochrome",
+  },
+  {
+    id: "Action / Tactical Thriller",
+    label: "Tactical Action",
+    tag: "Kinetic Momentum & Siege",
+    category: "action",
+    color: "text-orange-400 border-orange-500/30",
+    palette: "Ballistic smoke, muzzle flash orange, tactical gunmetal",
+  },
+  {
+    id: "Survival / Wilderness Thriller",
+    label: "Wilderness Survival",
+    tag: "Extreme Elements & Endurance",
+    category: "action",
+    color: "text-lime-400 border-lime-500/30",
+    palette: "Frostbite whites, glacial blues, rugged pine greens",
+  },
+
+  // ── Sci-Fi & Speculative ──
+  {
+    id: "Sci-Fi / Space Horror",
+    label: "Sci-Fi Space Horror",
+    tag: "Atmospheric & Isolation",
+    category: "scifi",
+    color: "text-cyan-400 border-cyan-500/30",
+    palette: "Deep void black, bulkhead warning amber, emergency cyan",
+  },
+  {
+    id: "Dystopian Cyberpunk",
+    label: "Cyberpunk",
+    tag: "Corporate Power & Tech",
+    category: "scifi",
+    color: "text-blue-400 border-blue-500/30",
+    palette: "Neon magenta, holographic turquoise, wet asphalt sheen",
+  },
+  {
+    id: "Cosmic Sci-Fi / Space Opera",
+    label: "Cosmic Sci-Fi",
+    tag: "Interstellar Scale & Wonder",
+    category: "scifi",
+    color: "text-indigo-400 border-indigo-500/30",
+    palette: "Nebula purples, starlight gold, relativistic distortion",
+  },
+  {
+    id: "Time Paradox / Alternate Reality",
+    label: "Temporal Paradox",
+    tag: "Fractured Timelines & Loops",
+    category: "scifi",
+    color: "text-teal-400 border-teal-500/30",
+    palette: "Chromatic aberration, sepia echoes, dual-exposure teal",
+  },
+  {
+    id: "Post-Apocalyptic Survival",
+    label: "Post-Apocalyptic",
+    tag: "Scarcity & Ruin Exploration",
+    category: "scifi",
+    color: "text-yellow-600 border-yellow-700/30",
+    palette: "Ochre dust, rusted iron, sun-bleached bone white",
+  },
+
+  // ── Noir & Mystery ──
+  {
+    id: "Neon Noir / Detective",
+    label: "Neon Noir",
+    tag: "Cynical & Chiaroscuro",
+    category: "noir",
+    color: "text-purple-400 border-purple-500/30",
+    palette: "Sodium vapor yellow, venetian blind shadows, deep violet",
+  },
+  {
+    id: "Gothic Mystery / Period Horror",
+    label: "Gothic Mystery",
+    tag: "Ancestral Dread & Decay",
+    category: "noir",
+    color: "text-slate-400 border-slate-500/30",
+    palette: "Cobblestone grey, candlelight amber, faded velvet crimson",
+  },
+  {
+    id: "Courtroom / Legal Thriller",
+    label: "Courtroom Thriller",
+    tag: "Institutional Truth & Law",
+    category: "noir",
+    color: "text-sky-400 border-sky-500/30",
+    palette: "Polished oak, fluorescent institutional hum, stenographer parchment",
+  },
+
+  // ── Horror & Occult ──
+  {
+    id: "Supernatural / Occult Horror",
+    label: "Occult Horror",
+    tag: "Ancient Possession & Taboo",
+    category: "horror",
+    color: "text-red-400 border-red-500/30",
+    palette: "Dried blood crimson, parchment ochre, unlit corner pitch black",
+  },
+  {
+    id: "Folk Horror / Pagan Dread",
+    label: "Folk Horror",
+    tag: "Isolated Cults & Rites",
+    category: "horror",
+    color: "text-amber-500 border-amber-600/30",
+    palette: "Overexposed summer sunlight, flower crown pastel, pagan woodcraft",
+  },
+  {
+    id: "Body Horror / Bio-Thriller",
+    label: "Body Horror",
+    tag: "Visceral Biological Change",
+    category: "horror",
+    color: "text-rose-500 border-rose-600/30",
+    palette: "Subcutaneous pink, surgical steel, sterile fluorescent white",
+  },
+
+  // ── Drama, Western & Epic ──
+  {
+    id: "Neo-Western / Borderlands",
+    label: "Neo-Western",
+    tag: "Frontier Morality & Dust",
+    category: "drama",
+    color: "text-amber-300 border-amber-400/30",
+    palette: "Desert sandstone, denim indigo, late afternoon golden hour",
+  },
+  {
+    id: "Political Drama / Satire",
+    label: "Political Satire",
+    tag: "Machiavellian Status & Power",
+    category: "drama",
+    color: "text-violet-400 border-violet-500/30",
+    palette: "West Wing navy, Capitol marble, teleprompter green",
+  },
+  {
+    id: "Family Dynasty / Succession",
+    label: "Dynasty Drama",
+    tag: "Inheritance & Bloodline War",
+    category: "drama",
+    color: "text-fuchsia-400 border-fuchsia-500/30",
+    palette: "Executive cashmere grey, penthouse glass, vintage champagne",
+  },
+  {
+    id: "High Fantasy / Mythic Epic",
+    label: "Mythic Epic",
+    tag: "Ancient Factions & Destiny",
+    category: "epic",
+    color: "text-emerald-300 border-emerald-400/30",
+    palette: "Forged steel, banner gold, misty fjord emerald",
+  },
+  {
+    id: "Dark Comedy / Social Thriller",
+    label: "Dark Comedy",
+    tag: "Cynical Wit & Class Friction",
+    category: "drama",
+    color: "text-pink-400 border-pink-500/30",
+    palette: "High-contrast pristine surfaces, sharp pop accents, champagne sparkle",
+  },
+  {
+    id: "Biographical / Historical Epic",
+    label: "Historical Drama",
+    tag: "True Stakes & Monumental Eras",
+    category: "epic",
+    color: "text-amber-200 border-amber-300/30",
+    palette: "Vintage 70mm grain, archival sepia, statesman charcoal",
+  },
+];
 
 export interface ProjectData {
   id: string;
@@ -33,6 +376,18 @@ export interface ProjectData {
   isCustom?: boolean;
   isStarred?: boolean;
   directorStyle?: string;
+  coreSecret?: string;
+  primaryLocation?: string;
+  targetTerritories?: string[];
+  povScripts?: Record<string, string>; // characterName -> POV script
+  scratchpadNotes?: ScratchpadNote[];
+  activeVideoUrl?: string;
+  videoTakes?: VideoTake[];
+  narrativeFormat?: NarrativeFormat;
+  targetRuntimeMinutes?: number;
+  scenePlacementSeconds?: number;
+  sceneDurationSeconds?: number;
+  totalScenesEstimate?: number;
 }
 
 export const SEED_PROJECTS: ProjectData[] = [
@@ -82,6 +437,10 @@ Exactly where they need to be.`,
         objective: "Locate missing vault bypass keys before vents cycle",
         dialsSummary: "Speed 80% · Subtext 70%",
         quirks: ["Fidgets with silver zippo", "Avoids direct eye contact when panicked"],
+        visualDescription: "Mid-30s, sharp angular jaw, sweat-streaked brow, anxious hollow eyes, stubble, intense gaze, cinematic 85mm anamorphic portrait",
+        wardrobe: "Olive-drab tactical harness over dark thermal shirt, reinforced ripstop cargo pants, fingerless gloves, worn combat boots",
+        imageUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=800&q=80",
+        fullBodyImageUrl: "https://images.unsplash.com/photo-1488161628813-04466f872be2?auto=format&fit=crop&w=800&q=80",
       },
       {
         name: "Elena",
@@ -92,6 +451,10 @@ Exactly where they need to be.`,
         objective: "Hold Marcus in place until syndicate extraction window arrives",
         dialsSummary: "Confidence 95% · Subtext 95%",
         quirks: ["Checks chronograph with unblinking stillness", "Speaks in quiet monotones"],
+        visualDescription: "Early 40s, poised aristocratic facial features, pale skin, piercing hazel eyes, slicked-back dark hair, micro-expressions of calculated detachment",
+        wardrobe: "Tailored charcoal wool trench coat with structured lapels, matte black turtleneck, leather gloves, vintage steel chronograph",
+        imageUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80",
+        fullBodyImageUrl: "https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&w=800&q=80",
       },
       {
         name: "Teo",
@@ -102,6 +465,10 @@ Exactly where they need to be.`,
         objective: "Keep tunnel clear of transit police until extraction",
         dialsSummary: "Confidence 80% · Subtext 20%",
         quirks: ["Chews matchsticks", "Taps radio antenna against bulkhead"],
+        visualDescription: "Late 20s, observant gaze, athletic build, light scar across cheekbone, watchful posture",
+        wardrobe: "Weathered navy bomber jacket, heavy utility denim, combat boots, tactical earpiece",
+        imageUrl: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=800&q=80",
+        fullBodyImageUrl: "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=800&q=80",
       },
     ],
     initialEvents: [
@@ -112,6 +479,42 @@ Exactly where they need to be.`,
       { atSeconds: 52 * 60, characterName: "Marcus", eventType: "known_fact" },
       { atSeconds: 61 * 60, characterName: "Teo", eventType: "location" },
     ],
+    activeVideoUrl: "/videos/vault_heist_take_01.mp4",
+    videoTakes: [
+      {
+        id: "take-vault-01",
+        takeNumber: 1,
+        title: "The Vault — Take 01",
+        cameraMotion: "Slow Cinematic Dolly In",
+        stylePreset: "35mm Anamorphic Film, 2.39:1 Scope",
+        durationSec: 6,
+        createdAt: 1725400000000,
+        videoUrl: "/videos/vault_heist_take_01.mp4",
+        prompt: "Cinematic establishing shot of The Vault. Moody shadows, photoreal anamorphic lens, high dramatic tension.",
+        isMaster: true,
+      },
+      {
+        id: "take-vault-02",
+        takeNumber: 2,
+        title: "The Vault — Take 02",
+        cameraMotion: "Static Master Table View",
+        stylePreset: "Neo-Noir Cyberpunk, Sodium Vapor & Rain",
+        durationSec: 6,
+        createdAt: 1725400300000,
+        videoUrl: "/videos/directors_suite_take_01.mp4",
+        prompt: "Static master surveillance angle of the syndicate operations table and monitoring bank.",
+        isMaster: false,
+      },
+    ],
+    narrativeFormat: "feature",
+    targetRuntimeMinutes: 95,
+    scenePlacementSeconds: 34 * 60,
+    sceneDurationSeconds: 6 * 60,
+    totalScenesEstimate: 32,
+    directorStyle: "David Fincher",
+    coreSecret: "Elena swapped the physical security keys 10 minutes ago and is executing an unsanctioned secondary syndicate extraction.",
+    primaryLocation: "Underground reinforced bank vault sub-level under emergency lighting",
+    targetTerritories: ["US", "DE", "JP"],
     createdAt: 1725400000000,
     updatedAt: 1725400000000,
     isCustom: false,
@@ -174,6 +577,30 @@ Commander... what came through the vents wasn't air.`,
       { atSeconds: 48 * 60, characterName: "Ray", eventType: "known_fact" },
       { atSeconds: 70 * 60, characterName: "Vance", eventType: "known_fact" },
     ],
+    activeVideoUrl: "/videos/space_airlock_take_01.mp4",
+    videoTakes: [
+      {
+        id: "take-space-01",
+        takeNumber: 1,
+        title: "Module 4 Airlock — Take 01",
+        cameraMotion: "Handheld Gritty Tension",
+        stylePreset: "70mm IMAX High-Contrast Master",
+        durationSec: 6,
+        createdAt: 1725400100000,
+        videoUrl: "/videos/space_airlock_take_01.mp4",
+        prompt: "Emergency amber sirens pulse in zero gravity vacuum silence, debris drifting through module.",
+        isMaster: true,
+      },
+    ],
+    narrativeFormat: "short",
+    targetRuntimeMinutes: 18,
+    scenePlacementSeconds: 12 * 60,
+    sceneDurationSeconds: 4 * 60,
+    totalScenesEstimate: 7,
+    directorStyle: "Denis Villeneuve",
+    coreSecret: "Ray manually bypassed the quarantine protocol to conceal a classified bio-specimen extraction.",
+    primaryLocation: "Orbital research module airlock corridor under zero gravity",
+    targetTerritories: ["US", "KR", "DE"],
     createdAt: 1725400100000,
     updatedAt: 1725400100000,
     isCustom: false,
@@ -394,6 +821,108 @@ export function synthesizeDynamicCharacters(genre: string = "", premise: string 
     ];
   }
 
+  if (g.includes("horror") || g.includes("occult") || g.includes("folk") || p.includes("cult") || p.includes("ritual") || p.includes("curse")) {
+    const sets = [
+      [
+        { name: "Father Thomas", role: "Vatican Inquisitor", archetype: "Faith-shaken scholar confronting an ancient entity", speechStyle: "whispered, urgent, liturgical", objective: "Seal the forbidden reliquary before nightfall" },
+        { name: "Evelyn", role: "Occult Archivist", archetype: "Keeper of her family's blood curse", speechStyle: "cryptic, hypnotic, unflinching", objective: "Complete the binding ritual before sunrise" },
+      ],
+      [
+        { name: "Dr. Mara", role: "Coroner / Pathologist", archetype: "Skeptical medical examiner discovering anomalous tissue biology", speechStyle: "clinical, trembling, intense", objective: "Document the anomaly before quarantine locks down" },
+        { name: "Jonah", role: "Commune Elder", archetype: "Charismatic rural leader hiding ancestral sacrifices", speechStyle: "melodic, soothing, terrifying", objective: "Ensure the outsider does not leave the valley" },
+      ],
+    ];
+    const pick = sets[Math.floor(Math.random() * sets.length)];
+    return pick.map((c, i) => ({
+      ...c,
+      subtextRatio: i === 1 ? "extreme" : "high",
+      confidence: 70 + i * 15,
+      dialsSummary: `Confidence ${70 + i * 15}% · Subtext ${i === 1 ? "95%" : "85%"}`,
+      quirks: [i === 0 ? "Clutches wooden rosary until knuckles whiten" : "Smiles without warmth"],
+    }));
+  }
+
+  if (g.includes("western") || g.includes("border") || p.includes("frontier") || p.includes("desert")) {
+    return [
+      {
+        name: "Colt Callahan",
+        role: "Disillusioned Bounty Hunter",
+        archetype: "Weathered gunslinger bound by a code of silent retribution",
+        speechStyle: "drawled, lethal, economical",
+        subtextRatio: "high",
+        confidence: 85,
+        objective: "Bring in the cartel defector before the posse catches up",
+        dialsSummary: "Confidence 85% · Subtext 80%",
+        quirks: ["Spits matchstick, never blinks in sunlight", "Checks cylinder chambers by touch"],
+      },
+      {
+        name: "Marisol",
+        role: "Frontier Marshal",
+        archetype: "Unyielding law keeper defending an isolated outpost",
+        speechStyle: "dry, sharp, defiant",
+        subtextRatio: "extreme",
+        confidence: 90,
+        objective: "Hold the territorial border against executive syndicates",
+        dialsSummary: "Confidence 90% · Subtext 90%",
+        quirks: ["Restens spurs before answering", "Keeps right hand resting near holster"],
+      },
+    ];
+  }
+
+  if (g.includes("epic") || g.includes("mythic") || g.includes("fantasy") || g.includes("historical") || p.includes("kingdom") || p.includes("dynasty")) {
+    return [
+      {
+        name: "Lord Vaelen",
+        role: "Exiled Commander",
+        archetype: "Disgraced warlord seeking redemption through forbidden conquest",
+        speechStyle: "booming, imperious, burdened",
+        subtextRatio: "high",
+        confidence: 85,
+        objective: "Reclaim the ancestral standard before winter descends",
+        dialsSummary: "Confidence 85% · Subtext 80%",
+        quirks: ["Touches hilt when challenged", "Speaks in ancient royal syntax"],
+      },
+      {
+        name: "Seer Lyra",
+        role: "Court Mystic",
+        archetype: "Blind prophet caught between rival bloodlines",
+        speechStyle: "rhythmic, poetic, ominous",
+        subtextRatio: "extreme",
+        confidence: 95,
+        objective: "Prevent the cataclysm foretold in the star scrolls",
+        dialsSummary: "Confidence 95% · Subtext 95%",
+        quirks: ["Tilts head as if hearing distant thunder", "Traces runes in cold tea"],
+      },
+    ];
+  }
+
+  if (g.includes("espionage") || g.includes("cold war") || g.includes("political") || p.includes("embassy") || p.includes("kgb") || p.includes("cia")) {
+    return [
+      {
+        name: "Agent Cross",
+        role: "Disavowed Operative",
+        archetype: "Intelligence ghost playing multiple agencies against each other",
+        speechStyle: "clipped, analytical, ice-cold",
+        subtextRatio: "extreme",
+        confidence: 90,
+        objective: "Exfiltrate the decrypted nuclear ledger before the embassy lockdown",
+        dialsSummary: "Confidence 90% · Subtext 95%",
+        quirks: ["Always sits facing the service entrance", "Checks mirror reflections when lighting a cigarette"],
+      },
+      {
+        name: "Elena Rostova",
+        role: "Station Chief",
+        archetype: "Counterintelligence director with classified clearance",
+        speechStyle: "composed, iron-fisted, razor-sharp",
+        subtextRatio: "extreme",
+        confidence: 95,
+        objective: "Identify and neutralize the mole before the dawn summit",
+        dialsSummary: "Confidence 95% · Subtext 90%",
+        quirks: ["Taps fountain pen in three-beat intervals", "Speaks fluent diplomatic euphemisms"],
+      },
+    ];
+  }
+
   // Default Heist / Action Thriller dynamic characters
   const defaultEnsembles = [
     [
@@ -415,36 +944,59 @@ export function synthesizeDynamicCharacters(genre: string = "", premise: string 
   }));
 }
 
-/**
- * Creates a new blank/pending project entry in localStorage.
- */
-export function createNewProjectEntry(data: {
+export interface CreateProjectOptions {
   id?: string;
   title: string;
   logline: string;
   genre?: string;
   characters?: string;
-}): ProjectData {
-  const newPid = data.id || `project-${Date.now().toString(36)}`;
-  const parsedCharNames = data.characters
-    ? data.characters
-        .split(/[,;\n]+/)
-        .map((c) => c.trim())
-        .filter(Boolean)
-    : [];
+  directorStyle?: string;
+  coreSecret?: string;
+  primaryLocation?: string;
+  targetTerritories?: string[];
+  customCharacters?: ProjectCharacter[];
+  narrativeFormat?: NarrativeFormat;
+  targetRuntimeMinutes?: number;
+  scenePlacementSeconds?: number;
+  sceneDurationSeconds?: number;
+  totalScenesEstimate?: number;
+}
 
-  const initialChars: ProjectCharacter[] =
-    parsedCharNames.length > 0
-      ? parsedCharNames.map((name, i) => ({
-          name: name.split(/\s+/)[0],
-          role: i === 0 ? "Protagonist" : "Key Counterpart",
-          archetype: name.includes("(") ? name.split("(")[1].replace(")", "") : `Character ${i + 1}`,
-          speechStyle: "naturalistic, guarded",
-          subtextRatio: "high",
-          objective: "Resolve the central conflict before time expires",
-          dialsSummary: "Confidence 85% · Subtext 80%",
-        }))
-      : synthesizeDynamicCharacters(data.genre, data.logline);
+/**
+ * Creates a new blank/pending project entry in localStorage with optional custom characters,
+ * director styling, narrative format, and target timeframe parameters.
+ */
+export function createNewProjectEntry(data: CreateProjectOptions): ProjectData {
+  const newPid = data.id || `project-${Date.now().toString(36)}`;
+  
+  let initialChars: ProjectCharacter[] = [];
+
+  if (data.customCharacters && data.customCharacters.length > 0) {
+    initialChars = data.customCharacters;
+  } else if (data.characters && data.characters.trim().length > 0) {
+    const parsedCharNames = data.characters
+      .split(/[,;\n]+/)
+      .map((c) => c.trim())
+      .filter(Boolean);
+
+    initialChars = parsedCharNames.map((name, i) => ({
+      name: name.split(/\s+/)[0],
+      role: i === 0 ? "Protagonist" : "Key Counterpart",
+      archetype: name.includes("(") ? name.split("(")[1].replace(")", "") : `Character ${i + 1}`,
+      speechStyle: "naturalistic, guarded",
+      subtextRatio: "high",
+      objective: "Resolve the central conflict before time expires",
+      dialsSummary: "Confidence 85% · Subtext 80%",
+    }));
+  } else {
+    initialChars = synthesizeDynamicCharacters(data.genre, data.logline);
+  }
+
+  const format: NarrativeFormat = data.narrativeFormat || "feature";
+  const formatConfig = NARRATIVE_FORMATS[format] || NARRATIVE_FORMATS.feature;
+  const runtimeMins = data.targetRuntimeMinutes || formatConfig.defaultMinutes;
+  const placementSecs = data.scenePlacementSeconds ?? 0;
+  const totalScenes = data.totalScenesEstimate || Math.round(runtimeMins / 3);
 
   const newProject: ProjectData = {
     id: newPid,
@@ -459,10 +1011,268 @@ export function createNewProjectEntry(data: {
     createdAt: Date.now(),
     updatedAt: Date.now(),
     isCustom: true,
+    directorStyle: data.directorStyle,
+    coreSecret: data.coreSecret,
+    primaryLocation: data.primaryLocation,
+    targetTerritories: data.targetTerritories,
+    povScripts: {},
+    scratchpadNotes: [],
+    activeVideoUrl: "/videos/cinematic_demo.mp4",
+    narrativeFormat: format,
+    targetRuntimeMinutes: runtimeMins,
+    scenePlacementSeconds: placementSecs,
+    sceneDurationSeconds: data.sceneDurationSeconds ?? 180,
+    totalScenesEstimate: totalScenes,
+    videoTakes: [
+      {
+        id: `take-${Date.now()}-01`,
+        takeNumber: 1,
+        title: `${data.title.trim()} — Take 01`,
+        cameraMotion: "35mm Anamorphic Tracking Shot",
+        stylePreset: data.directorStyle ? `${data.directorStyle}, 35mm Scope` : "35mm Anamorphic Film, 2.39:1 Scope",
+        durationSec: 6,
+        createdAt: Date.now(),
+        videoUrl: "/videos/cinematic_demo.mp4",
+        prompt: `Cinematic establishing scene for ${data.title.trim()}. 35mm anamorphic widescreen scope.`,
+        isMaster: true,
+      },
+    ],
   };
 
   saveProject(newProject);
   return newProject;
+}
+
+/**
+ * Updates a project's narrative scope, target runtime, or scene pinpoint anchor,
+ * as well as directorial blueprint parameters (tone, secrets, location, target territories).
+ */
+export function updateProjectTimeframe(
+  projectId: string,
+  updates: {
+    narrativeFormat?: NarrativeFormat;
+    targetRuntimeMinutes?: number;
+    scenePlacementSeconds?: number;
+    sceneDurationSeconds?: number;
+    directorStyle?: string;
+    coreSecret?: string;
+    primaryLocation?: string;
+    targetTerritories?: string[];
+    genre?: string;
+  }
+): ProjectData | null {
+  const proj = getProjectById(projectId);
+  if (!proj) return null;
+  const updated: ProjectData = {
+    ...proj,
+    narrativeFormat: updates.narrativeFormat ?? proj.narrativeFormat ?? "feature",
+    targetRuntimeMinutes: updates.targetRuntimeMinutes ?? proj.targetRuntimeMinutes ?? 90,
+    scenePlacementSeconds: updates.scenePlacementSeconds ?? proj.scenePlacementSeconds ?? 0,
+    sceneDurationSeconds: updates.sceneDurationSeconds ?? proj.sceneDurationSeconds ?? 180,
+    directorStyle: updates.directorStyle !== undefined ? updates.directorStyle : proj.directorStyle,
+    coreSecret: updates.coreSecret !== undefined ? updates.coreSecret : proj.coreSecret,
+    primaryLocation: updates.primaryLocation !== undefined ? updates.primaryLocation : proj.primaryLocation,
+    targetTerritories: updates.targetTerritories !== undefined ? updates.targetTerritories : proj.targetTerritories,
+    genre: updates.genre !== undefined ? updates.genre : proj.genre,
+    updatedAt: Date.now(),
+  };
+  saveProject(updated);
+  return updated;
+}
+
+const TALENT_VAULT_KEY = "agentic_cinema_talent_vault_v1";
+const SCRATCHPAD_KEY = "agentic_cinema_scratchpad_v1";
+
+/**
+ * Loads all saved talent profiles from the persistent Talent Vault.
+ */
+export function getTalentVault(): ProjectCharacter[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(TALENT_VAULT_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw);
+  } catch (err) {
+    console.error("Failed to load talent vault:", err);
+    return [];
+  }
+}
+
+/**
+ * Saves a character profile to the reusable studio Talent Vault.
+ */
+export function saveToTalentVault(character: ProjectCharacter): void {
+  if (typeof window === "undefined") return;
+  try {
+    const vault = getTalentVault();
+    const existingIdx = vault.findIndex(
+      (c) => c.name.toLowerCase() === character.name.toLowerCase()
+    );
+    if (existingIdx >= 0) {
+      vault[existingIdx] = character;
+    } else {
+      vault.unshift(character);
+    }
+    localStorage.setItem(TALENT_VAULT_KEY, JSON.stringify(vault));
+  } catch (err) {
+    console.error("Failed to save to talent vault:", err);
+  }
+}
+
+/**
+ * Removes a character from the studio Talent Vault.
+ */
+export function deleteFromTalentVault(characterName: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    const vault = getTalentVault().filter(
+      (c) => c.name.toLowerCase() !== characterName.toLowerCase()
+    );
+    localStorage.setItem(TALENT_VAULT_KEY, JSON.stringify(vault));
+  } catch (err) {
+    console.error("Failed to delete from talent vault:", err);
+  }
+}
+
+/**
+ * Loads scratchpad notes for a given project or studio-wide.
+ */
+export function getScratchpadNotes(projectId?: string): ScratchpadNote[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(SCRATCHPAD_KEY);
+    if (!raw) return [];
+    const notes: ScratchpadNote[] = JSON.parse(raw);
+    if (projectId) {
+      return notes.filter((n) => !n.projectId || n.projectId === projectId);
+    }
+    return notes;
+  } catch (err) {
+    console.error("Failed to load scratchpad notes:", err);
+    return [];
+  }
+}
+
+/**
+ * Saves or updates a scratchpad note.
+ */
+export function saveScratchpadNote(note: ScratchpadNote): void {
+  if (typeof window === "undefined") return;
+  try {
+    const notes = getScratchpadNotes();
+    const idx = notes.findIndex((n) => n.id === note.id);
+    if (idx >= 0) {
+      notes[idx] = note;
+    } else {
+      notes.unshift(note);
+    }
+    localStorage.setItem(SCRATCHPAD_KEY, JSON.stringify(notes));
+  } catch (err) {
+    console.error("Failed to save scratchpad note:", err);
+  }
+}
+
+/**
+ * Deletes a scratchpad note by ID.
+ */
+export function deleteScratchpadNote(id: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    const notes = getScratchpadNotes().filter((n) => n.id !== id);
+    localStorage.setItem(SCRATCHPAD_KEY, JSON.stringify(notes));
+  } catch (err) {
+    console.error("Failed to delete scratchpad note:", err);
+  }
+}
+
+/**
+ * Gets all saved video takes for a given project.
+ */
+export function getVideoTakes(projectId: string): VideoTake[] {
+  const project = getProjectById(projectId);
+  if (!project) return [];
+  return project.videoTakes || [];
+}
+
+/**
+ * Saves a newly rendered or existing video take to the project's permanent take vault.
+ */
+export function saveVideoTake(
+  projectId: string,
+  takeData: Omit<VideoTake, "id" | "takeNumber" | "createdAt"> & { id?: string; takeNumber?: number }
+): VideoTake {
+  const project = getProjectById(projectId);
+  const currentTakes = project?.videoTakes || [];
+  const nextNum = takeData.takeNumber || currentTakes.length + 1;
+
+  const newTake: VideoTake = {
+    id: takeData.id || `take-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    takeNumber: nextNum,
+    title: takeData.title || `${project?.sceneTitle || "Scene"} — Take ${String(nextNum).padStart(2, "0")}`,
+    cameraMotion: takeData.cameraMotion,
+    stylePreset: takeData.stylePreset,
+    durationSec: takeData.durationSec || 6,
+    createdAt: Date.now(),
+    videoUrl: takeData.videoUrl,
+    prompt: takeData.prompt,
+    characterName: takeData.characterName,
+    isMaster: takeData.isMaster ?? (currentTakes.length === 0),
+  };
+
+  if (!project) return newTake;
+
+  const updatedTakes = [newTake, ...currentTakes];
+  const updatedProject: ProjectData = {
+    ...project,
+    activeVideoUrl: newTake.isMaster ? newTake.videoUrl : (project.activeVideoUrl || newTake.videoUrl),
+    videoTakes: updatedTakes,
+  };
+
+  saveProject(updatedProject);
+  return newTake;
+}
+
+/**
+ * Marks a specific video take as the master take for a project.
+ */
+export function setMasterVideoTake(projectId: string, takeId: string): void {
+  const project = getProjectById(projectId);
+  if (!project || !project.videoTakes) return;
+
+  let targetUrl = project.activeVideoUrl;
+  const updatedTakes = project.videoTakes.map((t) => {
+    if (t.id === takeId) {
+      targetUrl = t.videoUrl;
+      return { ...t, isMaster: true };
+    }
+    return { ...t, isMaster: false };
+  });
+
+  saveProject({
+    ...project,
+    activeVideoUrl: targetUrl,
+    videoTakes: updatedTakes,
+  });
+}
+
+/**
+ * Deletes a video take from the project's saved vault.
+ */
+export function deleteVideoTake(projectId: string, takeId: string): void {
+  const project = getProjectById(projectId);
+  if (!project || !project.videoTakes) return;
+
+  const filtered = project.videoTakes.filter((t) => t.id !== takeId);
+  const updatedProject: ProjectData = {
+    ...project,
+    videoTakes: filtered,
+    activeVideoUrl:
+      project.activeVideoUrl === project.videoTakes.find((t) => t.id === takeId)?.videoUrl
+        ? filtered[0]?.videoUrl || "/videos/vault_heist_take_01.mp4"
+        : project.activeVideoUrl,
+  };
+
+  saveProject(updatedProject);
 }
 
 export interface NodeCallbacks {
@@ -473,6 +1283,7 @@ export interface NodeCallbacks {
   onOpenTableRead?: () => void;
   onOpenHeatmap?: () => void;
   onRunChemistry?: () => void;
+  onTweakDials?: (charName: string, dials: { confidence: number; speed: number; subtext: number }) => void;
 }
 
 /**
@@ -562,9 +1373,11 @@ export function buildProjectNodesAndEdges(
       position: { x: -380, y: currentY + 180 },
       data: {
         presetName: `${char.name} Behavioral Dial`,
-        confidence: idx === 0 ? 60 : 90,
-        speed: 75,
+        confidence: char.confidence ?? (idx === 0 ? 60 : 90),
+        speed: char.verbalPacing ?? 75,
         subtext: 85,
+        onTweak: (dials: { confidence: number; speed: number; subtext: number }) =>
+          callbacks?.onTweakDials?.(char.name, dials),
       },
     });
 

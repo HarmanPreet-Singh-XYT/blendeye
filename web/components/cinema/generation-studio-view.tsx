@@ -40,11 +40,21 @@ import {
   FastForward,
   Rewind,
   Clapperboard,
+  User,
+  Shirt,
 } from "lucide-react";
+import type { Node } from "@xyflow/react";
 import { cn } from "@/lib/utils";
 import type { ProjectCharacter } from "@/lib/project-store";
+import { getVideoTakes, saveVideoTake, setMasterVideoTake, type VideoTake } from "@/lib/project-store";
+import {
+  synthesizeCinemaPrompt,
+  type NodeContribution,
+} from "@/lib/cinema-prompt-synthesizer";
 
 interface GenerationStudioViewProps {
+  projectId?: string;
+  nodes?: Node[];
   sceneTitle: string;
   sceneSummary: string;
   screenplayText: string;
@@ -80,10 +90,10 @@ const STYLE_PRESETS = [
   { id: "Fincher Low-Key Practical Cold/Amber", label: "Fincher Low-Key", desc: "Desaturated greens/ambers, precise geometric lighting" },
 ];
 
+// Veo 3.1 only renders in these two ratios — no others are offered since
+// picking anything else would silently render 16:9 and crop it with CSS.
 const ASPECT_RATIOS = [
   { id: "16:9", label: "16:9 Widescreen", ratioClass: "aspect-video", safeGuide: "16:9 Standard" },
-  { id: "2.39:1", label: "2.39:1 Scope", ratioClass: "aspect-[2.39/1]", safeGuide: "2.39:1 Anamorphic" },
-  { id: "4:3", label: "4:3 Academy", ratioClass: "aspect-[4/3]", safeGuide: "1.33:1 Academy" },
   { id: "9:16", label: "9:16 Mobile", ratioClass: "aspect-[9/16]", safeGuide: "9:16 Vertical" },
 ];
 
@@ -108,9 +118,12 @@ interface RenderedTake {
   style: string;
   videoUrl: string;
   prompt: string;
+  isSample?: boolean;
 }
 
 export function GenerationStudioView({
+  projectId,
+  nodes = [],
   sceneTitle,
   sceneSummary,
   screenplayText,
@@ -121,6 +134,8 @@ export function GenerationStudioView({
   initialCameraMotion,
   initialPromptNote,
 }: GenerationStudioViewProps) {
+  const effectiveProjectId = projectId || "vault-heist-demo";
+
   // Director Controls State
   const [activeTab, setActiveTab] = React.useState<"camera" | "dialogue" | "deliverables">("camera");
   const [cameraMotion, setCameraMotion] = React.useState<string>(
@@ -131,11 +146,49 @@ export function GenerationStudioView({
   const [durationSec, setDurationSec] = React.useState<number>(6);
   const [showFrameGuides, setShowFrameGuides] = React.useState<boolean>(false);
 
+  const [selectedCharacterName, setSelectedCharacterName] = React.useState<string | null>(null);
+  const activeCharacter = characters.find((c) => c.name === selectedCharacterName);
+
+  // Active conditioning image and contributing canvas nodes
+  const [activeConditioningImage, setActiveConditioningImage] = React.useState<string | null>(null);
+  const [activeImageType, setActiveImageType] = React.useState<"face" | "body" | null>(null);
+  const [activeNodeContributions, setActiveNodeContributions] = React.useState<NodeContribution[]>([]);
+
+  // Multi-node & character context synthesizer
+  const runSynthesis = React.useCallback(
+    (charName: string | null = selectedCharacterName, imgPref: "face" | "body" | "auto" = "auto") => {
+      const res = synthesizeCinemaPrompt({
+        nodes,
+        characters,
+        sceneTitle,
+        sceneSummary,
+        screenplayText,
+        genre,
+        focusCharacterName: charName,
+        cameraMotion,
+        stylePreset,
+        imagePreference: imgPref,
+      });
+
+      setPrompt(res.fullPrompt);
+      setActiveNodeContributions(res.contributions);
+      setActiveConditioningImage(res.conditioningImageUrl);
+      setActiveImageType(res.conditioningImageType === "scene" ? null : res.conditioningImageType);
+    },
+    [nodes, characters, sceneTitle, sceneSummary, screenplayText, genre, cameraMotion, stylePreset, selectedCharacterName]
+  );
+
   const [prompt, setPrompt] = React.useState<string>(
     initialPromptNote
       ? `${initialPromptNote} Visual aesthetic: ${STYLE_PRESETS[0].label}. Masterful Hollywood cinematography.`
       : `Cinematic establishing shot of ${sceneTitle}. ${sceneSummary}. Moody cinematic lighting, shallow depth of field, photoreal anamorphic lens, high dramatic tension.`
   );
+
+  React.useEffect(() => {
+    if (!initialPromptNote) {
+      runSynthesis(null);
+    }
+  }, []);
 
   // Video Generation & Playback State
   const [isGenerating, setIsGenerating] = React.useState<boolean>(false);
@@ -153,8 +206,57 @@ export function GenerationStudioView({
   React.useEffect(() => {
     return () => stopPolling();
   }, [stopPolling]);
+
+  // Load saved takes from project-store or default to verified local cinematic takes
+  const initialSavedTakes = React.useMemo(() => {
+    const takes = getVideoTakes(effectiveProjectId);
+    if (takes && takes.length > 0) {
+      return takes.map((t) => ({
+        id: t.id,
+        takeNumber: t.takeNumber,
+        title: t.title,
+        timestamp: "Project Vault",
+        durationSec: t.durationSec,
+        camera: t.cameraMotion,
+        style: t.stylePreset,
+        videoUrl: t.videoUrl,
+        prompt: t.prompt || "",
+      }));
+    }
+    return [
+      {
+        id: "take-1",
+        takeNumber: 1,
+        title: `${sceneTitle} — Sample Take 01`,
+        timestamp: "Sample clip",
+        durationSec: 6,
+        camera: "35mm Anamorphic Tracking Shot",
+        style: "35mm Anamorphic Scope",
+        videoUrl: "/videos/vault_heist_take_01.mp4",
+        prompt: `Cinematic establishing shot of ${sceneTitle}. Moody cinematic lighting, shallow depth of field, 35mm anamorphic lens.`,
+        isSample: true,
+      },
+      {
+        id: "take-2",
+        takeNumber: 2,
+        title: `${sceneTitle} — Sample Take 02`,
+        timestamp: "Sample clip",
+        durationSec: 6,
+        camera: "Slow Cinematic Dolly In",
+        style: "Neo-Noir Sodium & Rain",
+        videoUrl: "/videos/directors_suite_take_01.mp4",
+        prompt: `Close intimate push on character during ${sceneTitle}. Neo-noir sodium vapor and high contrast shadows.`,
+        isSample: true,
+      },
+    ];
+  }, [effectiveProjectId, sceneTitle]);
+
+  const [recentTakes, setRecentTakes] = React.useState<RenderedTake[]>(initialSavedTakes);
   const [activeVideoUrl, setActiveVideoUrl] = React.useState<string>(
-    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4"
+    initialSavedTakes[0]?.videoUrl || "/videos/vault_heist_take_01.mp4"
+  );
+  const [activeTakeId, setActiveTakeId] = React.useState<string>(
+    initialSavedTakes[0]?.id || "take-1"
   );
   const [isPlaying, setIsPlaying] = React.useState<boolean>(false);
   const [currentTime, setCurrentTime] = React.useState<number>(0);
@@ -163,35 +265,6 @@ export function GenerationStudioView({
   const [isLooping, setIsLooping] = React.useState<boolean>(true);
   const [hasExportedPackage, setHasExportedPackage] = React.useState<boolean>(false);
   const [copiedPrompt, setCopiedPrompt] = React.useState<boolean>(false);
-
-  // Active Take Selection
-  const [activeTakeId, setActiveTakeId] = React.useState<string>("take-1");
-
-  // Recent Takes List
-  const [recentTakes, setRecentTakes] = React.useState<RenderedTake[]>([
-    {
-      id: "take-1",
-      takeNumber: 1,
-      title: `${sceneTitle} — Take 01`,
-      timestamp: "10m ago",
-      durationSec: 6,
-      camera: "35mm Anamorphic Tracking Shot",
-      style: "35mm Anamorphic Scope",
-      videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4",
-      prompt: `Cinematic establishing shot of ${sceneTitle}. Moody cinematic lighting, shallow depth of field, 35mm anamorphic lens.`,
-    },
-    {
-      id: "take-2",
-      takeNumber: 2,
-      title: `${sceneTitle} — Take 02`,
-      timestamp: "25m ago",
-      durationSec: 5,
-      camera: "Slow Cinematic Dolly In",
-      style: "Neo-Noir Sodium & Rain",
-      videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WeAreGoingOnBullrun.mp4",
-      prompt: `Close intimate push on character during ${sceneTitle}. Neo-noir sodium vapor and high contrast shadows.`,
-    },
-  ]);
 
   // Screenplay dialogue parsing for audio sync
   const scriptLines = React.useMemo(() => {
@@ -262,8 +335,10 @@ export function GenerationStudioView({
         body: JSON.stringify({
           prompt: fullPrompt,
           duration_seconds: durationSec,
-          aspect_ratio: aspectRatio === "2.39:1" ? "16:9" : aspectRatio,
+          aspect_ratio: aspectRatio,
           style_preset: stylePreset,
+          image_url: activeConditioningImage || undefined,
+          character_name: selectedCharacterName || undefined,
         }),
       });
 
@@ -317,7 +392,7 @@ export function GenerationStudioView({
             setGenerationStage("");
             addTakeToHistory(statusData.video_url);
             notifyIfFallback(statusData, "Video Render");
-          } else if (statusData.status === "failed") {
+          } else if (statusData.status === "failed" || statusData.status === "error") {
             stopPolling();
             toast.add({
               title: "Video generation failed",
@@ -363,7 +438,11 @@ export function GenerationStudioView({
     stopPolling();
     setIsGenerating(false);
     setGenerationStage("");
-    toast.add({ title: "Generation cancelled", type: "info" });
+    toast.add({
+      title: "Stopped watching this render",
+      description: "Veo has no cancel API — the job keeps rendering on Google's side, it just won't be picked up here.",
+      type: "info",
+    });
   };
 
   const addTakeToHistory = (url: string) => {
@@ -371,7 +450,7 @@ export function GenerationStudioView({
     const newTake: RenderedTake = {
       id: "take-" + Date.now(),
       takeNumber: nextNum,
-      title: `${sceneTitle} — Take 0${nextNum}`,
+      title: `${sceneTitle} — Take ${String(nextNum).padStart(2, "0")}`,
       timestamp: "Just now",
       durationSec,
       camera: cameraMotion,
@@ -381,6 +460,23 @@ export function GenerationStudioView({
     };
     setRecentTakes((prev) => [newTake, ...prev]);
     setActiveTakeId(newTake.id);
+    setActiveVideoUrl(url);
+
+    // Persist to project store and localStorage
+    saveVideoTake(effectiveProjectId, {
+      title: newTake.title,
+      cameraMotion,
+      stylePreset,
+      durationSec,
+      videoUrl: url,
+      prompt,
+      isMaster: true,
+    });
+    toast.add({
+      title: `Take #${nextNum} Saved to Project Vault`,
+      description: "Stored in project take vault and set as Master Take.",
+      type: "success",
+    });
   };
 
   const selectTake = (take: RenderedTake) => {
@@ -641,6 +737,10 @@ export function GenerationStudioView({
                 onClick={togglePlay}
                 onPlay={() => setIsPlaying(true)}
                 onPause={() => setIsPlaying(false)}
+                onError={() => {
+                  console.warn("Screening bay video load error:", activeVideoUrl);
+                  setActiveVideoUrl("/videos/vault_heist_take_01.mp4");
+                }}
               />
 
               {/* Rule of Thirds / Anamorphic Frame Guides Overlay */}
@@ -843,7 +943,14 @@ export function GenerationStudioView({
                       </span>
                       <span className="text-muted-foreground">{take.durationSec}s · {take.timestamp}</span>
                     </div>
-                    <span className="text-xs font-medium text-foreground truncate">{take.title}</span>
+                    <span className="text-xs font-medium text-foreground truncate flex items-center gap-1.5">
+                      {take.title}
+                      {take.isSample && (
+                        <span className="shrink-0 rounded-sm bg-amber-500/15 px-1 py-0.5 text-[9px] font-mono font-semibold text-amber-500">
+                          SAMPLE
+                        </span>
+                      )}
+                    </span>
                     <span className="text-[10px] font-mono text-muted-foreground truncate">{take.camera}</span>
                   </button>
                 );
@@ -913,6 +1020,281 @@ export function GenerationStudioView({
           {/* TAB 1: Camera Motion, Visual Prompt & Veo Dispatch */}
           {activeTab === "camera" && (
             <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
+              {/* Character Visual Conditioning Module */}
+              {characters && characters.length > 0 && (
+                <div className="flex flex-col gap-2 p-3 rounded-xl border border-purple-500/30 bg-purple-500/10 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <User className="h-3.5 w-3.5 text-purple-400" />
+                      <SlateLabel>Character Visual Reference</SlateLabel>
+                    </div>
+                    <Badge variant="outline" className="text-[9px] font-mono border-purple-500/40 text-purple-300 py-0">
+                      Veo Conditioning
+                    </Badge>
+                  </div>
+
+                  {/* Character Selection Pills */}
+                  <div className="flex flex-wrap gap-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedCharacterName(null);
+                        runSynthesis(null);
+                      }}
+                      className={cn(
+                        "px-2 py-0.5 rounded-md text-[11px] font-mono transition-colors cursor-pointer",
+                        selectedCharacterName === null
+                          ? "bg-purple-600 text-white font-semibold shadow-xs"
+                          : "bg-card/80 border border-border text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      Master Scene (Ensemble)
+                    </button>
+                    {characters.map((c, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => {
+                          setSelectedCharacterName(c.name);
+                          runSynthesis(c.name);
+                        }}
+                        className={cn(
+                          "px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors flex items-center gap-1.5 cursor-pointer",
+                          selectedCharacterName === c.name
+                            ? "bg-purple-600 text-white font-semibold shadow-xs"
+                            : "bg-card/80 border border-border text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        {c.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={c.imageUrl}
+                            alt={c.name}
+                            className="h-3.5 w-3.5 rounded-full object-cover border border-white/40"
+                          />
+                        ) : (
+                          <span className="h-3.5 w-3.5 rounded-full bg-secondary flex items-center justify-center text-[8px] font-bold">
+                            {c.name.charAt(0)}
+                          </span>
+                        )}
+                        <span>{c.name}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Connected Canvas Node Context Badges */}
+                  {activeNodeContributions.length > 0 && (
+                    <div className="pt-2 border-t border-purple-500/20 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1 text-[10px] font-mono text-purple-300">
+                          <Layers className="h-3 w-3" />
+                          <span>Connected Canvas Nodes ({activeNodeContributions.length})</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => runSynthesis(selectedCharacterName)}
+                          className="text-[9px] font-mono text-accent hover:underline flex items-center gap-1 cursor-pointer"
+                          title="Re-synthesize prompt using current nodes"
+                        >
+                          <RefreshCw className="h-2.5 w-2.5" />
+                          <span>Re-Synthesize</span>
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {activeNodeContributions.map((contrib) => (
+                          <span
+                            key={contrib.id}
+                            className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${contrib.badgeColor}`}
+                            title={contrib.summary}
+                          >
+                            {contrib.label}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Image Conditioning Controls (Image-to-Video) */}
+                  {activeCharacter && (activeCharacter.imageUrl || activeCharacter.fullBodyImageUrl) && (
+                    <div className="p-2 rounded-lg border border-purple-500/30 bg-purple-950/20 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-mono uppercase text-purple-300 font-semibold flex items-center gap-1">
+                          <Sparkles className="h-3 w-3 text-accent" />
+                          <span>Veo Image-to-Video Conditioning</span>
+                        </span>
+                        {activeConditioningImage ? (
+                          <Badge variant="outline" className="text-[8px] font-mono border-emerald-500/50 bg-emerald-500/10 text-emerald-300 py-0">
+                            Active Reference
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[8px] font-mono text-muted-foreground py-0">
+                            Text Only
+                          </Badge>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {activeConditioningImage && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={activeConditioningImage}
+                            alt="Conditioning reference"
+                            className="h-9 w-9 rounded-md object-cover border border-purple-400 shrink-0"
+                          />
+                        )}
+                        <div className="flex items-center gap-1 flex-1">
+                          {activeCharacter.imageUrl && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveConditioningImage(activeCharacter.imageUrl!);
+                                setActiveImageType("face");
+                              }}
+                              className={`px-2 py-1 rounded text-[10px] font-mono flex-1 border cursor-pointer transition-colors ${
+                                activeConditioningImage === activeCharacter.imageUrl
+                                  ? "bg-purple-600 border-purple-400 text-white font-semibold"
+                                  : "bg-card border-border text-muted-foreground hover:text-foreground"
+                              }`}
+                            >
+                              Face Image
+                            </button>
+                          )}
+                          {activeCharacter.fullBodyImageUrl && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveConditioningImage(activeCharacter.fullBodyImageUrl!);
+                                setActiveImageType("body");
+                              }}
+                              className={`px-2 py-1 rounded text-[10px] font-mono flex-1 border cursor-pointer transition-colors ${
+                                activeConditioningImage === activeCharacter.fullBodyImageUrl
+                                  ? "bg-purple-600 border-purple-400 text-white font-semibold"
+                                  : "bg-card border-border text-muted-foreground hover:text-foreground"
+                              }`}
+                            >
+                              Body Stance
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveConditioningImage(null);
+                              setActiveImageType(null);
+                            }}
+                            className={`px-1.5 py-1 rounded text-[10px] font-mono border cursor-pointer transition-colors ${
+                              !activeConditioningImage
+                                ? "bg-secondary border-border text-foreground font-semibold"
+                                : "bg-card/40 border-border/60 text-muted-foreground hover:text-foreground"
+                            }`}
+                            title="Generate text-only without conditioning image"
+                          >
+                            Off
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Active Character Dossier */}
+                  {activeCharacter && (
+                    <div className="p-2.5 rounded-lg border border-purple-500/20 bg-black/40 space-y-2">
+                      <div className="flex items-start gap-2.5">
+                        {/* Face */}
+                        <div className="h-12 w-12 rounded-md overflow-hidden border border-border bg-black shrink-0 relative">
+                          {activeCharacter.imageUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={activeCharacter.imageUrl}
+                              alt={activeCharacter.name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                              <Eye className="h-4 w-4" />
+                            </div>
+                          )}
+                          <span className="absolute bottom-0 inset-x-0 bg-black/75 text-[7px] font-mono text-center text-white">
+                            Face
+                          </span>
+                        </div>
+
+                        {/* Body */}
+                        <div className="h-12 w-9 rounded-md overflow-hidden border border-border bg-black shrink-0 relative">
+                          {activeCharacter.fullBodyImageUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={activeCharacter.fullBodyImageUrl}
+                              alt={`${activeCharacter.name} body`}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                              <Shirt className="h-3.5 w-3.5" />
+                            </div>
+                          )}
+                          <span className="absolute bottom-0 inset-x-0 bg-black/75 text-[7px] font-mono text-center text-white">
+                            Body
+                          </span>
+                        </div>
+
+                        <div className="min-w-0 flex-1 space-y-0.5 text-xs">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-foreground truncate">{activeCharacter.name}</span>
+                            <Badge variant="outline" className="text-[9px] py-0 px-1 border-purple-500/40 text-purple-300">
+                              {activeCharacter.role || "Cast"}
+                            </Badge>
+                          </div>
+                          {activeCharacter.actorComp && (
+                            <div className="text-[10px] text-cyan-400 font-mono truncate">
+                              Comp: {activeCharacter.actorComp}
+                            </div>
+                          )}
+                          {activeCharacter.wardrobe && (
+                            <p className="text-[10px] text-muted-foreground line-clamp-1">
+                              Wardrobe: {activeCharacter.wardrobe}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Quick Character Shot Buttons */}
+                      <div className="flex flex-wrap gap-1 pt-1 border-t border-border/40">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCameraMotion("Slow Cinematic Dolly In");
+                            runSynthesis(activeCharacter.name, "face");
+                          }}
+                          className="px-2 py-0.5 rounded bg-secondary/80 hover:bg-secondary text-[10px] font-mono text-foreground border border-border/60 transition-colors cursor-pointer"
+                        >
+                          👤 Face Push-In
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCameraMotion("35mm Anamorphic Tracking Shot");
+                            runSynthesis(activeCharacter.name, "body");
+                          }}
+                          className="px-2 py-0.5 rounded bg-secondary/80 hover:bg-secondary text-[10px] font-mono text-foreground border border-border/60 transition-colors cursor-pointer"
+                        >
+                          🏃 Full-Body Action
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCameraMotion("Handheld Gritty Tension");
+                            runSynthesis(activeCharacter.name, "face");
+                          }}
+                          className="px-2 py-0.5 rounded bg-secondary/80 hover:bg-secondary text-[10px] font-mono text-foreground border border-border/60 transition-colors cursor-pointer"
+                        >
+                          ⚔️ Two-Shot Standoff
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Visual Prompt Editor */}
               <div className="flex flex-col gap-1.5">
                 <div className="flex items-center justify-between">

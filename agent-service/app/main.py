@@ -1,8 +1,16 @@
+import logging
 import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+# Suppress benign Google GenAI SDK advisory warning when ADK agents invoke models.generate_content
+try:
+    from google.genai.models import Models
+    Models._logged_afc_warning = True
+except Exception:
+    pass
 
 from app.config import get_settings
 from app.routers import (

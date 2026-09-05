@@ -23,6 +23,7 @@ import {
   UserPlus,
   LayoutGrid,
   Database,
+  AlertTriangle,
 } from "lucide-react";
 import type { CitedPrecedent, StudioAction } from "@/lib/studio-actions";
 
@@ -33,6 +34,7 @@ export interface ExtendedShowrunnerMessage {
   actions?: StudioAction[];
   execution_summaries?: string[];
   precedents_cited?: CitedPrecedent[];
+  is_fallback?: boolean;
 }
 
 interface ShowrunnerChatProps {
@@ -160,6 +162,17 @@ export function ShowrunnerChat({
                       : "Analysis & Critique"}
                   </span>
                 </div>
+
+                {/* Degraded-mode warning: Gemini/agent-service was unreachable, this ran on the local regex fallback */}
+                {msg.is_fallback && (
+                  <div className="flex items-center gap-1.5 rounded border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] font-mono text-amber-400">
+                    <AlertTriangle className="h-3 w-3 shrink-0" />
+                    <span>
+                      Ran in degraded mode — the AI backend was unreachable, so this used a local
+                      pattern-matching fallback instead of real reasoning.
+                    </span>
+                  </div>
+                )}
 
                 {/* Collapsible Chain-of-Thought / Creative Rationale */}
                 {msg.thought_process && (

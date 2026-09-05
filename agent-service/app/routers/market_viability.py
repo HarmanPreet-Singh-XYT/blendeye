@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.agents.market_viability import build_market_viability_agent
 from app.agents.runner import run_agent_once
@@ -15,6 +15,7 @@ router = APIRouter(prefix="/market", tags=["market-viability"])
 class MarketPredictRequest(BaseModel):
     genre: str = "Heist Thriller"
     logline: str = "A crew discovers the escape keys are missing while trapped inside a locked underground bank vault."
+    target_territories: list[str] = Field(default_factory=list)
 
 
 class TerritoryScore(BaseModel):
@@ -48,10 +49,15 @@ async def predict_market(req: MarketPredictRequest):
     except Exception:  # noqa: BLE001
         precedents_context = "- Heist / Crime Thriller | Cat-and-Mouse | Global (88% retention)"
 
+    target_territories_hint = ""
+    if req.target_territories:
+        target_territories_hint = f"Priority Target Commercial Territories: {', '.join(req.target_territories)}\n"
+
     agent = build_market_viability_agent()
     prompt = (
         f"Genre: {req.genre}\n"
         f"Logline: {req.logline}\n"
+        f"{target_territories_hint}"
         f"ClickHouse Historical Grounding:\n{precedents_context}\n"
         f"Perform territory market fit analysis and output JSON."
     )

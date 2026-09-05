@@ -4,7 +4,7 @@ import * as React from "react";
 import { SlateLabel } from "@/components/cinema/slate-label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Camera, Lightbulb, User, Eye, Sparkles, RefreshCw, Film } from "lucide-react";
+import { Camera, Lightbulb, User, Eye, Sparkles, RefreshCw, Film, MapPin } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { notifyIfFallback } from "@/lib/fallback-notice";
 
@@ -58,6 +58,7 @@ interface LocationScoutData {
 interface FloorPlanViewProps {
   sceneTitle: string;
   characters?: Array<{ name: string; archetype?: string }>;
+  primaryLocation?: string;
   className?: string;
   onSendToVeo?: (camData: {
     camName: string;
@@ -70,6 +71,7 @@ interface FloorPlanViewProps {
 export function FloorPlanView({
   sceneTitle,
   characters = [],
+  primaryLocation,
   className,
   onSendToVeo,
 }: FloorPlanViewProps) {
@@ -90,7 +92,9 @@ export function FloorPlanView({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          scene_description: sceneTitle || "Cinematic Confrontation",
+          scene_description: primaryLocation
+            ? `${sceneTitle || "Cinematic Confrontation"} — Primary Setting: ${primaryLocation}`
+            : sceneTitle || "Cinematic Confrontation",
           characters: characters.map((c) => c.name),
           genre: "Cinematic Drama / Thriller",
         }),
@@ -222,7 +226,15 @@ export function FloorPlanView({
             <Camera className="h-4 w-4 text-accent" />
             <SlateLabel>Director&apos;s 2D Floor Plan &amp; Spatial Blocking</SlateLabel>
           </div>
-          <span className="text-xs font-semibold text-foreground">{sceneTitle}</span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-semibold text-foreground">{sceneTitle}</span>
+            {primaryLocation && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-mono text-cyan-400 bg-cyan-950/40 border border-cyan-800/40 px-2 py-0.5 rounded max-w-sm truncate" title={primaryLocation}>
+                <MapPin className="h-3 w-3 shrink-0" />
+                <span className="truncate">{primaryLocation}</span>
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <Button
