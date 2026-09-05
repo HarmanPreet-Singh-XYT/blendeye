@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateMediaImage } from "@/lib/agent-service";
+import { getCachedGeneration, setCachedGeneration } from "@/lib/generation-cache";
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,7 +12,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing prompt" }, { status: 400 });
     }
 
+    const cachePayload = {
+      prompt: prompt.trim(),
+      aspect_ratio: aspectRatio,
+    };
+
+    const cached = await getCachedGeneration<any>("image", cachePayload);
+    if (cached && cached.image_url) {
+      return NextResponse.json({ ...cached, _cached: true });
+    }
+
     const result = await generateMediaImage(prompt, aspectRatio);
+    if (result && result.image_url) {
+      await setCachedGeneration("image", cachePayload, result);
+    }
     return NextResponse.json(result);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);

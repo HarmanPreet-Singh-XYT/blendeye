@@ -57,12 +57,19 @@ interface FloorPlanViewProps {
   sceneTitle: string;
   characters?: Array<{ name: string; archetype?: string }>;
   className?: string;
+  onSendToVeo?: (camData: {
+    camName: string;
+    lens: string;
+    motion: string;
+    promptNote: string;
+  }) => void;
 }
 
 export function FloorPlanView({
   sceneTitle,
   characters = [],
   className,
+  onSendToVeo,
 }: FloorPlanViewProps) {
   const [selectedCam, setSelectedCam] = React.useState<string>("cam-a");
   const [isScouting, setIsScouting] = React.useState(false);
@@ -476,6 +483,46 @@ export function FloorPlanView({
           );
         })}
       </div>
+
+      {/* Active Camera Details & Send to Veo Bridge */}
+      {(() => {
+        const activeCam = cameras.find((c) => c.id === selectedCam) || cameras[0];
+        const defaultMotion =
+          selectedCam === "cam-a"
+            ? "35mm Anamorphic Tracking Shot"
+            : selectedCam === "cam-b"
+            ? "Slow Cinematic Dolly In"
+            : "Dutch Angle Push-In";
+        return (
+          <div className="flex flex-wrap items-center justify-between gap-2 bg-card/70 p-2.5 rounded-lg border border-border text-xs">
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="border-accent/40 bg-accent/10 text-accent font-mono text-[10px]">
+                Active Rig: {activeCam.name}
+              </Badge>
+              <span className="text-muted-foreground font-mono text-[11px]">
+                {activeCam.lens} · {activeCam.fov}° FOV
+              </span>
+            </div>
+            {onSendToVeo && (
+              <Button
+                size="sm"
+                onClick={() =>
+                  onSendToVeo({
+                    camName: activeCam.name,
+                    lens: activeCam.lens,
+                    motion: defaultMotion,
+                    promptNote: `Shot framed via ${activeCam.name} (${activeCam.lens}, ${activeCam.fov}° FOV) with ${defaultMotion}, focused on ${characters[0]?.name || "Lead Subject"}.`,
+                  })
+                }
+                className="h-7 px-3 bg-amber-500 hover:bg-amber-600 text-black font-semibold text-xs gap-1.5 cursor-pointer shadow-xs"
+              >
+                <Film className="h-3.5 w-3.5" />
+                <span>Send Staging to Veo Prompt ↗</span>
+              </Button>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Blocking Summary Legend */}
       <div className="flex flex-wrap items-center justify-between text-[11px] text-muted-foreground bg-secondary/30 p-2.5 rounded-lg border border-border">

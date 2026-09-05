@@ -1,10 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { predictMarket } from "@/lib/agent-service";
+import { getCachedGeneration, setCachedGeneration } from "@/lib/generation-cache";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const result = await predictMarket(body.genre || "Heist Thriller", body.logline || "Vault heist breach");
+    const genre = body.genre || "Heist Thriller";
+    const logline = body.logline || "Vault heist breach";
+
+    const cached = await getCachedGeneration<any>("market", { genre, logline });
+    if (cached && cached.territories) {
+      return NextResponse.json({ ...cached, _cached: true });
+    }
+
+    const result = await predictMarket(genre, logline);
+    if (result && result.territories) {
+      await setCachedGeneration("market", { genre, logline }, result);
+    }
     return NextResponse.json(result);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);

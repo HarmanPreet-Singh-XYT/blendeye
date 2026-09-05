@@ -43,6 +43,8 @@ import { AICommanderDialog } from "@/components/cinema/ai-commander-dialog";
 import { ClickHouseToolboxDialog } from "@/components/cinema/clickhouse-toolbox-dialog";
 import { AudioStudioView } from "@/components/cinema/audio-studio-view";
 import { VeoVideoDialog } from "@/components/cinema/veo-video-dialog";
+import { GenerationStudioView } from "@/components/cinema/generation-studio-view";
+import { DirectorLookbookDialog } from "@/components/cinema/director-lookbook-dialog";
 import {
   StudioVersionControl,
   type SnapshotState,
@@ -113,6 +115,10 @@ import {
   Zap,
   ChevronDown,
   Check,
+  Cpu,
+  Activity,
+  Camera,
+  MessageSquare,
 } from "lucide-react";
 import type { ShowrunnerMessage } from "@/lib/agent-service";
 import {
@@ -131,7 +137,8 @@ const DURATION_SECONDS = 90 * 60; // 90 min feature runtime
 
 export const PRESET_SCENARIOS = SEED_PROJECTS;
 
-type StudioTab = "hotseat" | "showrunner" | "chemistry" | "screenplay" | "deck" | "audio";
+type MainStudioTab = "planning" | "simulation" | "generation";
+type SimulationSubTab = "audio" | "hotseat" | "chemistry" | "showrunner";
 type DeckSubTab = "blocking" | "tension" | "territory" | "stripboard";
 
 export default function StudioPage() {
@@ -184,9 +191,45 @@ export default function StudioPage() {
   const [chemistrySceneOutput, setChemistrySceneOutput] = React.useState<string>("");
   const [isChemistryRunning, setIsChemistryRunning] = React.useState(false);
 
-  // UI Navigation & Modals
-  const [activeTab, setActiveTab] = React.useState<StudioTab>("hotseat");
+  // 3-Tab Director Architecture: Planning | Simulation | Generation
+  const [mainTab, setMainTab] = React.useState<MainStudioTab>("planning");
+  const [simulationTab, setSimulationTab] = React.useState<SimulationSubTab>("audio");
   const [deckSubTab, setDeckSubTab] = React.useState<DeckSubTab>("blocking");
+
+  // Keyboard Shortcuts (Shift+1 for Planning, Shift+2 for Simulation, Shift+3 for Generation, Shift+C for ClickHouse)
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
+      if (e.shiftKey) {
+        if (e.key === "1") {
+          e.preventDefault();
+          setMainTab("planning");
+        } else if (e.key === "2") {
+          e.preventDefault();
+          setMainTab("simulation");
+        } else if (e.key === "3") {
+          e.preventDefault();
+          setMainTab("generation");
+        } else if (e.key.toLowerCase() === "c") {
+          e.preventDefault();
+          setIsClickHouseInspectorOpen((prev) => !prev);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // UI Navigation & Modals
   const [newProjectOpen, setNewProjectOpen] = React.useState(false);
   const [fusionOpen, setFusionOpen] = React.useState(false);
   const [multiverseOpen, setMultiverseOpen] = React.useState(false);
@@ -195,6 +238,19 @@ export default function StudioPage() {
   const [versionControlOpen, setVersionControlOpen] = React.useState(false);
   const [clickhouseToolboxOpen, setClickhouseToolboxOpen] = React.useState(false);
   const [veoVideoOpen, setVeoVideoOpen] = React.useState(false);
+  const [lookbookOpen, setLookbookOpen] = React.useState(false);
+  const [stagedCameraMotion, setStagedCameraMotion] = React.useState<string>("");
+  const [stagedPromptNote, setStagedPromptNote] = React.useState<string>("");
+
+  const handleSendStagingToVeo = React.useCallback(
+    (camData: { camName: string; lens: string; motion: string; promptNote: string }) => {
+      setStagedCameraMotion(camData.motion);
+      setStagedPromptNote(camData.promptNote);
+      setMainTab("generation");
+    },
+    []
+  );
+
   const [vcs, setVcs] = React.useState<StudioVersionControl | null>(null);
   const [canUndo, setCanUndo] = React.useState(false);
   const [canRedo, setCanRedo] = React.useState(false);
@@ -206,6 +262,7 @@ export default function StudioPage() {
   const [isAsking, setIsAsking] = React.useState(false);
   const [queryLogs, setQueryLogs] = React.useState<ClickHouseQueryLog[]>([]);
   const [lastSql, setLastSql] = React.useState<string>("");
+  const [isClickHouseInspectorOpen, setIsClickHouseInspectorOpen] = React.useState(false);
 
   const activeCharacter = characters.find((c) => c.name === activeCharacterName) || characters[0];
 
@@ -357,7 +414,8 @@ export default function StudioPage() {
       if (res.ok) {
         const data = await res.json();
         setChemistrySceneOutput(data.micro_scene);
-        setActiveTab("chemistry");
+        setMainTab("simulation");
+        setSimulationTab("chemistry");
       }
     } catch (err) {
       console.error("Chemistry test failed:", err);
@@ -367,11 +425,13 @@ export default function StudioPage() {
   };
 
   // Dynamic Blueprint Node Callbacks
+  // Dynamic Blueprint Node Callbacks
   const nodeCallbacks: NodeCallbacks = React.useMemo(
     () => ({
       onOpenHotSeat: (charName: string) => {
         setActiveCharacterName(charName);
-        setActiveTab("hotseat");
+        setMainTab("simulation");
+        setSimulationTab("hotseat");
       },
       onGenerateDraft: () => {
         runFullPipeline(projectId, premiseInput);
@@ -380,17 +440,20 @@ export default function StudioPage() {
         setScriptViewerOpen(true);
       },
       onOpenDeck: (subTab) => {
-        setActiveTab("deck");
+        setMainTab("planning");
         setDeckSubTab(subTab);
       },
       onOpenTableRead: () => {
-        setShowTableRead(true);
+        setMainTab("simulation");
+        setSimulationTab("audio");
       },
       onOpenHeatmap: () => {
-        setActiveTab("deck");
+        setMainTab("planning");
         setDeckSubTab("territory");
       },
       onRunChemistry: () => {
+        setMainTab("simulation");
+        setSimulationTab("chemistry");
         handleRunChemistry();
       },
     }),
@@ -583,7 +646,7 @@ export default function StudioPage() {
 
       saveProject(updatedProject);
       syncGraphWithProject(updatedProject);
-      setActiveTab("hotseat");
+      setMainTab("planning");
     } catch (err) {
       console.error("Pipeline failed:", err);
     } finally {
@@ -1155,7 +1218,8 @@ export default function StudioPage() {
             objective: "Survive the night",
             onOpenHotSeat: () => {
               setActiveCharacterName("New Hero");
-              setActiveTab("hotseat");
+              setMainTab("simulation");
+              setSimulationTab("hotseat");
             },
           },
         };
@@ -1226,7 +1290,7 @@ export default function StudioPage() {
             sceneTitle: sceneTitle || "Production Set Master",
             cameraCount: 3,
             onOpenDeck: () => {
-              setActiveTab("deck");
+              setMainTab("planning");
               setDeckSubTab("blocking");
             },
           },
@@ -1241,7 +1305,7 @@ export default function StudioPage() {
             actCount: 3,
             currentSeconds: timeSeconds,
             onOpenDeck: () => {
-              setActiveTab("deck");
+              setMainTab("planning");
               setDeckSubTab("tension");
             },
           },
@@ -1254,7 +1318,10 @@ export default function StudioPage() {
           position: pos,
           data: {
             screenplayText: screenplayText,
-            onOpenTableRead: () => setScriptViewerOpen(true),
+            onOpenTableRead: () => {
+              setMainTab("simulation");
+              setSimulationTab("audio");
+            },
           },
         };
         break;
@@ -1266,7 +1333,7 @@ export default function StudioPage() {
           data: {
             genre: genre,
             onOpenDeck: () => {
-              setActiveTab("deck");
+              setMainTab("planning");
               setDeckSubTab("territory");
             },
           },
@@ -1300,29 +1367,29 @@ export default function StudioPage() {
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground selection:bg-accent/30 selection:text-accent-foreground">
       {/* Studio Header Bar */}
-      <header className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-card/95 px-3 backdrop-blur select-none z-20">
+      <header className="flex h-11 shrink-0 items-center justify-between border-b border-border/70 bg-[#0a0c10]/95 px-3 backdrop-blur select-none z-20">
         {/* Left: Slate Identity & Switcher */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => router.push("/")}
-            className="h-8 px-2.5 gap-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-secondary cursor-pointer shrink-0 -ml-1"
+            className="h-7 px-2 gap-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-secondary/60 cursor-pointer shrink-0"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             <span className="hidden sm:inline font-mono">Hub</span>
           </Button>
 
-          <div className="h-4 w-px bg-border/60 shrink-0" />
+          <div className="h-3.5 w-px bg-border/60 shrink-0" />
 
           {/* Unified Project Slate Dropdown Selector */}
           <DropdownMenu>
-            <DropdownMenuTrigger className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-border/70 bg-secondary/30 hover:bg-secondary/70 hover:border-accent/40 text-xs font-semibold text-foreground transition-all cursor-pointer min-w-0">
+            <DropdownMenuTrigger className="flex items-center gap-2 px-2.5 py-1 rounded-md border border-border/60 bg-secondary/25 hover:bg-secondary/60 text-xs font-semibold text-foreground transition-all cursor-pointer min-w-0">
               <Film className="h-3.5 w-3.5 text-accent shrink-0" />
-              <span className="font-heading truncate max-w-[140px] sm:max-w-[200px] text-sm">
+              <span className="font-heading truncate max-w-[140px] sm:max-w-[180px] text-xs">
                 {projectTitle}
               </span>
-              <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0 opacity-70" />
+              <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0 opacity-60" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-64 bg-card border-border shadow-2xl p-1.5 z-50">
               <DropdownMenuLabel className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground px-2 py-1">
@@ -1356,100 +1423,83 @@ export default function StudioPage() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+
+          <span className="hidden lg:inline text-[10px] font-mono px-2 py-0.5 rounded bg-secondary/30 text-muted-foreground border border-border/40">
+            {genre}
+          </span>
         </div>
 
-        {/* Center: Sleek Segmented View Switcher */}
-        <div className="flex items-center rounded-lg border border-border/80 bg-secondary/30 p-0.5 shadow-sm shrink-0">
-          <button
-            type="button"
-            onClick={() => setViewMode("canvas-only")}
-            className={cn(
-              "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all cursor-pointer",
-              layoutMode === "canvas-only"
-                ? "bg-accent text-accent-foreground shadow-sm font-semibold"
-                : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-            )}
-            title="Full Backlot Canvas (Hide Dock)"
-          >
-            <Square className="h-3.5 w-3.5" />
-            <span className="hidden md:inline">Canvas</span>
-          </button>
+        {/* Center: 3 Core Tabs Architecture (Planning | Simulation | Generation) */}
+        <div className="flex items-center justify-center">
+          <div className="flex items-center rounded-lg border border-border/80 bg-secondary/30 p-0.5 shadow-xs">
+            <button
+              type="button"
+              onClick={() => setMainTab("planning")}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-3.5 py-1 text-xs font-semibold transition-all cursor-pointer",
+                mainTab === "planning"
+                  ? "bg-accent text-accent-foreground shadow-xs"
+                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+              )}
+              title="Director Planning: Backlot Graph, Script & Staging (Shift+1)"
+            >
+              <Film className="h-3.5 w-3.5" />
+              <span>Planning</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setViewMode("split")}
-            className={cn(
-              "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all cursor-pointer",
-              layoutMode === "split"
-                ? "bg-accent text-accent-foreground shadow-sm font-semibold"
-                : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-            )}
-            title="Split View (Canvas + Cinema Dock)"
-          >
-            <Rows className="h-3.5 w-3.5" />
-            <span className="hidden md:inline">Split</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => setMainTab("simulation")}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-3.5 py-1 text-xs font-semibold transition-all cursor-pointer",
+                mainTab === "simulation"
+                  ? "bg-accent text-accent-foreground shadow-xs"
+                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+              )}
+              title="Pre-viz Simulation: AI Voices, Interrogation & Chemistry (Shift+2)"
+            >
+              <Cpu className="h-3.5 w-3.5" />
+              <span>Simulation</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setViewMode("dock-only")}
-            className={cn(
-              "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all cursor-pointer",
-              layoutMode === "dock-only"
-                ? "bg-accent text-accent-foreground shadow-sm font-semibold"
-                : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-            )}
-            title="Cinema Dock Only (Interrogation / Director Deck)"
-          >
-            <PanelBottom className="h-3.5 w-3.5" />
-            <span className="hidden md:inline">Dock</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => setMainTab("generation")}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-3.5 py-1 text-xs font-semibold transition-all cursor-pointer",
+                mainTab === "generation"
+                  ? "bg-accent text-accent-foreground shadow-xs"
+                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+              )}
+              title="AI Media Generation: Google Veo 3.1 & Pre-viz Reels (Shift+3)"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>Generation</span>
+            </button>
+          </div>
         </div>
 
-        {/* Right: Curated Studio Controls */}
-        <div className="flex items-center gap-2 shrink-0">
-          {/* Screenplay Reader */}
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setScriptViewerOpen(true)}
-            className="h-8 gap-1.5 text-xs border-border/80 hover:bg-secondary cursor-pointer"
-          >
-            <FileText className="h-3.5 w-3.5 text-accent" />
-            <span className="hidden sm:inline">Screenplay</span>
-          </Button>
-
-          {/* Veo 3.1 Cinema Video Generation */}
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setVeoVideoOpen(true)}
-            className="h-8 gap-1.5 text-xs border-purple-500/30 text-purple-300 hover:bg-purple-500/10 cursor-pointer"
-            title="Render Scene with Google Veo 3.1 (16:9 Cinematic Video)"
-          >
-            <Video className="h-3.5 w-3.5 text-purple-400" />
-            <span className="hidden lg:inline">Veo Video</span>
-          </Button>
-
-          {/* Production Labs Dropdown (Consolidates Table Read, Alternate Takes, Film Fusion) */}
+        {/* Right: Studio Operations (Clean & Non-redundant) */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {/* Labs Dropdown (Creative Tools) */}
           <DropdownMenu>
-            <DropdownMenuTrigger className="inline-flex items-center h-8 gap-1.5 text-xs font-medium border border-border/80 rounded-md px-2.5 bg-background hover:bg-secondary text-foreground cursor-pointer">
-              <Sparkles className="h-3.5 w-3.5 text-purple-400" />
-              <span className="hidden sm:inline">Labs</span>
-              <ChevronDown className="h-3 w-3 text-muted-foreground opacity-70" />
+            <DropdownMenuTrigger className="inline-flex items-center h-7 gap-1 text-xs font-medium border border-border/70 rounded-md px-2 bg-secondary/25 hover:bg-secondary text-muted-foreground hover:text-foreground cursor-pointer">
+              <Sparkles className="h-3 w-3 text-purple-400" />
+              <span className="hidden md:inline">Labs</span>
+              <ChevronDown className="h-3 w-3 opacity-60" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56 bg-card border-border shadow-2xl p-1.5 z-50">
               <DropdownMenuLabel className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground px-2 py-1">
-                Production Labs &amp; Tools
+                Studio Creative Labs
               </DropdownMenuLabel>
               <DropdownMenuItem
-                onClick={() => setShowTableRead(true)}
+                onClick={() => setFusionOpen(true)}
                 className="flex items-center gap-2 px-2.5 py-1.5 rounded text-xs cursor-pointer hover:bg-secondary"
               >
-                <Volume2 className="h-3.5 w-3.5 text-cyan-400" />
+                <Sparkles className="h-3.5 w-3.5 text-accent" />
                 <div className="flex flex-col">
-                  <span className="font-medium">Table Read Player</span>
-                  <span className="text-[10px] text-muted-foreground">Voice synthesis &amp; cadence</span>
+                  <span className="font-medium">Film Fusion</span>
+                  <span className="text-[10px] text-muted-foreground">Crossover narrative synthesis</span>
                 </div>
               </DropdownMenuItem>
               <DropdownMenuItem
@@ -1463,101 +1513,90 @@ export default function StudioPage() {
                 </div>
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={() => setFusionOpen(true)}
+                onClick={() => setShowTableRead(true)}
                 className="flex items-center gap-2 px-2.5 py-1.5 rounded text-xs cursor-pointer hover:bg-secondary"
               >
-                <Sparkles className="h-3.5 w-3.5 text-accent" />
+                <Volume2 className="h-3.5 w-3.5 text-cyan-400" />
                 <div className="flex flex-col">
-                  <span className="font-medium">Film Fusion</span>
-                  <span className="text-[10px] text-muted-foreground">Crossover narrative synthesis</span>
-                </div>
-              </DropdownMenuItem>
-              <div className="h-px bg-border/50 my-1" />
-              <DropdownMenuItem
-                onClick={() => {
-                  setActiveTab("audio");
-                  setLayoutMode(layoutMode === "canvas-only" ? "split" : layoutMode);
-                }}
-                className="flex items-center gap-2 px-2.5 py-1.5 rounded text-xs cursor-pointer hover:bg-secondary"
-              >
-                <Headphones className="h-3.5 w-3.5 text-cyan-400" />
-                <div className="flex flex-col">
-                  <span className="font-medium">Audio Studio &amp; Mixing</span>
-                  <span className="text-[10px] text-muted-foreground">ADR, character voices &amp; stems</span>
+                  <span className="font-medium">Table Read Player</span>
+                  <span className="text-[10px] text-muted-foreground">Synchronized voice read</span>
                 </div>
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={() => setVeoVideoOpen(true)}
+                onClick={() => setLookbookOpen(true)}
                 className="flex items-center gap-2 px-2.5 py-1.5 rounded text-xs cursor-pointer hover:bg-secondary"
               >
-                <Video className="h-3.5 w-3.5 text-purple-400" />
+                <Film className="h-3.5 w-3.5 text-amber-400" />
                 <div className="flex flex-col">
-                  <span className="font-medium">Veo 3.1 Video Generation</span>
-                  <span className="text-[10px] text-muted-foreground">16:9 cinematic AI scene render</span>
+                  <span className="font-medium">Director&apos;s Lookbook</span>
+                  <span className="text-[10px] text-muted-foreground">Executive pitch &amp; production bible</span>
                 </div>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Takes Version Control */}
+          {/* Takes Version Control History */}
           <Button
             size="sm"
             variant="outline"
             onClick={() => setVersionControlOpen(true)}
-            className="h-8 gap-1.5 text-xs border-amber-500/30 text-amber-300 hover:bg-amber-500/10 cursor-pointer"
-            title="Open Hollywood Slate Version Control & Takes History"
+            className="h-7 gap-1 text-xs border-border/70 bg-secondary/20 hover:bg-secondary text-muted-foreground hover:text-foreground cursor-pointer px-2"
+            title="Takes History & Revisions"
           >
-            <History className="h-3.5 w-3.5 text-amber-400" />
+            <History className="h-3 w-3 text-amber-400" />
             <span className="hidden md:inline">Takes</span>
             {vcsHistoryCount > 0 && (
-              <Badge variant="outline" className="border-amber-500/40 bg-amber-500/20 text-amber-300 text-[10px] px-1 py-0 h-4">
+              <Badge variant="outline" className="border-amber-500/40 bg-amber-500/20 text-amber-300 text-[9px] px-1 py-0 h-3.5 ml-0.5">
                 {vcsHistoryCount}
               </Badge>
             )}
           </Button>
 
-          {/* Official Partner: ClickHouse MCP Server & Toolbox */}
+          {/* ClickHouse MCP Database Toolbox */}
           <Button
             size="sm"
             variant="outline"
             onClick={() => setClickhouseToolboxOpen(true)}
-            className="h-8 gap-1.5 text-xs border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 cursor-pointer"
-            title="Open ClickHouse MCP Database Toolbox & Time-Gated Knowledge Firewall"
+            className="h-7 gap-1 text-xs border-emerald-500/30 bg-emerald-500/5 text-emerald-400 hover:bg-emerald-500/15 cursor-pointer px-2"
+            title="ClickHouse MCP Database Explorer"
           >
-            <Database className="h-3.5 w-3.5 text-emerald-400" />
-            <span className="hidden lg:inline">ClickHouse MCP</span>
+            <Database className="h-3 w-3 text-emerald-400" />
+            <span className="hidden md:inline">ClickHouse</span>
           </Button>
 
-          <div className="h-4 w-px bg-border/60 mx-0.5" />
+          {/* Inspector Toggle (Only relevant in Planning mode) */}
+          {mainTab === "planning" && (
+            <Button
+              size="sm"
+              variant={isSidebarOpen ? "secondary" : "outline"}
+              onClick={toggleSidebar}
+              className="h-7 gap-1 text-xs border-border/70 text-foreground cursor-pointer px-2"
+              title="Toggle Studio Inspector"
+            >
+              <Sliders className="h-3 w-3 text-cyan-400" />
+              <span className="hidden xl:inline">{isSidebarOpen ? "Hide Inspector" : "Inspector"}</span>
+            </Button>
+          )}
 
-          {/* Inspector Toggle */}
-          <Button
-            size="sm"
-            variant={isSidebarOpen ? "secondary" : "outline"}
-            onClick={toggleSidebar}
-            className="h-8 gap-1.5 text-xs border-border/80 text-foreground cursor-pointer px-2.5"
-            title="Toggle Studio Parameter Inspector"
-          >
-            <Sliders className="h-3.5 w-3.5 text-cyan-400" />
-            <span className="hidden xl:inline">{isSidebarOpen ? "Hide Inspector" : "Inspector"}</span>
-          </Button>
+          <div className="h-3.5 w-px bg-border/60 mx-0.5" />
 
           {/* AI Commander Primary Action Button */}
           <Button
             size="sm"
             onClick={() => setAiCommanderOpen(true)}
-            className="h-8 gap-1.5 text-xs bg-accent text-accent-foreground hover:bg-accent/90 shadow-md font-semibold cursor-pointer px-3"
-            title="Summon Centralized Studio Executive AI Commander (Autonomous CRUD)"
+            className="h-7 gap-1.5 text-xs bg-accent text-accent-foreground hover:bg-accent/90 font-semibold cursor-pointer px-2.5 shadow-xs"
+            title="Summon Studio AI Commander"
           >
-            <Zap className="h-3.5 w-3.5" />
+            <Zap className="h-3 w-3" />
             <span>AI Commander</span>
           </Button>
         </div>
       </header>
 
-      {/* Resizable Studio Layout */}
-      <div className="flex-1 min-h-0 relative overflow-hidden">
-        <ResizablePanelGroup orientation="vertical" className="h-full w-full">
+      {/* Active Studio Workspace */}
+      <div className="flex-1 min-h-0 relative overflow-hidden flex flex-col">
+        {mainTab === "planning" && (
+          <ResizablePanelGroup orientation="vertical" className="h-full w-full">
           {/* Top Panel: Canvas + Resizable Inspector Sidebar */}
           <ResizablePanel
             panelRef={topPanelRef}
@@ -1615,8 +1654,8 @@ export default function StudioPage() {
                         className="flex items-center gap-2 rounded-full border border-border/80 bg-card/95 px-4 py-2 text-xs font-semibold text-foreground shadow-2xl backdrop-blur hover:bg-secondary hover:border-accent transition-all cursor-pointer"
                       >
                         <PanelBottomOpen className="h-4 w-4 text-accent" />
-                        <span>Open Cinema Dock</span>
-                        <span className="text-[10px] text-muted-foreground font-mono">({activeCharacterName})</span>
+                        <span>Open Staging Deck</span>
+                        <span className="text-[10px] text-muted-foreground font-mono">({sceneTitle})</span>
                       </button>
                     </div>
                   )}
@@ -1659,14 +1698,18 @@ export default function StudioPage() {
                   onUnlinkAllForNode={handleUnlinkAllForNode}
                   onOpenHotSeat={(charName) => {
                     setActiveCharacterName(charName);
-                    setActiveTab("hotseat");
+                    setMainTab("simulation");
+                    setSimulationTab("hotseat");
                   }}
                   onOpenScriptReader={() => setScriptViewerOpen(true)}
                   onOpenDeck={(subTab) => {
-                    setActiveTab("deck");
-                    setDeckSubTab(subTab);
+                    setMainTab("planning");
+                    setDeckSubTab(subTab as DeckSubTab);
                   }}
-                  onOpenTableRead={() => setShowTableRead(true)}
+                  onOpenTableRead={() => {
+                    setMainTab("simulation");
+                    setSimulationTab("audio");
+                  }}
                   onClose={() => {
                     inspectorPanelRef.current?.collapse();
                     setIsSidebarOpen(false);
@@ -1701,81 +1744,80 @@ export default function StudioPage() {
               }
             }}
           >
-            {/* Navigation Strip */}
+            {/* Director Staging Strip */}
             <div className="flex h-10 shrink-0 items-center justify-between border-b border-border px-4 bg-secondary/30">
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-mono text-muted-foreground uppercase tracking-wider mr-1 hidden sm:inline">
+                  Director Staging:
+                </span>
                 <button
                   type="button"
-                  onClick={() => setActiveTab("hotseat")}
-                  className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
-                    activeTab === "hotseat"
-                      ? "bg-accent text-accent-foreground shadow-sm"
+                  onClick={() => setDeckSubTab("blocking")}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer",
+                    deckSubTab === "blocking"
+                      ? "bg-accent text-accent-foreground shadow-xs"
                       : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-                  }`}
+                  )}
                 >
-                  <UserCheck className="h-3.5 w-3.5" />
-                  <span>Interrogation Chamber ({activeCharacterName})</span>
+                  <Camera className="h-3.5 w-3.5 text-emerald-400" />
+                  <span>2D Camera Blocking</span>
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => setActiveTab("showrunner")}
-                  className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
-                    activeTab === "showrunner"
-                      ? "bg-accent text-accent-foreground shadow-sm"
+                  onClick={() => setDeckSubTab("tension")}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer",
+                    deckSubTab === "tension"
+                      ? "bg-accent text-accent-foreground shadow-xs"
                       : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-                  }`}
+                  )}
                 >
-                  <Bot className="h-3.5 w-3.5" />
-                  <span>Showrunner AI Co-Pilot</span>
+                  <Activity className="h-3.5 w-3.5 text-cyan-400" />
+                  <span>Tension Curve</span>
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => setActiveTab("chemistry")}
-                  className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
-                    activeTab === "chemistry"
-                      ? "bg-rose-500 text-white shadow-sm"
+                  onClick={() => setDeckSubTab("territory")}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer",
+                    deckSubTab === "territory"
+                      ? "bg-accent text-accent-foreground shadow-xs"
                       : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-                  }`}
+                  )}
                 >
-                  <Users2 className="h-3.5 w-3.5 text-rose-400" />
-                  <span>Dream Casting Bench</span>
+                  <Database className="h-3.5 w-3.5 text-purple-400" />
+                  <span>Territory Comps</span>
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => setActiveTab("deck")}
-                  className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
-                    activeTab === "deck"
-                      ? "bg-accent text-accent-foreground shadow-sm"
+                  onClick={() => setDeckSubTab("stripboard")}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer",
+                    deckSubTab === "stripboard"
+                      ? "bg-accent text-accent-foreground shadow-xs"
                       : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-                  }`}
+                  )}
                 >
-                  <Layers className="h-3.5 w-3.5" />
-                  <span>Director&apos;s Deck Suite</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("audio")}
-                  className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-colors cursor-pointer ${
-                    activeTab === "audio"
-                      ? "bg-cyan-600 text-white shadow-sm"
-                      : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-                  }`}
-                >
-                  <Headphones className="h-3.5 w-3.5 text-cyan-400" />
-                  <span>Audio Studio &amp; ADR</span>
+                  <Layers className="h-3.5 w-3.5 text-amber-400" />
+                  <span>Stripboard</span>
                 </button>
               </div>
 
               {/* Status Badge & Dock View Controls */}
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground">
-                  <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="hidden md:inline">ClickHouse Sub-ms Time-Gate Active</span>
-                </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setMainTab("simulation")}
+                  className="hidden md:flex items-center gap-1.5 text-xs text-cyan-300 hover:text-cyan-200 px-2.5 py-1 rounded-md border border-cyan-500/30 bg-cyan-500/10 cursor-pointer"
+                  title="Switch to Pre-viz Simulation Suite (Shift+2)"
+                >
+                  <Cpu className="h-3 w-3" />
+                  <span>Simulation Suite ↗</span>
+                </button>
 
                 <div className="h-3.5 w-[1px] bg-border" />
 
@@ -1817,8 +1859,149 @@ export default function StudioPage() {
               </div>
             </div>
 
-            {/* Tab 1: Timeline Scrubber & Hot Seat Interrogation */}
-            {activeTab === "hotseat" && (
+            {/* Timeline Scrubber Bar for Staging Deck */}
+            <div className="border-b border-border/50 px-4 py-2 bg-background/50 shrink-0">
+              <TimelineScrubber
+                durationSeconds={DURATION_SECONDS}
+                value={timeSeconds}
+                onChange={setTimeSeconds}
+                events={events}
+              />
+            </div>
+
+            {/* Active Staging Deck Sub-View */}
+            <div className="flex-1 min-h-0 overflow-y-auto p-4">
+              {deckSubTab === "blocking" && (
+                <FloorPlanView
+                  sceneTitle={sceneTitle}
+                  characters={characters}
+                  onSendToVeo={handleSendStagingToVeo}
+                />
+              )}
+              {deckSubTab === "tension" && (
+                <TensionCurveView
+                  currentTimeSeconds={timeSeconds}
+                  onScrubTime={setTimeSeconds}
+                  projectId={projectId}
+                  characters={characters}
+                  events={events}
+                />
+              )}
+              {deckSubTab === "territory" && (
+                <TerritoryHeatmapView
+                  genre={genre}
+                  projectTitle={projectTitle}
+                  logline={premiseInput}
+                />
+              )}
+              {deckSubTab === "stripboard" && (
+                <StripboardView
+                  projectTitle={projectTitle}
+                  characters={characters}
+                  screenplayText={screenplayText}
+                  projectId={projectId}
+                />
+              )}
+            </div>
+          </ResizablePanel>
+        </ResizablePanelGroup>
+        )}
+
+        {/* TAB 2: Pre-viz Simulation Suite (Voice Cadence, Interrogation, Chemistry Bench, Showrunner Co-Pilot) */}
+        {mainTab === "simulation" && (
+          <div className="flex flex-1 flex-col min-h-0 overflow-hidden bg-background">
+            {/* Simulation Sub-Navigation Bar */}
+            <div className="flex h-11 shrink-0 items-center justify-between border-b border-border px-4 bg-card/60 backdrop-blur-sm">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <span className="text-[11px] font-mono text-muted-foreground uppercase tracking-wider mr-2 hidden md:inline">
+                  Simulation Arena:
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => setSimulationTab("audio")}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer",
+                    simulationTab === "audio"
+                      ? "bg-accent text-accent-foreground shadow-xs"
+                      : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  )}
+                >
+                  <Headphones className="h-3.5 w-3.5 text-cyan-400" />
+                  <span>AI Voice &amp; Cadence</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSimulationTab("hotseat")}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer",
+                    simulationTab === "hotseat"
+                      ? "bg-accent text-accent-foreground shadow-xs"
+                      : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  )}
+                >
+                  <MessageSquare className="h-3.5 w-3.5 text-amber-400" />
+                  <span>Character Interrogation</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSimulationTab("chemistry")}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer",
+                    simulationTab === "chemistry"
+                      ? "bg-accent text-accent-foreground shadow-xs"
+                      : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  )}
+                >
+                  <Flame className="h-3.5 w-3.5 text-rose-400" />
+                  <span>Dream Casting &amp; Chemistry</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSimulationTab("showrunner")}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer",
+                    simulationTab === "showrunner"
+                      ? "bg-accent text-accent-foreground shadow-xs"
+                      : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  )}
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+                  <span>Showrunner AI Co-Pilot</span>
+                </button>
+              </div>
+
+              {/* Quick Link to Generation */}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setMainTab("generation")}
+                  className="flex items-center gap-1.5 text-xs text-amber-300 hover:text-amber-200 px-2.5 py-1 rounded-md border border-amber-500/30 bg-amber-500/10 cursor-pointer transition-colors"
+                  title="Switch to Veo Media Generation (Shift+3)"
+                >
+                  <Film className="h-3.5 w-3.5" />
+                  <span>Veo Generation ↗</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Sub-Tab 1: AI Voice & Audio Cadence */}
+            {simulationTab === "audio" && (
+              <div className="flex-1 min-h-0 overflow-hidden">
+                <AudioStudioView
+                  characters={characters}
+                  screenplayText={screenplayText}
+                  sceneTitle={sceneTitle}
+                  onOpenVeoVideo={() => setMainTab("generation")}
+                />
+              </div>
+            )}
+
+            {/* Sub-Tab 2: Character Interrogation Chamber */}
+            {simulationTab === "hotseat" && (
               <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
                 <div className="border-b border-border/50 px-4 py-2 bg-background/50 shrink-0 flex items-center justify-between gap-4">
                   <div className="flex-1">
@@ -1833,14 +2016,14 @@ export default function StudioPage() {
                   {/* Character Quick Switcher */}
                   <div className="flex items-center gap-1 shrink-0">
                     <span className="text-[10px] uppercase font-mono text-muted-foreground mr-1 hidden sm:inline">
-                      Interrogate:
+                      Subject:
                     </span>
                     {characters.map((c) => (
                       <button
                         key={c.name}
                         type="button"
                         onClick={() => setActiveCharacterName(c.name)}
-                        className={`rounded px-2.5 py-1 text-xs font-semibold transition-all ${
+                        className={`rounded px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer ${
                           activeCharacterName === c.name
                             ? "bg-accent text-accent-foreground shadow-xs"
                             : "bg-secondary/40 text-muted-foreground hover:text-foreground"
@@ -1852,7 +2035,7 @@ export default function StudioPage() {
                   </div>
                 </div>
 
-                <div className="flex-1 min-h-0 overflow-hidden p-2 flex flex-col">
+                <div className="flex-1 min-h-0 overflow-hidden p-3 flex flex-col">
                   <HotSeatChat
                     characterName={activeCharacterName}
                     characterArchetype={activeCharacter?.archetype}
@@ -1873,25 +2056,8 @@ export default function StudioPage() {
               </div>
             )}
 
-            {/* Tab 2: Showrunner AI Co-Pilot */}
-            {activeTab === "showrunner" && (
-              <div className="flex-1 min-h-0 overflow-hidden p-2 flex flex-col">
-                <ShowrunnerChat
-                  messages={showrunnerMessages}
-                  isThinking={isShowrunnerThinking}
-                  onSendMessage={handleSendShowrunner}
-                  suggestedPrompts={[
-                    `Analyze dramatic tension for ${projectTitle}`,
-                    `Suggest subtext improvements for ${activeCharacterName}'s dialogue`,
-                    "Query ClickHouse box-office precedents for this premise",
-                  ]}
-                  className="h-full w-full"
-                />
-              </div>
-            )}
-
-            {/* Tab 3: Dream Casting Chemistry Bench */}
-            {activeTab === "chemistry" && (
+            {/* Sub-Tab 3: Dream Casting & Friction Sandbox */}
+            {simulationTab === "chemistry" && (
               <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-3">
                 <div className="flex items-center justify-between shrink-0">
                   <div>
@@ -1901,19 +2067,19 @@ export default function StudioPage() {
                       {characters[1]?.name || "Counterpart"})
                     </h4>
                     <p className="text-xs text-muted-foreground">
-                      Simulates how two contrasting character vocal profiles and secrets clash in an unexpected situation.
+                      Simulate how contrasting character motivations, secrets, and speech styles clash before production.
                     </p>
                   </div>
                   <Button
                     size="sm"
                     onClick={handleRunChemistry}
                     disabled={isChemistryRunning}
-                    className="bg-rose-500 hover:bg-rose-600 text-white font-semibold gap-1.5"
+                    className="bg-rose-500 hover:bg-rose-600 text-white font-semibold gap-1.5 cursor-pointer"
                   >
                     {isChemistryRunning ? (
                       <>
                         <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                        <span>Simulating Scene...</span>
+                        <span>Simulating Conflict...</span>
                       </>
                     ) : (
                       <>
@@ -1930,16 +2096,16 @@ export default function StudioPage() {
                     value={chemistryScenario}
                     onChange={(e) => setChemistryScenario(e.target.value)}
                     placeholder="Enter an environmental conflict scenario..."
-                    className="flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-xs text-foreground font-mono"
+                    className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-accent"
                   />
                 </div>
 
                 {chemistrySceneOutput ? (
-                  <div className="flex-1 min-h-0 rounded-lg border border-border bg-background/80 p-4 font-mono text-xs leading-relaxed text-foreground overflow-y-auto shadow-inner">
+                  <div className="flex-1 min-h-0 rounded-lg border border-border bg-card/60 p-4 font-mono text-xs leading-relaxed text-foreground overflow-y-auto shadow-inner">
                     <MarkdownRenderer content={chemistrySceneOutput} />
                   </div>
                 ) : (
-                  <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-border/80 p-6 text-center text-xs text-muted-foreground">
+                  <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-border/80 p-8 text-center text-xs text-muted-foreground">
                     Click &ldquo;Run Chemistry Test&rdquo; to simulate an impromptu friction scene between{" "}
                     {characters[0]?.name || "Lead"} and {characters[1]?.name || "Counterpart"}.
                   </div>
@@ -1947,105 +2113,49 @@ export default function StudioPage() {
               </div>
             )}
 
-            {/* Tab 4: Director's Deck Suite */}
-            {activeTab === "deck" && (
-              <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
-                <div className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-1.5 bg-secondary/20">
-                  <button
-                    type="button"
-                    onClick={() => setDeckSubTab("blocking")}
-                    className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
-                      deckSubTab === "blocking"
-                        ? "bg-accent text-accent-foreground"
-                        : "text-muted-foreground hover:bg-secondary"
-                    }`}
-                  >
-                    2D Camera Blocking
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDeckSubTab("tension")}
-                    className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
-                      deckSubTab === "tension"
-                        ? "bg-accent text-accent-foreground"
-                        : "text-muted-foreground hover:bg-secondary"
-                    }`}
-                  >
-                    Tension &amp; Pacing Curve
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDeckSubTab("territory")}
-                    className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
-                      deckSubTab === "territory"
-                        ? "bg-accent text-accent-foreground"
-                        : "text-muted-foreground hover:bg-secondary"
-                    }`}
-                  >
-                    Territory Box Office
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDeckSubTab("stripboard")}
-                    className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
-                      deckSubTab === "stripboard"
-                        ? "bg-accent text-accent-foreground"
-                        : "text-muted-foreground hover:bg-secondary"
-                    }`}
-                  >
-                    Production Stripboard
-                  </button>
-                </div>
-
-                <div className="flex-1 min-h-0 overflow-y-auto p-4">
-                  {deckSubTab === "blocking" && (
-                    <FloorPlanView sceneTitle={sceneTitle} characters={characters} />
-                  )}
-                  {deckSubTab === "tension" && (
-                    <TensionCurveView
-                      currentTimeSeconds={timeSeconds}
-                      onScrubTime={setTimeSeconds}
-                      projectId={projectId}
-                      characters={characters}
-                      events={events}
-                    />
-                  )}
-                  {deckSubTab === "territory" && (
-                    <TerritoryHeatmapView
-                      genre={genre}
-                      projectTitle={projectTitle}
-                      logline={premiseInput}
-                    />
-                  )}
-                  {deckSubTab === "stripboard" && (
-                    <StripboardView
-                      projectTitle={projectTitle}
-                      characters={characters}
-                      screenplayText={screenplayText}
-                      projectId={projectId}
-                    />
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Tab 5: Dedicated Audio Studio & Multitrack Mixing Suite */}
-            {activeTab === "audio" && (
-              <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
-                <AudioStudioView
-                  characters={characters}
-                  screenplayText={screenplayText}
-                  sceneTitle={sceneTitle}
-                  onOpenVeoVideo={() => setVeoVideoOpen(true)}
+            {/* Sub-Tab 4: Showrunner AI Co-Pilot */}
+            {simulationTab === "showrunner" && (
+              <div className="flex-1 min-h-0 overflow-hidden p-3 flex flex-col">
+                <ShowrunnerChat
+                  messages={showrunnerMessages}
+                  isThinking={isShowrunnerThinking}
+                  onSendMessage={handleSendShowrunner}
+                  suggestedPrompts={[
+                    `Analyze dramatic tension for ${projectTitle}`,
+                    `Suggest subtext improvements for ${activeCharacterName}'s dialogue`,
+                    "Query ClickHouse box-office precedents for this premise",
+                  ]}
+                  className="h-full w-full"
                 />
               </div>
             )}
-          </ResizablePanel>
-        </ResizablePanelGroup>
+          </div>
+        )}
+
+        {/* TAB 3: Google Veo 3.1 & Master Cinema Video Generator */}
+        {mainTab === "generation" && (
+          <GenerationStudioView
+            sceneTitle={sceneTitle}
+            sceneSummary={sceneSummary}
+            screenplayText={screenplayText}
+            characters={characters}
+            genre={genre}
+            projectTitle={projectTitle}
+            onReturnToStudio={() => setMainTab("planning")}
+            initialCameraMotion={stagedCameraMotion}
+            initialPromptNote={stagedPromptNote}
+          />
+        )}
       </div>
 
-      {/* Persistent Bottom ClickHouse Live Inspector */}
-      <ClickHouseInspector logs={queryLogs} lastSql={lastSql} />
+      {/* ClickHouse Live Query Inspector Drawer */}
+      <ClickHouseInspector
+        logs={queryLogs}
+        lastSql={lastSql}
+        isOpen={isClickHouseInspectorOpen}
+        onToggle={() => setIsClickHouseInspectorOpen(!isClickHouseInspectorOpen)}
+        onClose={() => setIsClickHouseInspectorOpen(false)}
+      />
 
       {/* Screenplay Reader & Editor Modal */}
       <ScreenplayDialog
@@ -2060,6 +2170,18 @@ export default function StudioPage() {
         }}
         onReshard={handleReshardScript}
         isResharding={isGenerating}
+      />
+
+      {/* Director's Pitch Lookbook & Production Bible */}
+      <DirectorLookbookDialog
+        open={lookbookOpen}
+        onOpenChange={setLookbookOpen}
+        projectTitle={projectTitle}
+        genre={genre}
+        premise={premiseInput}
+        sceneTitle={sceneTitle}
+        sceneSummary={sceneSummary}
+        characters={characters}
       />
 
       {/* Audio Table Read Modal */}

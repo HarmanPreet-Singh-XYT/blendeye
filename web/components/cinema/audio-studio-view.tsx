@@ -9,23 +9,24 @@ import {
   VolumeX,
   Play,
   Pause,
-  SkipBack,
-  SkipForward,
   Sparkles,
   Sliders,
-  Mic,
   Headphones,
   Radio,
-  Music,
   RotateCcw,
   Check,
-  Activity,
+  Film,
+  Music,
+  User,
+  MessageSquare,
+  Volume1,
   Layers,
-  Settings2,
-  Video,
-  ExternalLink,
-  ChevronDown,
+  Activity,
+  Mic,
+  RefreshCw,
+  Zap,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { ProjectCharacter } from "@/lib/project-store";
 
 interface AudioStudioViewProps {
@@ -35,34 +36,20 @@ interface AudioStudioViewProps {
   onOpenVeoVideo?: () => void;
 }
 
-interface ChannelStripState {
+interface ChannelVoiceState {
   id: string;
   name: string;
   characterKey: string;
   voiceName: string;
-  formantShift: number; // -12 to +12 semitones
-  pitchFine: number; // -12 to +12
-  speed: number; // 0.75 to 1.5
   deliveryStyle: string;
-  eqHigh: number; // -12 to +12 dB
-  eqHighMid: number; // -12 to +12 dB
-  eqLowMid: number; // -12 to +12 dB
-  eqLow: number; // -12 to +12 dB
-  hpfEnabled: boolean;
-  compThreshold: number; // -40 to 0 dB
-  compRatio: string; // "2:1", "4:1", "8:1"
-  compGain: number; // 0 to +12 dB
-  deEsser: boolean;
+  speed: number; // 0.8 to 1.3
+  pitchFine: number; // -6 to +6
+  formantShift: number; // -6 to +6
+  pan: number; // -100 to +100
   reverbSend: number; // 0 to 100%
   reverbRoom: string;
-  delaySend: number; // 0 to 100%
-  delayTime: string; // "80ms", "160ms", "320ms"
-  pan: number; // -100 to +100
-  faderDb: number; // -60 to +6 dB (0 is unity)
   isMuted: boolean;
   isSolo: boolean;
-  isPhaseInverted: boolean;
-  isAuditionActive: boolean;
 }
 
 const AVAILABLE_VOICES = [
@@ -84,14 +71,11 @@ const DELIVERY_STYLES = [
 ];
 
 const REVERB_ROOMS = [
-  "Interrogation Vault (Dry Concrete)",
-  "Rain-Slicked Pier (Exterior Slap)",
-  "Industrial Warehouse (Long Tail)",
-  "Service Elevator (Tight Tube)",
-  "Scoring Sound Stage (Warm Wood)",
+  { id: "vault", name: "Interrogation Vault (Dry Concrete)", desc: "Short decay, cold reflections, high dialogue clarity" },
+  { id: "pier", name: "Rain-Slicked Pier (Exterior Slap)", desc: "Open air slapback with distant ambient spill" },
+  { id: "warehouse", name: "Industrial Warehouse (Long Tail)", desc: "Deep cinematic metallic reverberation" },
+  { id: "soundstage", name: "Scoring Sound Stage (Warm Wood)", desc: "Acoustically treated Hollywood soundstage" },
 ];
-
-const COMP_RATIOS = ["1.5:1", "2:1", "4:1", "8:1", "Limit"];
 
 export function AudioStudioView({
   characters,
@@ -99,149 +83,91 @@ export function AudioStudioView({
   sceneTitle,
   onOpenVeoVideo,
 }: AudioStudioViewProps) {
-  // Active selected view mode: "mixer" | "audition" | "eq"
-  const [activeConsoleTab, setActiveConsoleTab] = React.useState<"mixer" | "audition" | "eq">("mixer");
+  const [activeTab, setActiveTab] = React.useState<"tableread" | "cast" | "acoustics">("tableread");
 
-  // Professional Channel Strips State
-  const [channels, setChannels] = React.useState<Record<string, ChannelStripState>>({
+  // Character voice profiles
+  const [channels, setChannels] = React.useState<Record<string, ChannelVoiceState>>({
     DX1: {
       id: "DX1",
-      name: "DX-1 MARCUS",
+      name: "MARCUS",
       characterKey: "MARCUS",
       voiceName: "Fenrir",
-      formantShift: -2,
-      pitchFine: 0,
-      speed: 1.0,
       deliveryStyle: "High Stakes Interrogation",
-      eqHigh: 1.5,
-      eqHighMid: 2.0,
-      eqLowMid: -1.0,
-      eqLow: 0.5,
-      hpfEnabled: true,
-      compThreshold: -18,
-      compRatio: "4:1",
-      compGain: 3,
-      deEsser: true,
-      reverbSend: 22,
-      reverbRoom: "Interrogation Vault (Dry Concrete)",
-      delaySend: 10,
-      delayTime: "80ms",
+      speed: 1.0,
+      pitchFine: 0,
+      formantShift: -2,
       pan: -20,
-      faderDb: 0.0,
+      reverbSend: 20,
+      reverbRoom: "Interrogation Vault (Dry Concrete)",
       isMuted: false,
       isSolo: false,
-      isPhaseInverted: false,
-      isAuditionActive: true,
     },
     DX2: {
       id: "DX2",
-      name: "DX-2 ELENA",
+      name: "ELENA",
       characterKey: "ELENA",
       voiceName: "Aoede",
-      formantShift: 1,
-      pitchFine: 1,
-      speed: 0.98,
       deliveryStyle: "Cold Analytical (Detached)",
-      eqHigh: 2.5,
-      eqHighMid: 1.0,
-      eqLowMid: -2.0,
-      eqLow: -1.0,
-      hpfEnabled: true,
-      compThreshold: -16,
-      compRatio: "4:1",
-      compGain: 2.5,
-      deEsser: true,
+      speed: 0.98,
+      pitchFine: 1,
+      formantShift: 1,
+      pan: 20,
       reverbSend: 25,
       reverbRoom: "Interrogation Vault (Dry Concrete)",
-      delaySend: 12,
-      delayTime: "80ms",
-      pan: 20,
-      faderDb: -0.5,
       isMuted: false,
       isSolo: false,
-      isPhaseInverted: false,
-      isAuditionActive: false,
     },
     DX3: {
       id: "DX3",
-      name: "DX-3 NARRATOR",
+      name: "NARRATOR",
       characterKey: "NARRATOR",
       voiceName: "Zephyr",
-      formantShift: -4,
-      pitchFine: -1,
-      speed: 1.04,
       deliveryStyle: "Gravelly Neo-Noir",
-      eqHigh: 0.0,
-      eqHighMid: -1.0,
-      eqLowMid: 1.0,
-      eqLow: 3.0,
-      hpfEnabled: false,
-      compThreshold: -14,
-      compRatio: "2:1",
-      compGain: 1.0,
-      deEsser: false,
+      speed: 1.02,
+      pitchFine: -1,
+      formantShift: -4,
+      pan: 0,
       reverbSend: 15,
       reverbRoom: "Scoring Sound Stage (Warm Wood)",
-      delaySend: 0,
-      delayTime: "160ms",
-      pan: 0,
-      faderDb: -2.0,
       isMuted: false,
       isSolo: false,
-      isPhaseInverted: false,
-      isAuditionActive: false,
-    },
-    MX1: {
-      id: "MX1",
-      name: "MX-1 LYRIA SCORE",
-      characterKey: "SCORE",
-      voiceName: "Synth",
-      formantShift: 0,
-      pitchFine: 0,
-      speed: 1.0,
-      deliveryStyle: "Cinematic Atmosphere",
-      eqHigh: -3.0,
-      eqHighMid: -4.0,
-      eqLowMid: 2.0,
-      eqLow: 4.0,
-      hpfEnabled: false,
-      compThreshold: -22,
-      compRatio: "2:1",
-      compGain: 0,
-      deEsser: false,
-      reverbSend: 45,
-      reverbRoom: "Industrial Warehouse (Long Tail)",
-      delaySend: 20,
-      delayTime: "320ms",
-      pan: 0,
-      faderDb: -8.0,
-      isMuted: false,
-      isSolo: false,
-      isPhaseInverted: false,
-      isAuditionActive: false,
     },
   });
 
-  // Master Bus Controls
-  const [masterFaderDb, setMasterFaderDb] = React.useState<number>(0.0);
-  const [isLimiterActive, setIsLimiterActive] = React.useState<boolean>(true);
-  const [lufsTarget, setLufsTarget] = React.useState<string>("-23 LUFS (Broadcast)");
-  const [isAmbientPlaying, setIsAmbientPlaying] = React.useState<boolean>(false);
+  // Active character selected in Voice Shaper
+  const [selectedChannelId, setSelectedChannelId] = React.useState<string>("DX1");
 
-  // Audition sandbox state
-  const [activeAuditionChannel, setActiveAuditionChannel] = React.useState<string>("DX1");
+  // Ambient Drone Soundtrack (Lyria Bed)
+  const [isAmbientPlaying, setIsAmbientPlaying] = React.useState<boolean>(false);
+  const ambientContextRef = React.useRef<AudioContext | null>(null);
+
+  // Audition single line test
   const [auditionText, setAuditionText] = React.useState<string>(
     "The vault codes were wiped before we breached the perimeter."
   );
   const [isAuditioning, setIsAuditioning] = React.useState<boolean>(false);
   const [auditionSuccess, setAuditionSuccess] = React.useState<boolean>(false);
 
-  // Master Assembly Playback State
+  // Client-Side Audio Cache to avoid duplicate API requests and cost
+  const [cachedAudioMap, setCachedAudioMap] = React.useState<Record<string, string>>({});
+  const [isPreCaching, setIsPreCaching] = React.useState<boolean>(false);
+
+  // Helper to build deterministic line cache key
+  const getLineKey = React.useCallback(
+    (speakerKey: string, text: string) => {
+      const speakerUpper = speakerKey.toUpperCase();
+      let ch = channels.DX1;
+      if (speakerUpper.includes("ELENA")) ch = channels.DX2;
+      else if (speakerUpper.includes("NARRATOR")) ch = channels.DX3;
+      return `${ch.characterKey}:${ch.voiceName}:${text.trim()}`;
+    },
+    [channels]
+  );
+
+  // Sequential Scene Table Read
   const [isPlayingMaster, setIsPlayingMaster] = React.useState<boolean>(false);
   const [currentLineIdx, setCurrentLineIdx] = React.useState<number>(0);
-
   const activeAudioRef = React.useRef<HTMLAudioElement | null>(null);
-  const ambientContextRef = React.useRef<AudioContext | null>(null);
 
   // Parse lines for sequential playback
   const scriptLines = React.useMemo(() => {
@@ -255,7 +181,7 @@ export function AudioStudioView({
       if (/^[A-Z0-9\s]{2,25}$/.test(line) && !line.includes(" - ")) {
         currentSpeaker = line;
       } else if (line.startsWith("(") && line.endsWith(")")) {
-        // Skip purely visual action line
+        // Skip purely visual cues
       } else {
         parsed.push({ id: idx, speaker: currentSpeaker, text: line });
       }
@@ -263,30 +189,49 @@ export function AudioStudioView({
     return parsed;
   }, [screenplayText]);
 
-  const updateChannel = (channelId: string, patch: Partial<ChannelStripState>) => {
+  const updateChannel = (channelId: string, patch: Partial<ChannelVoiceState>) => {
     setChannels((prev) => ({
       ...prev,
       [channelId]: { ...prev[channelId], ...patch },
     }));
   };
 
-  // Convert dB to linear gain: 10^(dB/20)
-  const dbToLinear = (db: number) => Math.pow(10, db / 20);
-
-  // Audition single channel voice via Gemini 3.1 Flash TTS
-  const handleAudition = async () => {
+  // Audition a specific line or custom text (checking client cache first)
+  const handleAuditionLine = async (speakerKey: string, text: string) => {
     if (isAuditioning) return;
     setIsAuditioning(true);
     setAuditionSuccess(false);
 
-    const ch = channels[activeAuditionChannel] || channels["DX1"];
+    const speakerUpper = speakerKey.toUpperCase();
+    let ch = channels.DX1;
+    if (speakerUpper.includes("ELENA")) ch = channels.DX2;
+    else if (speakerUpper.includes("NARRATOR")) ch = channels.DX3;
 
+    const cacheKey = getLineKey(speakerKey, text);
+
+    // 1. Check client-side memory cache
+    if (cachedAudioMap[cacheKey]) {
+      try {
+        if (activeAudioRef.current) activeAudioRef.current.pause();
+        const audio = new Audio(cachedAudioMap[cacheKey]);
+        activeAudioRef.current = audio;
+        audio.playbackRate = ch.speed;
+        await audio.play();
+        setAuditionSuccess(true);
+        setTimeout(() => setAuditionSuccess(false), 2500);
+      } finally {
+        setIsAuditioning(false);
+      }
+      return;
+    }
+
+    // 2. Fetch from cached server proxy
     try {
       const res = await fetch("/api/media/tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          text: auditionText,
+          text,
           speaker: ch.characterKey,
           voice_name: ch.voiceName,
         }),
@@ -295,16 +240,15 @@ export function AudioStudioView({
       if (res.ok) {
         const data = await res.json();
         if (data.audio_url) {
+          setCachedAudioMap((prev) => ({ ...prev, [cacheKey]: data.audio_url }));
+
           if (activeAudioRef.current) activeAudioRef.current.pause();
           const audio = new Audio(data.audio_url);
           activeAudioRef.current = audio;
           audio.playbackRate = ch.speed;
-          // Apply fader gain
-          const gain = dbToLinear(ch.faderDb) * dbToLinear(masterFaderDb);
-          audio.volume = Math.max(0, Math.min(1, gain));
           await audio.play();
           setAuditionSuccess(true);
-          setTimeout(() => setAuditionSuccess(false), 2000);
+          setTimeout(() => setAuditionSuccess(false), 2500);
         }
       }
     } catch (err) {
@@ -314,7 +258,7 @@ export function AudioStudioView({
     }
   };
 
-  // Web Audio API Cinematic Drone (Lyria 3 style)
+  // Ambient sound synthesizer
   const toggleAmbientSoundtrack = () => {
     if (isAmbientPlaying) {
       if (ambientContextRef.current) {
@@ -333,16 +277,15 @@ export function AudioStudioView({
         const gain = ctx.createGain();
 
         oscSub.type = "sine";
-        oscSub.frequency.setValueAtTime(45, ctx.currentTime); // Sub-bass 45Hz
+        oscSub.frequency.setValueAtTime(45, ctx.currentTime);
 
         oscDrone.type = "sawtooth";
-        oscDrone.frequency.setValueAtTime(90, ctx.currentTime); // 90Hz harmonic
+        oscDrone.frequency.setValueAtTime(90, ctx.currentTime);
 
         filter.type = "lowpass";
-        filter.frequency.setValueAtTime(220, ctx.currentTime); // Dark cinema dampening
+        filter.frequency.setValueAtTime(220, ctx.currentTime);
 
-        const mxGain = dbToLinear(channels.MX1.faderDb) * dbToLinear(masterFaderDb) * 0.18;
-        gain.gain.setValueAtTime(Math.max(0, Math.min(0.5, mxGain)), ctx.currentTime);
+        gain.gain.setValueAtTime(0.08, ctx.currentTime);
 
         oscSub.connect(filter);
         oscDrone.connect(filter);
@@ -358,7 +301,7 @@ export function AudioStudioView({
     }
   };
 
-  // Sequential line player
+  // Sequential Scene Table Read Player
   const playMasterLine = React.useCallback(
     async (idx: number) => {
       if (idx >= scriptLines.length) {
@@ -380,6 +323,27 @@ export function AudioStudioView({
         return;
       }
 
+      const cacheKey = getLineKey(item.speaker, item.text);
+
+      // Check client-side cache first
+      if (cachedAudioMap[cacheKey]) {
+        const audio = new Audio(cachedAudioMap[cacheKey]);
+        activeAudioRef.current = audio;
+        audio.playbackRate = targetChannel.speed;
+        audio.onended = () => {
+          if (idx + 1 < scriptLines.length) {
+            setCurrentLineIdx(idx + 1);
+            playMasterLine(idx + 1);
+          } else {
+            setIsPlayingMaster(false);
+            setCurrentLineIdx(0);
+          }
+        };
+        audio.onerror = () => setIsPlayingMaster(false);
+        await audio.play();
+        return;
+      }
+
       try {
         const res = await fetch("/api/media/tts", {
           method: "POST",
@@ -394,29 +358,72 @@ export function AudioStudioView({
         if (res.ok) {
           const data = await res.json();
           if (data.audio_url) {
+            setCachedAudioMap((prev) => ({ ...prev, [cacheKey]: data.audio_url }));
             const audio = new Audio(data.audio_url);
             activeAudioRef.current = audio;
             audio.playbackRate = targetChannel.speed;
-            const gain = dbToLinear(targetChannel.faderDb) * dbToLinear(masterFaderDb);
-            audio.volume = Math.max(0, Math.min(1, gain));
             audio.onended = () => {
-              if (isPlayingMaster && idx + 1 < scriptLines.length) {
+              if (idx + 1 < scriptLines.length) {
                 setCurrentLineIdx(idx + 1);
                 playMasterLine(idx + 1);
               } else {
                 setIsPlayingMaster(false);
+                setCurrentLineIdx(0);
               }
             };
             audio.onerror = () => setIsPlayingMaster(false);
             await audio.play();
+          } else {
+            setIsPlayingMaster(false);
           }
+        } else {
+          setIsPlayingMaster(false);
         }
-      } catch {
+      } catch (err) {
+        console.error("Sequential play error:", err);
         setIsPlayingMaster(false);
       }
     },
-    [scriptLines, channels, isPlayingMaster, masterFaderDb]
+    [scriptLines, channels, cachedAudioMap, getLineKey]
   );
+
+  // Pre-cache all dialogue turns in background
+  const handlePrecacheAll = async () => {
+    if (isPreCaching) return;
+    setIsPreCaching(true);
+    try {
+      for (const item of scriptLines) {
+        const cacheKey = getLineKey(item.speaker, item.text);
+        if (cachedAudioMap[cacheKey]) continue;
+
+        const speakerUpper = item.speaker.trim().toUpperCase();
+        let targetChannel = channels.DX1;
+        if (speakerUpper.includes("ELENA")) targetChannel = channels.DX2;
+        else if (speakerUpper.includes("NARRATOR")) targetChannel = channels.DX3;
+
+        const res = await fetch("/api/media/tts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text: item.text,
+            speaker: targetChannel.characterKey,
+            voice_name: targetChannel.voiceName,
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.audio_url) {
+            setCachedAudioMap((prev) => ({ ...prev, [cacheKey]: data.audio_url }));
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Pre-cache error:", err);
+    } finally {
+      setIsPreCaching(false);
+    }
+  };
 
   const togglePlayMaster = () => {
     if (isPlayingMaster) {
@@ -435,634 +442,532 @@ export function AudioStudioView({
     };
   }, []);
 
+  const activeChannel = channels[selectedChannelId] || channels.DX1;
+  const cachedCount = scriptLines.filter((l) => Boolean(cachedAudioMap[getLineKey(l.speaker, l.text)])).length;
+
   return (
-    <div className="flex h-full w-full flex-col overflow-y-auto bg-[#0a0c10] text-foreground p-5 space-y-4 select-none">
-      {/* Top Console Meterbridge & Global Header */}
-      <div className="flex items-center justify-between border-b border-border/80 pb-3 bg-secondary/10 px-4 py-2.5 rounded-xl border">
-        <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-lg bg-cyan-500/15 border border-cyan-500/40 flex items-center justify-center shadow-lg">
-            <Headphones className="h-5 w-5 text-cyan-400" />
+    <div className="flex h-full w-full flex-col overflow-hidden bg-background text-foreground select-none">
+      {/* Top Header Bar */}
+      <div className="flex items-center justify-between border-b border-border px-4 py-2.5 bg-card/60 backdrop-blur-sm shrink-0">
+        <div className="flex items-center gap-2.5">
+          <div className="h-8 w-8 rounded-lg bg-accent/15 border border-accent/30 flex items-center justify-center text-accent">
+            <Headphones className="h-4 w-4" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-heading font-bold uppercase tracking-wider text-foreground">
-                Fairlight Studio Console · {sceneTitle}
-              </h2>
-              <Badge variant="outline" className="border-cyan-500/40 bg-cyan-500/10 text-cyan-300 text-[10px] font-mono">
-                Gemini 3.1 TTS + Lyria Bus
+              <span className="text-xs font-heading font-bold uppercase tracking-wider text-foreground">
+                AI Voice &amp; Cadence Simulation
+              </span>
+              <Badge variant="outline" className="border-accent/40 bg-accent/10 text-accent text-[9px] font-mono px-1.5 py-0">
+                Gemini 3.1 TTS
               </Badge>
-              <Badge variant="outline" className="border-purple-500/40 bg-purple-500/10 text-purple-300 text-[10px] font-mono">
+              <Badge variant="outline" className="border-border text-muted-foreground text-[9px] font-mono px-1.5 py-0 hidden sm:inline-flex">
                 EBU R128 (-23 LUFS)
               </Badge>
+              {cachedCount > 0 && (
+                <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-400 text-[9px] font-mono px-1.5 py-0 flex items-center gap-1">
+                  <Zap className="h-2.5 w-2.5" />
+                  {cachedCount}/{scriptLines.length} Cached
+                </Badge>
+              )}
             </div>
-            <p className="text-[11px] text-muted-foreground font-mono">
-              4-Band Parametric EQ · VCA Compressors · Convolution Space · Stem Mapping to Google Veo
+            <p className="text-[10px] text-muted-foreground font-mono">
+              Pre-production acoustic simulation · Cadence &amp; timbre shaping for {sceneTitle}
             </p>
           </div>
         </div>
 
-        {/* Top Transport & Mode Tabs */}
-        <div className="flex items-center gap-2.5">
-          {/* Sub-View Switcher */}
-          <div className="flex items-center rounded-lg border border-border bg-black/50 p-0.5 text-xs font-mono">
-            <button
-              type="button"
-              onClick={() => setActiveConsoleTab("mixer")}
-              className={`px-3 py-1 rounded transition-all cursor-pointer ${
-                activeConsoleTab === "mixer"
-                  ? "bg-cyan-600 text-white font-semibold shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Mixing Console
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveConsoleTab("audition")}
-              className={`px-3 py-1 rounded transition-all cursor-pointer ${
-                activeConsoleTab === "audition"
-                  ? "bg-cyan-600 text-white font-semibold shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              ADR Voice Shaper
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveConsoleTab("eq")}
-              className={`px-3 py-1 rounded transition-all cursor-pointer ${
-                activeConsoleTab === "eq"
-                  ? "bg-cyan-600 text-white font-semibold shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Parametric EQ / Dynamics
-            </button>
-          </div>
+        {/* Global Transport & Mode Actions */}
+        <div className="flex items-center gap-2">
+          {/* Pre-cache All Scene Lines */}
+          <button
+            type="button"
+            onClick={handlePrecacheAll}
+            disabled={isPreCaching}
+            className={cn(
+              "flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-mono transition-colors cursor-pointer",
+              cachedCount === scriptLines.length && scriptLines.length > 0
+                ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300"
+                : "bg-secondary/40 border-border text-muted-foreground hover:text-foreground"
+            )}
+            title="Pre-synthesize all dialogue lines to disk cache for zero-latency, zero-cost playback"
+          >
+            {isPreCaching ? (
+              <RefreshCw className="h-3.5 w-3.5 animate-spin text-accent" />
+            ) : (
+              <Zap className={cn("h-3.5 w-3.5", cachedCount > 0 ? "text-emerald-400" : "text-muted-foreground")} />
+            )}
+            <span>
+              {isPreCaching
+                ? "Caching Audio..."
+                : cachedCount === scriptLines.length && scriptLines.length > 0
+                ? "All Cached"
+                : `${cachedCount}/${scriptLines.length} Cached`}
+            </span>
+          </button>
 
-          {/* Ambient Synth Toggle */}
+          {/* Lyria Ambient Bed */}
           <button
             type="button"
             onClick={toggleAmbientSoundtrack}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-mono font-medium transition-all cursor-pointer ${
+            className={cn(
+              "flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-mono transition-colors cursor-pointer",
               isAmbientPlaying
-                ? "bg-purple-600/30 border-purple-500/60 text-purple-200"
+                ? "bg-purple-500/20 border-purple-500/50 text-purple-300"
                 : "bg-secondary/40 border-border text-muted-foreground hover:text-foreground"
-            }`}
+            )}
+            title="Toggle ambient score bed (synthetic drone)"
           >
-            <Radio className={`h-3.5 w-3.5 ${isAmbientPlaying ? "text-purple-400 animate-pulse" : "text-muted-foreground"}`} />
-            <span>{isAmbientPlaying ? "Score Live" : "Lyria Bed"}</span>
+            <Radio className={cn("h-3.5 w-3.5", isAmbientPlaying ? "text-purple-400 animate-pulse" : "text-muted-foreground")} />
+            <span className="hidden sm:inline">{isAmbientPlaying ? "Score Bed Active" : "Lyria Ambient Bed"}</span>
           </button>
 
-          {/* Master Scene Playback */}
+          {/* Sequential Master Table Read */}
           <Button
             size="sm"
             onClick={togglePlayMaster}
-            className={`h-8 px-4 gap-1.5 text-xs font-semibold cursor-pointer shadow-md ${
+            className={cn(
+              "h-8 px-3 gap-1.5 text-xs font-semibold cursor-pointer shadow-xs",
               isPlayingMaster
                 ? "bg-accent text-accent-foreground animate-pulse"
-                : "bg-cyan-500 hover:bg-cyan-600 text-black"
-            }`}
+                : "bg-cyan-500 hover:bg-cyan-400 text-black font-medium"
+            )}
           >
             {isPlayingMaster ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5 fill-current" />}
-            <span>{isPlayingMaster ? "Pause Scene" : "Play Scene Mix"}</span>
+            <span>
+              {isPlayingMaster
+                ? `Reading Line ${currentLineIdx + 1}/${scriptLines.length}`
+                : "Play Full Table Read"}
+            </span>
           </Button>
 
-          {/* Direct Link to Veo 3.1 Video Mapping */}
+          {/* Jump to Veo Generation */}
           {onOpenVeoVideo && (
             <Button
               size="sm"
               variant="outline"
               onClick={onOpenVeoVideo}
-              className="h-8 px-3 gap-1.5 text-xs border-purple-500/40 text-purple-300 hover:bg-purple-500/15 cursor-pointer"
-              title="Map Audio Stems & Storyboards into Google Veo 3.1"
+              className="h-8 text-xs gap-1.5 border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 cursor-pointer hidden md:flex"
             >
-              <Video className="h-3.5 w-3.5 text-purple-400" />
-              <span className="hidden sm:inline">Map to Veo 3.1</span>
+              <Film className="h-3.5 w-3.5" />
+              <span>Send Stems to Veo ↗</span>
             </Button>
           )}
         </div>
       </div>
 
-      {/* Main Console Board Area */}
-      {activeConsoleTab === "mixer" && (
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-          {/* Channel Strips Area (10 Cols) */}
-          <div className="md:col-span-10 grid grid-cols-4 gap-3 bg-black/60 p-3.5 rounded-xl border border-border/80 shadow-2xl">
-            {Object.values(channels).map((ch) => {
-              const isLeadMarcus = ch.id === "DX1";
-              const isLeadElena = ch.id === "DX2";
-              const accentColor = isLeadMarcus ? "text-accent" : isLeadElena ? "text-rose-400" : "text-cyan-400";
-              const borderAccent = isLeadMarcus ? "border-accent/40" : isLeadElena ? "border-rose-500/40" : "border-border/70";
+      {/* Sub-Navigation Switcher */}
+      <div className="flex h-10 shrink-0 items-center justify-between border-b border-border px-4 bg-secondary/20">
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setActiveTab("tableread")}
+            className={cn(
+              "flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors cursor-pointer",
+              activeTab === "tableread"
+                ? "bg-accent text-accent-foreground shadow-xs font-semibold"
+                : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+            )}
+          >
+            <MessageSquare className="h-3.5 w-3.5" />
+            <span>Scene Table Read &amp; Dialogue Flow</span>
+          </button>
 
-              return (
-                <div
-                  key={ch.id}
-                  className={`flex flex-col rounded-lg border ${borderAccent} bg-card/70 p-3 space-y-3 relative shadow-inner`}
-                >
-                  {/* Strip Header */}
-                  <div className="flex flex-col items-center border-b border-border/50 pb-2 text-center">
-                    <span className={`text-[11px] font-mono font-bold uppercase tracking-wider ${accentColor}`}>
-                      {ch.name}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground font-mono truncate max-w-[120px]">
-                      {ch.voiceName} · {ch.speed}x
-                    </span>
-                  </div>
+          <button
+            type="button"
+            onClick={() => setActiveTab("cast")}
+            className={cn(
+              "flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors cursor-pointer",
+              activeTab === "cast"
+                ? "bg-accent text-accent-foreground shadow-xs font-semibold"
+                : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+            )}
+          >
+            <User className="h-3.5 w-3.5" />
+            <span>Character Voice Casting</span>
+          </button>
 
-                  {/* Rotary Controls: EQ Trim & Pan */}
-                  <div className="space-y-2 bg-black/40 p-2 rounded border border-border/50">
-                    <div className="flex items-center justify-between text-[10px] font-mono">
-                      <span className="text-muted-foreground">Pan</span>
-                      <span className="text-foreground font-bold">
-                        {ch.pan < 0 ? `L${Math.abs(ch.pan)}` : ch.pan > 0 ? `R${ch.pan}` : "C"}
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min="-100"
-                      max="100"
-                      value={ch.pan}
-                      onChange={(e) => updateChannel(ch.id, { pan: parseInt(e.target.value) })}
-                      className="w-full h-1 accent-cyan-400 bg-secondary rounded cursor-pointer"
-                    />
+          <button
+            type="button"
+            onClick={() => setActiveTab("acoustics")}
+            className={cn(
+              "flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors cursor-pointer",
+              activeTab === "acoustics"
+                ? "bg-accent text-accent-foreground shadow-xs font-semibold"
+                : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+            )}
+          >
+            <Layers className="h-3.5 w-3.5" />
+            <span>Spatial Acoustics &amp; Room Impulses</span>
+          </button>
+        </div>
 
-                    <div className="flex items-center justify-between text-[10px] font-mono pt-1">
-                      <span className="text-muted-foreground">Reverb</span>
-                      <span className="text-purple-300 font-bold">{ch.reverbSend}%</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      value={ch.reverbSend}
-                      onChange={(e) => updateChannel(ch.id, { reverbSend: parseInt(e.target.value) })}
-                      className="w-full h-1 accent-purple-400 bg-secondary rounded cursor-pointer"
-                    />
-                  </div>
+        <div className="text-[11px] font-mono text-muted-foreground hidden sm:block">
+          {scriptLines.length} Dialogue Turns · {Object.keys(channels).length} Voice Tracks
+        </div>
+      </div>
 
-                  {/* Channel State Buttons: MUTE / SOLO / PHASE */}
-                  <div className="grid grid-cols-3 gap-1">
-                    <button
-                      type="button"
-                      onClick={() => updateChannel(ch.id, { isMuted: !ch.isMuted })}
-                      className={`py-1 text-[10px] font-mono font-bold rounded cursor-pointer transition-colors ${
-                        ch.isMuted
-                          ? "bg-rose-600 text-white shadow-md shadow-rose-900/50"
-                          : "bg-secondary/60 text-muted-foreground hover:text-foreground"
-                      }`}
-                      title="Mute Track"
-                    >
-                      M
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => updateChannel(ch.id, { isSolo: !ch.isSolo })}
-                      className={`py-1 text-[10px] font-mono font-bold rounded cursor-pointer transition-colors ${
-                        ch.isSolo
-                          ? "bg-amber-400 text-black shadow-md shadow-amber-900/50"
-                          : "bg-secondary/60 text-muted-foreground hover:text-foreground"
-                      }`}
-                      title="Solo Track"
-                    >
-                      S
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => updateChannel(ch.id, { isPhaseInverted: !ch.isPhaseInverted })}
-                      className={`py-1 text-[10px] font-mono font-bold rounded cursor-pointer transition-colors ${
-                        ch.isPhaseInverted
-                          ? "bg-blue-600 text-white shadow-md"
-                          : "bg-secondary/60 text-muted-foreground hover:text-foreground"
-                      }`}
-                      title="Phase Invert (180°)"
-                    >
-                      Ø
-                    </button>
-                  </div>
+      {/* VIEW 1: SCENE TABLE READ & ACTIVE VOICE SHAPER */}
+      {activeTab === "tableread" && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 flex-1 min-h-0 divide-y lg:divide-y-0 lg:divide-x divide-border overflow-hidden">
+          {/* Left: Screenplay Dialogue Stream (7 cols) */}
+          <div className="lg:col-span-7 flex flex-col min-h-0 overflow-hidden bg-card/20">
+            <div className="flex items-center justify-between border-b border-border px-4 py-2 bg-secondary/30">
+              <span className="text-xs font-mono text-muted-foreground uppercase tracking-wider">
+                Dialogue Sequence ({scriptLines.length} Lines)
+              </span>
+              <span className="text-[10px] font-mono text-muted-foreground">
+                Click any line to audition individual delivery
+              </span>
+            </div>
 
-                  {/* Long-Throw Fader & Dual LED VU Meter */}
-                  <div className="flex items-center justify-center gap-3 py-2 flex-1 min-h-[160px]">
-                    {/* Calibrated dB Scale */}
-                    <div className="flex flex-col justify-between text-[9px] font-mono text-muted-foreground/60 h-36 select-none">
-                      <span>+6</span>
-                      <span>0</span>
-                      <span>-6</span>
-                      <span>-12</span>
-                      <span>-24</span>
-                      <span>-∞</span>
-                    </div>
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-2.5">
+              {scriptLines.map((line, idx) => {
+                const speakerUpper = line.speaker.toUpperCase();
+                const isMarcus = speakerUpper.includes("MARCUS");
+                const isElena = speakerUpper.includes("ELENA");
+                const isCurrent = isPlayingMaster && currentLineIdx === idx;
 
-                    {/* Vertical Throw Fader */}
-                    <div className="relative h-36 flex items-center justify-center w-8 bg-black/60 rounded border border-border/60">
-                      <div className="absolute top-1/2 left-0 right-0 h-px bg-white/20 pointer-events-none" />
-                      <input
-                        type="range"
-                        min="-60"
-                        max="6"
-                        step="0.5"
-                        value={ch.faderDb}
-                        onChange={(e) => updateChannel(ch.id, { faderDb: parseFloat(e.target.value) })}
-                        className="h-32 -rotate-90 accent-cyan-400 cursor-pointer w-32"
-                      />
+                const badgeColor = isMarcus
+                  ? "border-accent/40 bg-accent/10 text-accent"
+                  : isElena
+                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
+                  : "border-cyan-500/40 bg-cyan-500/10 text-cyan-400";
+
+                return (
+                  <div
+                    key={line.id}
+                    className={cn(
+                      "p-3 rounded-lg border transition-all text-xs flex flex-col gap-1.5",
+                      isCurrent
+                        ? "border-accent bg-accent/10 shadow-md ring-1 ring-accent"
+                        : "border-border/60 bg-card hover:border-border hover:bg-card/80"
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className={cn("text-[10px] font-mono font-semibold", badgeColor)}>
+                          {line.speaker}
+                        </Badge>
+                        {isCurrent && (
+                          <span className="flex items-center gap-1 text-[10px] text-accent font-mono animate-pulse font-bold">
+                            <Activity className="h-3 w-3" /> Speaking...
+                          </span>
+                        )}
+                      </div>
+
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleAuditionLine(line.speaker, line.text)}
+                        disabled={isAuditioning}
+                        className="h-6 px-2 text-[10px] gap-1 text-muted-foreground hover:text-foreground cursor-pointer"
+                      >
+                        <Volume1 className="h-3 w-3" />
+                        <span>Audition</span>
+                      </Button>
                     </div>
 
-                    {/* Segmented LED VU Meter Ladder */}
-                    <div className="flex flex-col gap-0.5 h-36 justify-between py-1 bg-black/80 px-1 rounded border border-border/40">
-                      <span className={`w-2 h-2 rounded-xs ${isPlayingMaster && ch.faderDb > 2 ? "bg-rose-500 animate-pulse" : "bg-rose-950/40"}`} />
-                      <span className={`w-2 h-2 rounded-xs ${isPlayingMaster && ch.faderDb > 0 ? "bg-amber-400" : "bg-amber-950/40"}`} />
-                      <span className={`w-2 h-2 rounded-xs ${isPlayingMaster && ch.faderDb > -6 ? "bg-amber-400" : "bg-amber-950/40"}`} />
-                      <span className={`w-2 h-2 rounded-xs ${isPlayingMaster && ch.faderDb > -12 ? "bg-emerald-500" : "bg-emerald-950/40"}`} />
-                      <span className={`w-2 h-2 rounded-xs ${isPlayingMaster && ch.faderDb > -18 ? "bg-emerald-500" : "bg-emerald-950/40"}`} />
-                      <span className={`w-2 h-2 rounded-xs ${isPlayingMaster && ch.faderDb > -24 ? "bg-emerald-500" : "bg-emerald-950/40"}`} />
-                      <span className={`w-2 h-2 rounded-xs ${isPlayingMaster && ch.faderDb > -36 ? "bg-emerald-500" : "bg-emerald-950/40"}`} />
-                      <span className={`w-2 h-2 rounded-xs ${isPlayingMaster && ch.faderDb > -48 ? "bg-emerald-500" : "bg-emerald-950/40"}`} />
-                    </div>
+                    <p className="font-mono text-foreground/90 leading-relaxed pl-1">
+                      &ldquo;{line.text}&rdquo;
+                    </p>
                   </div>
-
-                  {/* Fader Readout & Quick Audition */}
-                  <div className="flex items-center justify-between text-[11px] font-mono border-t border-border/50 pt-2">
-                    <span className="text-foreground font-bold">
-                      {ch.faderDb > 0 ? `+${ch.faderDb.toFixed(1)}` : ch.faderDb <= -59 ? "-∞" : ch.faderDb.toFixed(1)} dB
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setActiveAuditionChannel(ch.id);
-                        setActiveConsoleTab("audition");
-                      }}
-                      className="text-[10px] text-cyan-400 hover:underline cursor-pointer"
-                    >
-                      ADR Shaper →
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
 
-          {/* Master 2-Bus Channel Strip (2 Cols) */}
-          <div className="md:col-span-2 flex flex-col rounded-xl border border-accent/40 bg-accent/5 p-3.5 space-y-3 relative shadow-2xl">
-            <div className="flex flex-col items-center border-b border-accent/30 pb-2 text-center">
-              <span className="text-xs font-mono font-bold uppercase tracking-wider text-accent">
-                2-BUS MASTER
-              </span>
-              <span className="text-[10px] text-muted-foreground font-mono">
-                {isLimiterActive ? "Limiter: -0.1 dBFS" : "Bypass"}
-              </span>
+          {/* Right: Active Speaker Tuning Sandbox (5 cols) */}
+          <div className="lg:col-span-5 flex flex-col min-h-0 overflow-y-auto p-4 space-y-4 bg-card/40">
+            <div>
+              <SlateLabel>Select Character to Tune</SlateLabel>
+              <div className="grid grid-cols-3 gap-2 mt-1.5">
+                {Object.values(channels).map((ch) => {
+                  const isSelected = selectedChannelId === ch.id;
+                  return (
+                    <button
+                      key={ch.id}
+                      type="button"
+                      onClick={() => setSelectedChannelId(ch.id)}
+                      className={cn(
+                        "p-2.5 rounded-lg border text-left transition-colors cursor-pointer flex flex-col gap-0.5",
+                        isSelected
+                          ? "border-accent bg-accent/15 text-accent shadow-xs font-semibold"
+                          : "border-border bg-secondary/30 text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      <span className="text-xs font-mono font-bold uppercase">{ch.name}</span>
+                      <span className="text-[10px] font-mono text-muted-foreground truncate">{ch.voiceName}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
-            {/* Master Limiter Switch */}
-            <div className="bg-black/50 p-2 rounded border border-border/60 flex items-center justify-between text-xs font-mono">
-              <span className="text-muted-foreground text-[11px]">True Peak</span>
-              <button
-                type="button"
-                onClick={() => setIsLimiterActive(!isLimiterActive)}
-                className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
-                  isLimiterActive ? "bg-emerald-500 text-black" : "bg-secondary text-muted-foreground"
-                }`}
+            {/* Voice Model Selector */}
+            <div>
+              <SlateLabel>Assigned Voice Profile (Gemini 3.1 TTS)</SlateLabel>
+              <select
+                value={activeChannel.voiceName}
+                onChange={(e) => updateChannel(activeChannel.id, { voiceName: e.target.value })}
+                className="w-full mt-1.5 rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-accent"
               >
-                {isLimiterActive ? "LIMIT ON" : "BYPASS"}
-              </button>
+                {AVAILABLE_VOICES.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
-            {/* Master Throw Fader & Dual Stereo Ladder */}
-            <div className="flex items-center justify-center gap-2 py-2 flex-1 min-h-[160px]">
-              <div className="flex flex-col justify-between text-[9px] font-mono text-muted-foreground/60 h-36 select-none">
-                <span>+6</span>
-                <span>0</span>
-                <span>-6</span>
-                <span>-12</span>
-                <span>-24</span>
-                <span>-∞</span>
-              </div>
+            {/* Delivery Style */}
+            <div>
+              <SlateLabel>Dramatic Delivery Style &amp; Mood</SlateLabel>
+              <select
+                value={activeChannel.deliveryStyle}
+                onChange={(e) => updateChannel(activeChannel.id, { deliveryStyle: e.target.value })}
+                className="w-full mt-1.5 rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-accent"
+              >
+                {DELIVERY_STYLES.map((st) => (
+                  <option key={st} value={st}>
+                    {st}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-              {/* Fader */}
-              <div className="relative h-36 flex items-center justify-center w-8 bg-black/60 rounded border border-accent/40">
-                <input
-                  type="range"
-                  min="-60"
-                  max="6"
-                  step="0.5"
-                  value={masterFaderDb}
-                  onChange={(e) => setMasterFaderDb(parseFloat(e.target.value))}
-                  className="h-32 -rotate-90 accent-accent cursor-pointer w-32"
-                />
+            {/* Cadence & Pacing Slider */}
+            <div className="space-y-1.5 bg-secondary/30 p-3 rounded-lg border border-border">
+              <div className="flex items-center justify-between text-xs font-mono">
+                <span className="text-muted-foreground">Pacing &amp; Speed</span>
+                <span className="text-foreground font-bold">{activeChannel.speed.toFixed(2)}x</span>
               </div>
-
-              {/* Dual Stereo Meters (L and R) */}
-              <div className="flex gap-0.5">
-                {/* L */}
-                <div className="flex flex-col gap-0.5 h-36 justify-between py-1 bg-black/80 px-0.5 rounded border border-border/40">
-                  <span className={`w-1.5 h-2 rounded-xs ${isPlayingMaster && masterFaderDb > 1 ? "bg-rose-500" : "bg-rose-950/40"}`} />
-                  <span className={`w-1.5 h-2 rounded-xs ${isPlayingMaster && masterFaderDb > -2 ? "bg-amber-400" : "bg-amber-950/40"}`} />
-                  <span className={`w-1.5 h-2 rounded-xs ${isPlayingMaster ? "bg-emerald-500" : "bg-emerald-950/40"}`} />
-                  <span className={`w-1.5 h-2 rounded-xs ${isPlayingMaster ? "bg-emerald-500" : "bg-emerald-950/40"}`} />
-                  <span className={`w-1.5 h-2 rounded-xs ${isPlayingMaster ? "bg-emerald-500" : "bg-emerald-950/40"}`} />
-                  <span className={`w-1.5 h-2 rounded-xs ${isPlayingMaster ? "bg-emerald-500" : "bg-emerald-950/40"}`} />
-                </div>
-                {/* R */}
-                <div className="flex flex-col gap-0.5 h-36 justify-between py-1 bg-black/80 px-0.5 rounded border border-border/40">
-                  <span className={`w-1.5 h-2 rounded-xs ${isPlayingMaster && masterFaderDb > 1 ? "bg-rose-500" : "bg-rose-950/40"}`} />
-                  <span className={`w-1.5 h-2 rounded-xs ${isPlayingMaster && masterFaderDb > -2 ? "bg-amber-400" : "bg-amber-950/40"}`} />
-                  <span className={`w-1.5 h-2 rounded-xs ${isPlayingMaster ? "bg-emerald-500" : "bg-emerald-950/40"}`} />
-                  <span className={`w-1.5 h-2 rounded-xs ${isPlayingMaster ? "bg-emerald-500" : "bg-emerald-950/40"}`} />
-                  <span className={`w-1.5 h-2 rounded-xs ${isPlayingMaster ? "bg-emerald-500" : "bg-emerald-950/40"}`} />
-                  <span className={`w-1.5 h-2 rounded-xs ${isPlayingMaster ? "bg-emerald-500" : "bg-emerald-950/40"}`} />
-                </div>
+              <input
+                type="range"
+                min="0.8"
+                max="1.3"
+                step="0.02"
+                value={activeChannel.speed}
+                onChange={(e) => updateChannel(activeChannel.id, { speed: parseFloat(e.target.value) })}
+                className="w-full h-1.5 accent-accent bg-secondary rounded cursor-pointer"
+              />
+              <div className="flex justify-between text-[10px] font-mono text-muted-foreground">
+                <span>0.80x (Measured / Slow)</span>
+                <span>1.0x (Natural)</span>
+                <span>1.30x (Rapid / Panicked)</span>
               </div>
             </div>
 
-            <div className="text-center border-t border-accent/30 pt-2 font-mono text-xs font-bold text-accent">
-              {masterFaderDb > 0 ? `+${masterFaderDb.toFixed(1)}` : masterFaderDb.toFixed(1)} dBFS
+            {/* Pitch & Timbre Mod */}
+            <div className="space-y-1.5 bg-secondary/30 p-3 rounded-lg border border-border">
+              <div className="flex items-center justify-between text-xs font-mono">
+                <span className="text-muted-foreground">Formant / Vocal Weight</span>
+                <span className="text-foreground font-bold">{activeChannel.formantShift > 0 ? `+${activeChannel.formantShift}` : activeChannel.formantShift}</span>
+              </div>
+              <input
+                type="range"
+                min="-6"
+                max="6"
+                step="1"
+                value={activeChannel.formantShift}
+                onChange={(e) => updateChannel(activeChannel.id, { formantShift: parseInt(e.target.value) })}
+                className="w-full h-1.5 accent-cyan-400 bg-secondary rounded cursor-pointer"
+              />
+              <div className="flex justify-between text-[10px] font-mono text-muted-foreground">
+                <span>-6 (Deep Chest)</span>
+                <span>0 (Neutral)</span>
+                <span>+6 (High Tension)</span>
+              </div>
+            </div>
+
+            {/* Audition Sandbox Input */}
+            <div className="space-y-2 pt-2 border-t border-border">
+              <SlateLabel>Live Audition Test</SlateLabel>
+              <textarea
+                rows={2}
+                value={auditionText}
+                onChange={(e) => setAuditionText(e.target.value)}
+                placeholder="Type custom test dialogue for this character..."
+                className="w-full rounded-md border border-border bg-background p-2.5 text-xs text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-accent resize-none"
+              />
+              <Button
+                size="sm"
+                onClick={() => handleAuditionLine(activeChannel.characterKey, auditionText)}
+                disabled={isAuditioning}
+                className="w-full text-xs font-semibold gap-1.5 cursor-pointer bg-accent text-accent-foreground hover:bg-accent/90"
+              >
+                {isAuditioning ? (
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    <span>Synthesizing Voice...</span>
+                  </>
+                ) : auditionSuccess ? (
+                  <>
+                    <Check className="h-3.5 w-3.5" />
+                    <span>Audition Playing!</span>
+                  </>
+                ) : (
+                  <>
+                    <Volume2 className="h-3.5 w-3.5" />
+                    <span>Audition &ldquo;{activeChannel.name}&rdquo; Voice</span>
+                  </>
+                )}
+              </Button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Sub-View 2: ADR Voice & Formant Acoustic Shaper */}
-      {activeConsoleTab === "audition" && (
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-5 bg-card border border-border p-5 rounded-xl">
-          {/* Character Track Selector (4 Cols) */}
-          <div className="md:col-span-4 space-y-3 border-r border-border/60 pr-4">
-            <span className="text-xs font-mono uppercase tracking-wider text-muted-foreground">Select Track to Audition</span>
-            <div className="space-y-1.5">
-              {Object.values(channels).map((ch) => (
-                <button
-                  key={ch.id}
-                  type="button"
-                  onClick={() => setActiveAuditionChannel(ch.id)}
-                  className={`w-full flex items-center justify-between p-2.5 rounded-lg border text-xs font-mono transition-all cursor-pointer ${
-                    activeAuditionChannel === ch.id
-                      ? "bg-accent text-accent-foreground font-bold border-accent shadow-md"
-                      : "bg-secondary/20 border-border/60 text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
-                  }`}
-                >
-                  <span>{ch.name}</span>
-                  <span className="text-[11px] opacity-80">{ch.voiceName}</span>
-                </button>
-              ))}
-            </div>
-
-            {/* Quick Audition Line Input */}
-            <div className="pt-2 space-y-2">
-              <span className="text-xs font-mono text-muted-foreground">Audition Test Line:</span>
-              <textarea
-                rows={3}
-                value={auditionText}
-                onChange={(e) => setAuditionText(e.target.value)}
-                className="w-full text-xs font-serif bg-secondary/30 rounded border border-border p-2 text-foreground focus:outline-none focus:ring-1 focus:ring-accent"
-              />
-              <Button
-                size="sm"
-                onClick={handleAudition}
-                disabled={isAuditioning || !auditionText.trim()}
-                className="w-full h-8 text-xs font-semibold gap-1.5 bg-accent text-accent-foreground hover:bg-accent/90 cursor-pointer"
+      {/* VIEW 2: CHARACTER VOICE CASTING OVERVIEW */}
+      {activeTab === "cast" && (
+        <div className="flex-1 min-h-0 overflow-y-auto p-5">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {Object.values(channels).map((ch) => (
+              <div
+                key={ch.id}
+                className="rounded-xl border border-border bg-card p-4 space-y-3.5 shadow-sm"
               >
-                <Sparkles className="h-3.5 w-3.5" />
-                <span>{isAuditioning ? "Synthesizing with Gemini 3.1..." : `Audition ${channels[activeAuditionChannel]?.characterKey} Voice`}</span>
-              </Button>
-            </div>
-          </div>
-
-          {/* Acoustic & Formant Tuning Controls (8 Cols) */}
-          {(() => {
-            const ch = channels[activeAuditionChannel] || channels.DX1;
-            return (
-              <div className="md:col-span-8 space-y-4">
-                <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                <div className="flex items-center justify-between border-b border-border/60 pb-2.5">
                   <div className="flex items-center gap-2">
-                    <Mic className="h-4 w-4 text-cyan-400" />
-                    <h3 className="text-sm font-heading font-bold text-foreground">
-                      {ch.name} · Vocal Timbre &amp; Resonance Architecture
-                    </h3>
+                    <div className="h-7 w-7 rounded-full bg-accent/15 border border-accent/30 flex items-center justify-center font-mono font-bold text-xs text-accent">
+                      {ch.name[0]}
+                    </div>
+                    <div>
+                      <span className="font-heading font-bold text-xs uppercase tracking-wider text-foreground">
+                        {ch.name}
+                      </span>
+                      <p className="text-[10px] font-mono text-muted-foreground">{ch.voiceName} Model</p>
+                    </div>
                   </div>
-                  <span className="text-[11px] font-mono text-cyan-400">Gemini 3.1 Flash Speech Engine</span>
+                  <Badge variant="outline" className="border-border text-muted-foreground text-[10px] font-mono">
+                    Track {ch.id}
+                  </Badge>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Voice Model Selector */}
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium text-foreground">Prebuilt Google TTS Timbre</label>
-                    <select
-                      value={ch.voiceName}
-                      onChange={(e) => updateChannel(ch.id, { voiceName: e.target.value })}
-                      className="w-full text-xs font-mono rounded border border-border bg-secondary/40 p-2 text-foreground cursor-pointer"
-                    >
-                      {AVAILABLE_VOICES.map((v) => (
-                        <option key={v.id} value={v.id}>
-                          {v.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Delivery Style */}
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium text-foreground">Psychological Delivery Mode</label>
-                    <select
-                      value={ch.deliveryStyle}
-                      onChange={(e) => updateChannel(ch.id, { deliveryStyle: e.target.value })}
-                      className="w-full text-xs rounded border border-border bg-secondary/40 p-2 text-foreground cursor-pointer"
-                    >
-                      {DELIVERY_STYLES.map((s) => (
-                        <option key={s} value={s}>
-                          {s}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {/* Formant & Cadence Sliders */}
-                <div className="grid grid-cols-3 gap-4 pt-1">
-                  <div className="space-y-1 bg-secondary/20 p-2.5 rounded border border-border/60">
-                    <div className="flex justify-between text-[11px] font-mono">
-                      <span className="text-muted-foreground">Formant Throat</span>
-                      <span className="text-cyan-400">{ch.formantShift > 0 ? `+${ch.formantShift}` : ch.formantShift} st</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="-6"
-                      max="6"
-                      value={ch.formantShift}
-                      onChange={(e) => updateChannel(ch.id, { formantShift: parseInt(e.target.value) })}
-                      className="w-full accent-cyan-400 cursor-pointer h-1.5"
-                    />
-                    <span className="text-[9px] text-muted-foreground">Chest vs Head Resonance</span>
-                  </div>
-
-                  <div className="space-y-1 bg-secondary/20 p-2.5 rounded border border-border/60">
-                    <div className="flex justify-between text-[11px] font-mono">
-                      <span className="text-muted-foreground">Cadence Speed</span>
-                      <span className="text-accent">{ch.speed}x</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0.75"
-                      max="1.5"
-                      step="0.05"
-                      value={ch.speed}
-                      onChange={(e) => updateChannel(ch.id, { speed: parseFloat(e.target.value) })}
-                      className="w-full accent-accent cursor-pointer h-1.5"
-                    />
-                    <span className="text-[9px] text-muted-foreground">Rhythm &amp; Syllable Rate</span>
-                  </div>
-
-                  <div className="space-y-1 bg-secondary/20 p-2.5 rounded border border-border/60">
-                    <div className="flex justify-between text-[11px] font-mono">
-                      <span className="text-muted-foreground">Pitch Tuning</span>
-                      <span className="text-purple-300">{ch.pitchFine > 0 ? `+${ch.pitchFine}` : ch.pitchFine} st</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="-6"
-                      max="6"
-                      value={ch.pitchFine}
-                      onChange={(e) => updateChannel(ch.id, { pitchFine: parseInt(e.target.value) })}
-                      className="w-full accent-purple-400 cursor-pointer h-1.5"
-                    />
-                    <span className="text-[9px] text-muted-foreground">Fundamental Frequency</span>
-                  </div>
-                </div>
-
-                {/* Acoustic Space Convolution */}
-                <div className="space-y-1 bg-secondary/15 p-3 rounded border border-border/70">
-                  <span className="text-xs font-mono text-muted-foreground">Acoustic Room Impulse (Convolution Reverb)</span>
+                <div className="space-y-1">
+                  <span className="text-[10px] font-mono text-muted-foreground uppercase">Voice Actor Model:</span>
                   <select
-                    value={ch.reverbRoom}
-                    onChange={(e) => updateChannel(ch.id, { reverbRoom: e.target.value })}
-                    className="w-full text-xs rounded border border-border bg-card p-2 text-foreground cursor-pointer"
+                    value={ch.voiceName}
+                    onChange={(e) => updateChannel(ch.id, { voiceName: e.target.value })}
+                    className="w-full rounded border border-border bg-background px-2.5 py-1.5 text-xs text-foreground font-mono focus:outline-none"
                   >
-                    {REVERB_ROOMS.map((r) => (
-                      <option key={r} value={r}>
-                        {r}
+                    {AVAILABLE_VOICES.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.label}
                       </option>
                     ))}
                   </select>
                 </div>
+
+                <div className="space-y-1">
+                  <span className="text-[10px] font-mono text-muted-foreground uppercase">Delivery Tone:</span>
+                  <select
+                    value={ch.deliveryStyle}
+                    onChange={(e) => updateChannel(ch.id, { deliveryStyle: e.target.value })}
+                    className="w-full rounded border border-border bg-background px-2.5 py-1.5 text-xs text-foreground font-mono focus:outline-none"
+                  >
+                    {DELIVERY_STYLES.map((st) => (
+                      <option key={st} value={st}>
+                        {st}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[10px] font-mono text-muted-foreground">
+                    <span>Cadence Speed:</span>
+                    <span className="text-foreground font-bold">{ch.speed.toFixed(2)}x</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.8"
+                    max="1.3"
+                    step="0.02"
+                    value={ch.speed}
+                    onChange={(e) => updateChannel(ch.id, { speed: parseFloat(e.target.value) })}
+                    className="w-full h-1 accent-accent bg-secondary rounded cursor-pointer"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-border/60">
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => updateChannel(ch.id, { isMuted: !ch.isMuted })}
+                      className={cn(
+                        "h-6 px-2 text-[10px] font-mono cursor-pointer",
+                        ch.isMuted ? "bg-rose-500/20 text-rose-300 border-rose-500/40" : ""
+                      )}
+                    >
+                      {ch.isMuted ? "MUTED" : "Mute"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => updateChannel(ch.id, { isSolo: !ch.isSolo })}
+                      className={cn(
+                        "h-6 px-2 text-[10px] font-mono cursor-pointer",
+                        ch.isSolo ? "bg-amber-500/20 text-amber-300 border-amber-500/40" : ""
+                      )}
+                    >
+                      {ch.isSolo ? "SOLO" : "Solo"}
+                    </Button>
+                  </div>
+
+                  <Button
+                    size="sm"
+                    onClick={() =>
+                      handleAuditionLine(ch.characterKey, `This is an acoustic test of the ${ch.voiceName} voice profile.`)
+                    }
+                    className="h-6 px-2.5 text-[10px] gap-1 bg-secondary hover:bg-secondary/80 text-foreground cursor-pointer"
+                  >
+                    <Volume2 className="h-3 w-3" />
+                    <span>Test Voice</span>
+                  </Button>
+                </div>
               </div>
-            );
-          })()}
+            ))}
+          </div>
         </div>
       )}
 
-      {/* Sub-View 3: 4-Band Parametric EQ & Dynamics Rack */}
-      {activeConsoleTab === "eq" && (
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-5 bg-card border border-border p-5 rounded-xl">
-          {Object.values(channels).map((ch) => (
-            <div key={ch.id} className="md:col-span-6 rounded-lg border border-border/70 bg-secondary/15 p-3.5 space-y-3">
-              <div className="flex items-center justify-between border-b border-border/50 pb-1.5">
-                <span className="text-xs font-mono font-bold text-foreground">{ch.name} · Parametric EQ &amp; Dynamics</span>
-                <span className="text-[10px] font-mono text-cyan-400">VCA Opto-Comp</span>
-              </div>
+      {/* VIEW 3: ACOUSTICS & ROOM IMPULSES */}
+      {activeTab === "acoustics" && (
+        <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4">
+          <div>
+            <h3 className="font-heading text-sm font-bold text-foreground">Spatial Room Acoustics</h3>
+            <p className="text-xs text-muted-foreground">
+              Select room simulation profiles to match the environmental setting of {sceneTitle}.
+            </p>
+          </div>
 
-              {/* 4-Band EQ Sliders */}
-              <div className="grid grid-cols-4 gap-2 bg-black/40 p-2.5 rounded border border-border/50 text-center">
-                <div className="space-y-1">
-                  <span className="text-[9px] font-mono text-muted-foreground">HIGH (10k)</span>
-                  <input
-                    type="range"
-                    min="-12"
-                    max="12"
-                    value={ch.eqHigh}
-                    onChange={(e) => updateChannel(ch.id, { eqHigh: parseFloat(e.target.value) })}
-                    className="h-16 -rotate-90 accent-cyan-400 cursor-pointer"
-                  />
-                  <span className="text-[10px] font-mono block text-foreground">{ch.eqHigh} dB</span>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {REVERB_ROOMS.map((room) => {
+              const isSelected = activeChannel.reverbRoom.toLowerCase().includes(room.id);
+              return (
+                <div
+                  key={room.id}
+                  onClick={() => updateChannel(activeChannel.id, { reverbRoom: room.name })}
+                  className={cn(
+                    "p-4 rounded-xl border text-left cursor-pointer transition-all flex flex-col gap-1.5",
+                    isSelected
+                      ? "border-accent bg-accent/10 shadow-sm"
+                      : "border-border bg-card/60 hover:bg-card"
+                  )}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-xs text-foreground">{room.name}</span>
+                    {isSelected && <Badge variant="outline" className="text-[9px] border-accent text-accent">Active</Badge>}
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{room.desc}</p>
                 </div>
-
-                <div className="space-y-1">
-                  <span className="text-[9px] font-mono text-muted-foreground">HI-MID (3k)</span>
-                  <input
-                    type="range"
-                    min="-12"
-                    max="12"
-                    value={ch.eqHighMid}
-                    onChange={(e) => updateChannel(ch.id, { eqHighMid: parseFloat(e.target.value) })}
-                    className="h-16 -rotate-90 accent-cyan-400 cursor-pointer"
-                  />
-                  <span className="text-[10px] font-mono block text-foreground">{ch.eqHighMid} dB</span>
-                </div>
-
-                <div className="space-y-1">
-                  <span className="text-[9px] font-mono text-muted-foreground">LO-MID (600)</span>
-                  <input
-                    type="range"
-                    min="-12"
-                    max="12"
-                    value={ch.eqLowMid}
-                    onChange={(e) => updateChannel(ch.id, { eqLowMid: parseFloat(e.target.value) })}
-                    className="h-16 -rotate-90 accent-cyan-400 cursor-pointer"
-                  />
-                  <span className="text-[10px] font-mono block text-foreground">{ch.eqLowMid} dB</span>
-                </div>
-
-                <div className="space-y-1">
-                  <span className="text-[9px] font-mono text-muted-foreground">LOW (100)</span>
-                  <input
-                    type="range"
-                    min="-12"
-                    max="12"
-                    value={ch.eqLow}
-                    onChange={(e) => updateChannel(ch.id, { eqLow: parseFloat(e.target.value) })}
-                    className="h-16 -rotate-90 accent-cyan-400 cursor-pointer"
-                  />
-                  <span className="text-[10px] font-mono block text-foreground">{ch.eqLow} dB</span>
-                </div>
-              </div>
-
-              {/* Compressor Controls */}
-              <div className="grid grid-cols-3 gap-2 text-xs font-mono">
-                <div className="bg-secondary/30 p-2 rounded">
-                  <span className="text-[10px] text-muted-foreground block">Thresh</span>
-                  <span className="font-bold text-foreground">{ch.compThreshold} dB</span>
-                </div>
-                <div className="bg-secondary/30 p-2 rounded">
-                  <span className="text-[10px] text-muted-foreground block">Ratio</span>
-                  <span className="font-bold text-cyan-400">{ch.compRatio}</span>
-                </div>
-                <div className="bg-secondary/30 p-2 rounded">
-                  <span className="text-[10px] text-muted-foreground block">Make-Up</span>
-                  <span className="font-bold text-emerald-400">+{ch.compGain} dB</span>
-                </div>
-              </div>
-            </div>
-          ))}
+              );
+            })}
+          </div>
         </div>
       )}
-
-      {/* Sequential Script Teleprompter Strip */}
-      <div className="rounded-xl border border-border/80 bg-black/50 p-3 space-y-2">
-        <div className="flex items-center justify-between text-xs font-mono text-muted-foreground pb-1 border-b border-border/40">
-          <span>Screenplay Master Assembly ({scriptLines.length} lines total)</span>
-          <span>Line {currentLineIdx + 1} of {scriptLines.length}</span>
-        </div>
-
-        <div className="flex gap-2 overflow-x-auto py-1">
-          {scriptLines.map((item, idx) => (
-            <div
-              key={item.id}
-              onClick={() => {
-                setCurrentLineIdx(idx);
-                if (isPlayingMaster) playMasterLine(idx);
-              }}
-              className={`p-2 rounded border text-xs font-mono cursor-pointer shrink-0 max-w-xs transition-all ${
-                currentLineIdx === idx
-                  ? "bg-accent/20 border-accent text-foreground font-semibold shadow-md"
-                  : "bg-card/40 border-border/50 text-muted-foreground hover:bg-secondary"
-              }`}
-            >
-              <span className="text-[10px] font-bold text-accent uppercase block">
-                {item.speaker}:
-              </span>
-              <p className="line-clamp-2 italic text-[11px] mt-0.5">
-                &ldquo;{item.text}&rdquo;
-              </p>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }

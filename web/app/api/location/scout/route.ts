@@ -1,10 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { scoutLocation } from "@/lib/agent-service";
+import { getCachedGeneration, setCachedGeneration } from "@/lib/generation-cache";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+
+    const cached = await getCachedGeneration<any>("scout", body);
+    if (cached && (cached.film_precedents || cached.location_aesthetic)) {
+      return NextResponse.json({ ...cached, _cached: true });
+    }
+
     const result = await scoutLocation(body);
+    if (result) {
+      await setCachedGeneration("scout", body, result);
+    }
     return NextResponse.json(result);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);

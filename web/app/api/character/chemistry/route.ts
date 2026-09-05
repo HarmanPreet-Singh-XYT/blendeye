@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { testChemistry } from "@/lib/agent-service";
+import { getCachedGeneration, setCachedGeneration } from "@/lib/generation-cache";
 
 export async function POST(req: NextRequest) {
   try {
@@ -22,7 +23,16 @@ export async function POST(req: NextRequest) {
         body.setting ||
         "Stuck in a service elevator with a ticking delivery countdown",
     };
+
+    const cached = await getCachedGeneration<any>("chemistry", payload);
+    if (cached && cached.micro_scene) {
+      return NextResponse.json({ ...cached, _cached: true });
+    }
+
     const result = await testChemistry(payload);
+    if (result && result.micro_scene) {
+      await setCachedGeneration("chemistry", payload, result);
+    }
     return NextResponse.json(result);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
