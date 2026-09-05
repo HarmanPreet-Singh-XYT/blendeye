@@ -18,11 +18,11 @@ export interface DeletableEdgeData extends Record<string, unknown> {
 }
 
 const CHARACTER_RELATIONS = [
-  "⚡ Friction",
-  "🤝 Alliance",
-  "⚔️ Rivalry",
-  "🎓 Mentor",
-  "🕵️ Suspicion",
+  "Friction",
+  "Alliance",
+  "Rivalry",
+  "Mentor",
+  "Suspicion",
 ];
 
 export function DeletableEdge({
@@ -67,19 +67,19 @@ export function DeletableEdge({
   const semanticLabel = React.useMemo(() => {
     if (data?.label) return data.label as string;
     if (isCharacterRelation) return currentRelation;
-    if (source?.includes("clip")) return "🎨 Style Sync";
-    if (source?.includes("note")) return "💡 Plot Seed";
-    if (source?.includes("scene") && target?.includes("script")) return "📜 Screenplay";
-    if (source?.includes("scene") && target?.includes("scene")) return "🎬 Cut Flow";
-    if (target?.includes("storyboard")) return "🖼️ 2.39:1 Concept";
-    if (target?.includes("floorplan")) return "📐 Camera Blocking";
-    if (target?.includes("tension")) return "📈 Audience EKG";
-    if (target?.includes("tableread")) return "🎙️ TTS Audio";
-    if (target?.includes("market")) return "🌐 ClickHouse Intel";
-    if (target?.includes("chemistry")) return "🧪 Casting Bench";
-    if (source?.includes("act")) return "🎭 Actor Comp";
-    if (source?.includes("dial")) return "🎛️ Dials Sync";
-    if (source?.includes("quirk")) return "✨ Behavioral Tic";
+    if (source?.includes("clip")) return "Style Sync";
+    if (source?.includes("note")) return "Plot Seed";
+    if (source?.includes("scene") && target?.includes("script")) return "Screenplay";
+    if (source?.includes("scene") && target?.includes("scene")) return "Cut Flow";
+    if (target?.includes("storyboard")) return "2.39:1 Concept";
+    if (target?.includes("floorplan")) return "Camera Blocking";
+    if (target?.includes("tension")) return "Audience EKG";
+    if (target?.includes("tableread")) return "TTS Audio";
+    if (target?.includes("market")) return "ClickHouse Intel";
+    if (target?.includes("chemistry")) return "Casting Bench";
+    if (source?.includes("act")) return "Actor Comp";
+    if (source?.includes("dial")) return "Dials Sync";
+    if (source?.includes("quirk")) return "Behavioral Tic";
     return "";
   }, [data, source, target, isCharacterRelation, currentRelation]);
 

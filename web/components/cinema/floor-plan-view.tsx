@@ -5,6 +5,8 @@ import { SlateLabel } from "@/components/cinema/slate-label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Camera, Lightbulb, User, Eye, Sparkles, RefreshCw, Film } from "lucide-react";
+import { toast } from "@/components/ui/toast";
+import { notifyIfFallback } from "@/lib/fallback-notice";
 
 interface FloorPlanCharacter {
   name: string;
@@ -74,6 +76,7 @@ export function FloorPlanView({
   const [selectedCam, setSelectedCam] = React.useState<string>("cam-a");
   const [isScouting, setIsScouting] = React.useState(false);
   const [scoutedData, setScoutedData] = React.useState<LocationScoutData | null>(null);
+  const [scoutError, setScoutError] = React.useState<string | null>(null);
 
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = React.useState({ width: 1000, height: 300 });
@@ -81,6 +84,7 @@ export function FloorPlanView({
   const handleRunLocationScout = async () => {
     if (isScouting) return;
     setIsScouting(true);
+    setScoutError(null);
     try {
       const res = await fetch("/api/location/scout", {
         method: "POST",
@@ -94,9 +98,21 @@ export function FloorPlanView({
       if (res.ok) {
         const data = await res.json();
         setScoutedData(data);
+        notifyIfFallback(data, "Location Scout");
+      } else {
+        const detail = await res.text().catch(() => "");
+        setScoutError(detail || `Location scout failed (${res.status}).`);
+        toast.add({
+          title: "Location scout failed",
+          description: detail || `Request failed (${res.status}). Try again.`,
+          type: "error",
+        });
       }
     } catch (err) {
       console.error("Location scout error:", err);
+      const message = err instanceof Error ? err.message : "Could not reach the scouting backend.";
+      setScoutError(message);
+      toast.add({ title: "Location scout failed", description: message, type: "error" });
     } finally {
       setIsScouting(false);
     }
@@ -227,6 +243,12 @@ export function FloorPlanView({
           </Badge>
         </div>
       </div>
+
+      {scoutError && !isScouting && (
+        <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          Location scout failed: {scoutError}
+        </div>
+      )}
 
       {/* SVG Architectural Floor Plan Canvas */}
       <div

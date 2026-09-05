@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "@/components/ui/toast";
+import { notifyIfFallback } from "@/lib/fallback-notice";
 import {
   Film,
   Video,
@@ -138,6 +140,19 @@ export function GenerationStudioView({
   // Video Generation & Playback State
   const [isGenerating, setIsGenerating] = React.useState<boolean>(false);
   const [generationStage, setGenerationStage] = React.useState<string>("");
+  const pollIntervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopPolling = React.useCallback(() => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+  }, []);
+
+  // Stop any in-flight poll loop if this view unmounts (e.g. user navigates away mid-render).
+  React.useEffect(() => {
+    return () => stopPolling();
+  }, [stopPolling]);
   const [activeVideoUrl, setActiveVideoUrl] = React.useState<string>(
     "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4"
   );
@@ -259,15 +274,27 @@ export function GenerationStudioView({
           setIsGenerating(false);
           setGenerationStage("");
           addTakeToHistory(data.video_url);
+          notifyIfFallback(data, "Video Render");
         } else {
           pollVideoStatus(data.operation_name);
         }
       } else {
+        const detail = await res.text().catch(() => "");
+        toast.add({
+          title: "Video generation failed",
+          description: detail || `Veo request failed (${res.status}). Try again.`,
+          type: "error",
+        });
         setIsGenerating(false);
         setGenerationStage("");
       }
     } catch (err) {
       console.error("Veo generation error:", err);
+      toast.add({
+        title: "Video generation failed",
+        description: err instanceof Error ? err.message : "Could not reach the render backend.",
+        type: "error",
+      });
       setIsGenerating(false);
       setGenerationStage("");
     }
@@ -276,30 +303,67 @@ export function GenerationStudioView({
   const pollVideoStatus = async (opName: string) => {
     setGenerationStage("Google Veo 3.1 Cloud Synthesis: Painting Photoreal Frames...");
     let attempts = 0;
-    const interval = setInterval(async () => {
+    stopPolling();
+    pollIntervalRef.current = setInterval(async () => {
       attempts++;
       try {
         const res = await fetch(`/api/media/video/status?operation_name=${encodeURIComponent(opName)}`);
         if (res.ok) {
           const statusData = await res.json();
           if (statusData.status === "completed" && statusData.video_url) {
-            clearInterval(interval);
+            stopPolling();
             setActiveVideoUrl(statusData.video_url);
             setIsGenerating(false);
             setGenerationStage("");
             addTakeToHistory(statusData.video_url);
+            notifyIfFallback(statusData, "Video Render");
+          } else if (statusData.status === "failed") {
+            stopPolling();
+            toast.add({
+              title: "Video generation failed",
+              description: statusData.error || "Veo reported a failed render.",
+              type: "error",
+            });
+            setIsGenerating(false);
+            setGenerationStage("");
           } else if (attempts > 30) {
-            clearInterval(interval);
+            stopPolling();
+            toast.add({
+              title: "Video generation timed out",
+              description: "Veo didn't finish rendering within 90s. Try again, or check the agent-service logs.",
+              type: "warning",
+            });
             setIsGenerating(false);
             setGenerationStage("");
           }
+        } else if (attempts > 30) {
+          stopPolling();
+          toast.add({
+            title: "Video generation timed out",
+            description: "Couldn't confirm render status after 90s. Try again.",
+            type: "warning",
+          });
+          setIsGenerating(false);
+          setGenerationStage("");
         }
       } catch {
-        clearInterval(interval);
+        stopPolling();
+        toast.add({
+          title: "Lost connection to render backend",
+          description: "The status check failed. Try generating again.",
+          type: "error",
+        });
         setIsGenerating(false);
         setGenerationStage("");
       }
     }, 3000);
+  };
+
+  const handleCancelGeneration = () => {
+    stopPolling();
+    setIsGenerating(false);
+    setGenerationStage("");
+    toast.add({ title: "Generation cancelled", type: "info" });
   };
 
   const addTakeToHistory = (url: string) => {
@@ -404,16 +468,25 @@ export function GenerationStudioView({
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.audio_url) {
-          if (audioRef.current) {
-            audioRef.current.src = data.audio_url;
-            audioRef.current.play();
-            audioRef.current.onended = () => setPlayingLineIdx(null);
-          }
+        if (data.audio_url && audioRef.current) {
+          audioRef.current.src = data.audio_url;
+          audioRef.current.play();
+          audioRef.current.onended = () => setPlayingLineIdx(null);
+        } else {
+          setPlayingLineIdx(null);
+          toast.add({ title: "Playback failed", description: "No audio returned. Try again.", type: "error" });
         }
+      } else {
+        setPlayingLineIdx(null);
+        toast.add({ title: "Playback failed", description: `TTS request failed (${res.status}).`, type: "error" });
       }
-    } catch {
+    } catch (err) {
       setPlayingLineIdx(null);
+      toast.add({
+        title: "Playback failed",
+        description: err instanceof Error ? err.message : "Could not reach the TTS backend.",
+        type: "error",
+      });
     }
   };
 
@@ -1010,21 +1083,33 @@ export function GenerationStudioView({
 
               {/* Primary Render Button */}
               <div className="mt-auto pt-2 flex flex-col gap-2">
-                <Button
-                  size="lg"
-                  onClick={handleGenerateVeoVideo}
-                  disabled={isGenerating}
-                  className="w-full bg-accent text-accent-foreground hover:bg-accent/90 font-semibold gap-2 cursor-pointer shadow-md"
-                >
-                  {isGenerating ? (
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Sparkles className="h-4 w-4" />
+                <div className="flex gap-2">
+                  <Button
+                    size="lg"
+                    onClick={handleGenerateVeoVideo}
+                    disabled={isGenerating}
+                    className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90 font-semibold gap-2 cursor-pointer shadow-md"
+                  >
+                    {isGenerating ? (
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-4 w-4" />
+                    )}
+                    <span>
+                      {isGenerating ? "Rendering with Veo 3.1..." : "Render Scene with Google Veo 3.1"}
+                    </span>
+                  </Button>
+                  {isGenerating && (
+                    <Button
+                      size="lg"
+                      variant="outline"
+                      onClick={handleCancelGeneration}
+                      className="cursor-pointer"
+                    >
+                      Cancel
+                    </Button>
                   )}
-                  <span>
-                    {isGenerating ? "Rendering with Veo 3.1..." : "Render Scene with Google Veo 3.1"}
-                  </span>
-                </Button>
+                </div>
 
                 {isGenerating && (
                   <div className="rounded-lg bg-accent/10 border border-accent/30 p-2.5 text-center flex flex-col gap-1.5">

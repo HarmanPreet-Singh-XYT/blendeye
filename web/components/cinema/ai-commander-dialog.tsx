@@ -31,7 +31,7 @@ export interface AICommanderDialogProps {
 }
 
 const QUICK_DIRECTIVES = [
-  "Add a rival double-agent named Viktor and wire him to Elena with ⚔️ Rivalry",
+  "Add a rival double-agent named Viktor and wire him to Elena with Rivalry",
   "Crank Elena's subtext to 95% and verbal pacing to 85%",
   "Auto-tidy the entire backlot canvas into neat production lanes",
   "Rewrite the scene climax with a sudden power blackout",

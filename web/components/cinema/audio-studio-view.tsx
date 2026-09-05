@@ -4,6 +4,8 @@ import * as React from "react";
 import { SlateLabel } from "@/components/cinema/slate-label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/toast";
+import { notifyIfFallback } from "@/lib/fallback-notice";
 import {
   Volume2,
   VolumeX,
@@ -249,10 +251,25 @@ export function AudioStudioView({
           await audio.play();
           setAuditionSuccess(true);
           setTimeout(() => setAuditionSuccess(false), 2500);
+          notifyIfFallback(data, "Voice Audition");
+        } else {
+          toast.add({ title: "Audition failed", description: "No audio returned. Try again.", type: "error" });
         }
+      } else {
+        const detail = await res.text().catch(() => "");
+        toast.add({
+          title: "Audition failed",
+          description: detail || `TTS request failed (${res.status}).`,
+          type: "error",
+        });
       }
     } catch (err) {
       console.error("Audition failed:", err);
+      toast.add({
+        title: "Audition failed",
+        description: err instanceof Error ? err.message : "Could not reach the TTS backend.",
+        type: "error",
+      });
     } finally {
       setIsAuditioning(false);
     }
@@ -375,13 +392,28 @@ export function AudioStudioView({
             await audio.play();
           } else {
             setIsPlayingMaster(false);
+            toast.add({
+              title: "Table read stopped",
+              description: `No audio returned for line ${idx + 1}. Playback halted.`,
+              type: "error",
+            });
           }
         } else {
           setIsPlayingMaster(false);
+          toast.add({
+            title: "Table read stopped",
+            description: `TTS request failed on line ${idx + 1}. Playback halted.`,
+            type: "error",
+          });
         }
       } catch (err) {
         console.error("Sequential play error:", err);
         setIsPlayingMaster(false);
+        toast.add({
+          title: "Table read stopped",
+          description: err instanceof Error ? err.message : `Playback failed on line ${idx + 1}.`,
+          type: "error",
+        });
       }
     },
     [scriptLines, channels, cachedAudioMap, getLineKey]
@@ -391,6 +423,7 @@ export function AudioStudioView({
   const handlePrecacheAll = async () => {
     if (isPreCaching) return;
     setIsPreCaching(true);
+    let failures = 0;
     try {
       for (const item of scriptLines) {
         const cacheKey = getLineKey(item.speaker, item.text);
@@ -401,25 +434,47 @@ export function AudioStudioView({
         if (speakerUpper.includes("ELENA")) targetChannel = channels.DX2;
         else if (speakerUpper.includes("NARRATOR")) targetChannel = channels.DX3;
 
-        const res = await fetch("/api/media/tts", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            text: item.text,
-            speaker: targetChannel.characterKey,
-            voice_name: targetChannel.voiceName,
-          }),
-        });
+        try {
+          const res = await fetch("/api/media/tts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              text: item.text,
+              speaker: targetChannel.characterKey,
+              voice_name: targetChannel.voiceName,
+            }),
+          });
 
-        if (res.ok) {
-          const data = await res.json();
-          if (data.audio_url) {
-            setCachedAudioMap((prev) => ({ ...prev, [cacheKey]: data.audio_url }));
+          if (res.ok) {
+            const data = await res.json();
+            if (data.audio_url) {
+              setCachedAudioMap((prev) => ({ ...prev, [cacheKey]: data.audio_url }));
+            } else {
+              failures++;
+            }
+          } else {
+            failures++;
           }
+        } catch {
+          failures++;
         }
+      }
+      if (failures > 0) {
+        toast.add({
+          title: "Pre-cache incomplete",
+          description: `${failures} line${failures === 1 ? "" : "s"} failed to synthesize. You can retry via Pre-cache All.`,
+          type: "warning",
+        });
+      } else {
+        toast.add({ title: "Pre-cache complete", description: "All dialogue lines cached.", type: "success" });
       }
     } catch (err) {
       console.error("Pre-cache error:", err);
+      toast.add({
+        title: "Pre-cache failed",
+        description: err instanceof Error ? err.message : "Could not reach the TTS backend.",
+        type: "error",
+      });
     } finally {
       setIsPreCaching(false);
     }

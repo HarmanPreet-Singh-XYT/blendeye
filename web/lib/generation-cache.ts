@@ -104,14 +104,3 @@ export async function setCachedGeneration<T>(
   }
 }
 
-export function getCacheStats() {
-  return {
-    hits: totalHits,
-    misses: totalMisses,
-    memoryEntries: memoryCache.size,
-    hitRate:
-      totalHits + totalMisses > 0
-        ? `${((totalHits / (totalHits + totalMisses)) * 100).toFixed(1)}%`
-        : "0.0%",
-  };
-}

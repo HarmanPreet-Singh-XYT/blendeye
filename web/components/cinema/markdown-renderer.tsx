@@ -89,7 +89,7 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
             );
           },
           pre: ({ children }) => (
-            <pre className="rounded-md border border-border bg-background/90 p-3 font-mono text-[11px] overflow-x-auto my-2 text-foreground/95 leading-normal shadow-inner">
+            <pre className="rounded-md border border-border bg-background/90 p-3 font-mono text-[11px] overflow-x-auto max-w-full whitespace-pre-wrap break-words my-2 text-foreground/95 leading-normal shadow-inner">
               {children}
             </pre>
           ),

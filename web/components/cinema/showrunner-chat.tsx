@@ -22,8 +22,9 @@ import {
   FileText,
   UserPlus,
   LayoutGrid,
+  Database,
 } from "lucide-react";
-import type { StudioAction } from "@/lib/studio-actions";
+import type { CitedPrecedent, StudioAction } from "@/lib/studio-actions";
 
 export interface ExtendedShowrunnerMessage {
   role: "user" | "showrunner";
@@ -31,6 +32,7 @@ export interface ExtendedShowrunnerMessage {
   thought_process?: string;
   actions?: StudioAction[];
   execution_summaries?: string[];
+  precedents_cited?: CitedPrecedent[];
 }
 
 interface ShowrunnerChatProps {
@@ -46,7 +48,7 @@ export function ShowrunnerChat({
   onSendMessage,
   isThinking,
   suggestedPrompts = [
-    "Introduce a rival cyber-agent named Viktor and wire him to Elena with ⚔️ Rivalry",
+    "Introduce a rival cyber-agent named Viktor and wire him to Elena with Rivalry",
     "Crank Elena's subtext to 95% and verbal pacing to 85%",
     "Auto-tidy the entire backlot canvas into production columns",
     "Rewrite the scene climax with a sudden power blackout",
@@ -182,6 +184,25 @@ export function ShowrunnerChat({
                         {msg.thought_process}
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* ClickHouse Precedent Grounding */}
+                {msg.precedents_cited && msg.precedents_cited.length > 0 && (
+                  <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 space-y-1.5">
+                    <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider text-amber-400 font-bold">
+                      <Database className="h-3.5 w-3.5 text-amber-400" />
+                      <span>ClickHouse Precedent Grounding</span>
+                    </div>
+                    <div className="space-y-1">
+                      {msg.precedents_cited.map((p, pIdx) => (
+                        <div key={pIdx} className="text-[11px] text-foreground/90 font-mono">
+                          <span className="text-amber-400">{p.historical_reference}</span>
+                          {" · "}
+                          {p.trope} · {p.audience_retention_pct}% retention ({p.commercial_territory})
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
 

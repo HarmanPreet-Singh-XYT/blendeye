@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { CommanderExecutionResponse, StudioAction } from "@/lib/studio-actions";
+import type { CitedPrecedent, CommanderExecutionResponse, StudioAction } from "@/lib/studio-actions";
+import { getPrecedents, executeShowrunnerDirective } from "@/lib/agent-service";
 
 const SYSTEM_PROMPT = `
 You are the Omniscient Studio Executive AI & Lead Showrunner for an elite Hollywood production studio.
@@ -13,7 +14,7 @@ AVAILABLE ACTIONS YOU CAN EMIT IN "actions":
 4. {"type": "create_node", "nodeType": "clip"|"note"|"actor"|"personality"|"quirks"|"scene"|"script"|"chemistry"|"storyboard"|"floorplan"|"tensionCurve"|"tableRead"|"market", "title": "...", "data": {...}}
 5. {"type": "delete_node", "nodeId": "nodeId or name"}
 6. {"type": "update_node_data", "nodeId": "nodeId or name", "patch": {...}}
-7. {"type": "connect_nodes", "source": "nodeId or name", "target": "nodeId or name", "relationship": "⚡ Friction"|"🤝 Alliance"|"⚔️ Rivalry"|"🎓 Mentor"|"🎨 Style Sync"|"💡 Plot Seed"}
+7. {"type": "connect_nodes", "source": "nodeId or name", "target": "nodeId or name", "relationship": "Friction"|"Alliance"|"Rivalry"|"Mentor"|"Style Sync"|"Plot Seed"}
 8. {"type": "sever_wire", "source": "nodeId or name", "target": "nodeId or name"}
 9. {"type": "update_screenplay", "screenplayText": "...", "summary": "..."}
 10. {"type": "update_scene_meta", "title": "...", "stakes": "..."}
@@ -41,10 +42,55 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "userPrompt is required" }, { status: 400 });
     }
 
+    // First: Delegate to Python agent-service's Google ADK Showrunner agent
+    try {
+      const pythonRes = await executeShowrunnerDirective({
+        userPrompt,
+        projectTitle: project.title,
+        logline: project.premise,
+        genre: project.genre,
+        screenplayText: project.screenplayText,
+        characters: project.characters,
+        nodes: project.nodes,
+        edges: project.edges,
+        history,
+      });
+
+      if (pythonRes && (pythonRes.actions || pythonRes.assistant_message)) {
+        return NextResponse.json(pythonRes);
+      }
+    } catch (agentErr) {
+      console.warn("Python agent-service showrunner directive unavailable, falling back:", agentErr);
+    }
+
     const apiKey =
       process.env.GOOGLE_API_KEY ||
       process.env.GEMINI_API_KEY ||
       "";
+
+    // Ground the Executive AI in real ClickHouse cinematic precedent data —
+    // the same `cinematic_precedents` table & query used by the market/territory
+    // views, so the commander's creative reasoning is backed by real rows,
+    // not an invented "studio_commander" telemetry string.
+    const CLICKHOUSE_PRECEDENTS_SQL =
+      "SELECT genre, trope, historical_reference, tension_level, commercial_territory, audience_retention_pct, precedent_example " +
+      "FROM cinematic_precedents ORDER BY audience_retention_pct DESC LIMIT 3";
+    let precedentsCited: CitedPrecedent[] = [];
+    try {
+      const allPrecedents = await getPrecedents(project.genre || "");
+      precedentsCited = allPrecedents.slice(0, 3);
+    } catch (precedentErr) {
+      console.warn("Commander precedent grounding unavailable:", precedentErr);
+    }
+
+    const precedentContext = precedentsCited.length
+      ? precedentsCited
+          .map(
+            (p) =>
+              `- ${p.historical_reference} | ${p.trope} | Tension ${p.tension_level}/10 | ${p.audience_retention_pct}% retention (${p.commercial_territory})`
+          )
+          .join("\n")
+      : "- No ClickHouse precedent rows available for this genre.";
 
     // Build comprehensive project context for Gemini
     const projectContext = `
@@ -59,6 +105,9 @@ CURRENT PROJECT CONTEXT:
 - Existing Wires: ${(project.edges || []).map((e: any) => `${e.source} -> ${e.target} [${e.data?.relationship || "wire"}]`).join(", ")}
 - Screenplay Excerpt:
 ${(project.screenplayText || "").slice(0, 1500) || "(No script drafted yet)"}
+
+CLICKHOUSE GROUNDING (real cinematic precedent benchmarks for this genre):
+${precedentContext}
 `;
 
     if (apiKey) {
@@ -92,6 +141,8 @@ ${(project.screenplayText || "").slice(0, 1500) || "(No script drafted yet)"}
           const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
           if (rawText) {
             const parsed = JSON.parse(rawText) as CommanderExecutionResponse;
+            parsed.precedents_cited = precedentsCited;
+            parsed.clickhouse_query_sql = precedentsCited.length ? CLICKHOUSE_PRECEDENTS_SQL : undefined;
             return NextResponse.json(parsed);
           }
         }
@@ -132,7 +183,7 @@ ${(project.screenplayText || "").slice(0, 1500) || "(No script drafted yet)"}
           type: "connect_nodes",
           source: `node-actor-${name.toLowerCase()}`,
           target: `node-actor-${existingChar.toLowerCase()}`,
-          relationship: promptLower.includes("rival") ? "⚔️ Rivalry" : "⚡ Friction",
+          relationship: promptLower.includes("rival") ? "Rivalry" : "Friction",
         });
       }
       thought += `Created character ${name} with ${archetype} archetype and linked to scene dynamics. `;
@@ -196,6 +247,9 @@ ${(project.screenplayText || "").slice(0, 1500) || "(No script drafted yet)"}
       thought_process: thought,
       assistant_message: reply,
       actions: localActions,
+      precedents_cited: precedentsCited,
+      clickhouse_query_sql: precedentsCited.length ? CLICKHOUSE_PRECEDENTS_SQL : undefined,
+      _fallback: true,
     };
 
     return NextResponse.json(fallbackResponse);

@@ -15,18 +15,15 @@ export async function GET() {
 
   return NextResponse.json({
     studio: "Agentic Cinema Executive Backlot",
-    partner_integrations: ["ClickHouse Cloud", "Grafana Labs"],
-    agents_active: 8,
+    partner_integrations: ["ClickHouse Cloud"],
     mcp_servers: {
-      clickhouse_mcp: "online",
-      state: "operational",
+      clickhouse_mcp: "unreachable",
+      state: "degraded",
     },
     telemetry: {
       uptime_seconds: Math.floor(Date.now() / 1000),
-      avg_agent_latency_ms: 215,
-      clickhouse_query_p99_ms: 12,
-      multimodal_image_jobs: 14,
-      tts_audio_seconds_generated: 238.4,
     },
+    _fallback: true,
+    _error: "agent-service unreachable",
   });
 }

@@ -12,6 +12,8 @@ import { SlateLabel } from "@/components/cinema/slate-label";
 import { TableReadPlayer } from "@/components/cinema/table-read-player";
 import { Button } from "@/components/ui/button";
 import { Edit3, Eye, Sparkles, Check, RefreshCw, Upload } from "lucide-react";
+import { toast } from "@/components/ui/toast";
+import { notifyIfFallback } from "@/lib/fallback-notice";
 
 interface ScreenplayDialogProps {
   open: boolean;
@@ -94,9 +96,22 @@ export function ScreenplayDialog({
       if (res.ok) {
         const data = await res.json();
         setTunedResult(data.tuned_dialogue || data.dialogue);
+        notifyIfFallback(data, "Dialogue Tuning");
+      } else {
+        const detail = await res.text().catch(() => "");
+        toast.add({
+          title: "Dialogue tuning failed",
+          description: detail || `Request failed (${res.status}). Try again.`,
+          type: "error",
+        });
       }
     } catch (err) {
       console.error("Dialogue tune error:", err);
+      toast.add({
+        title: "Dialogue tuning failed",
+        description: err instanceof Error ? err.message : "Could not reach the tuning backend.",
+        type: "error",
+      });
     } finally {
       setIsTuning(false);
     }

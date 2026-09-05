@@ -13,6 +13,8 @@ import { cn } from "@/lib/utils";
 import { SlateLabel } from "@/components/cinema/slate-label";
 import { FilmstripLoader } from "@/components/cinema/filmstrip-loader";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "@/components/ui/toast";
+import { notifyIfFallback } from "@/lib/fallback-notice";
 import {
   Video,
   FileText,
@@ -33,6 +35,7 @@ import {
   Play,
   RotateCcw,
   Unlink,
+  AlertTriangle,
 } from "lucide-react";
 
 export type NodeState = "idle" | "generating" | "ready" | "stale" | "error";
@@ -984,10 +987,25 @@ export function StoryboardNode({ data, selected }: NodeProps & { data: Storyboar
         if (result.image_url) {
           setCurrentImage(result.image_url);
           data.imageUrl = result.image_url;
+          notifyIfFallback(result, "Storyboard Render");
+        } else {
+          toast.add({ title: "Storyboard render failed", description: "No image returned. Try again.", type: "error" });
         }
+      } else {
+        const detail = await res.text().catch(() => "");
+        toast.add({
+          title: "Storyboard render failed",
+          description: detail || `Request failed (${res.status}). Try again.`,
+          type: "error",
+        });
       }
     } catch (err) {
       console.error("Storyboard Imagen render error:", err);
+      toast.add({
+        title: "Storyboard render failed",
+        description: err instanceof Error ? err.message : "Could not reach the image backend.",
+        type: "error",
+      });
     } finally {
       setIsRendering(false);
     }
@@ -1249,8 +1267,9 @@ export function TensionCurveNode({ data, selected }: NodeProps & { data: Tension
         </div>
 
         {data.hasWarning && (
-          <div className="text-[10px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
-            ⚠ Tension plateau detected in Act 2
+          <div className="flex items-center gap-1 text-[10px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+            <AlertTriangle className="h-3 w-3 shrink-0" />
+            <span>Tension plateau detected in Act 2</span>
           </div>
         )}
 

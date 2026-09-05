@@ -52,7 +52,7 @@ export interface ConnectNodesAction {
   target: string; // Node ID or character name
   sourceHandle?: string | null;
   targetHandle?: string | null;
-  relationship?: string; // e.g. "⚡ Friction", "🤝 Alliance", "⚔️ Rivalry", "🎓 Mentor"
+  relationship?: string; // e.g. "Friction", "Alliance", "Rivalry", "Mentor"
 }
 
 export interface SeverWireAction {
@@ -124,9 +124,23 @@ export type StudioAction =
   | AutoTidyBacklotAction
   | CreateTakeMilestoneAction;
 
+export interface CitedPrecedent {
+  genre: string;
+  trope: string;
+  historical_reference: string;
+  tension_level: number;
+  commercial_territory: string;
+  audience_retention_pct: number;
+  precedent_example: string;
+}
+
 export interface CommanderExecutionResponse {
   thought_process: string;
   assistant_message: string;
   actions: StudioAction[];
   execution_summary?: string[];
+  precedents_cited?: CitedPrecedent[];
+  clickhouse_query_sql?: string;
+  _fallback?: boolean;
+  _error?: string;
 }

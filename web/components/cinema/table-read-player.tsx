@@ -5,6 +5,7 @@ import { SlateLabel } from "@/components/cinema/slate-label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Sparkles, RefreshCw } from "lucide-react";
+import { notifyIfFallback } from "@/lib/fallback-notice";
 
 interface ScriptLine {
   id: number;
@@ -111,6 +112,7 @@ export function TableReadPlayer({
 
           if (res.ok) {
             const data = await res.json();
+            notifyIfFallback(data, "Table Read TTS");
             if (data.audio_url && !data._fallback) {
               setActiveVoiceName(data.voice_name || "Fenrir");
               if (!isMuted) {

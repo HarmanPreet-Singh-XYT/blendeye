@@ -68,31 +68,41 @@ export function LandingHero({ onOpenNewProject, onOpenFusion }: LandingHeroProps
         <Button
           size="lg"
           className="h-12 px-7 text-sm font-semibold gap-2 bg-accent text-accent-foreground hover:bg-accent/90 shadow-xl shadow-accent/25 transition-all"
-          onClick={() => router.push("/studio/vault-heist-demo")}
+          onClick={() => router.push("/dashboard")}
         >
-          <Play className="h-4 w-4 fill-current" />
-          Launch Benchmark Demo (The Vault)
+          <Film className="h-4 w-4" />
+          Enter Studio Dashboard
         </Button>
 
         <Button
           size="lg"
           variant="outline"
           className="h-12 px-6 text-sm font-medium gap-2 border-border bg-card/60 hover:bg-secondary transition-all"
-          onClick={scrollToSimulator}
+          onClick={() => router.push("/studio/vault-heist-demo")}
         >
-          <Clock className="h-4 w-4 text-accent" />
-          Try Live Interactive Simulator
-          <ArrowRight className="h-4 w-4" />
+          <Play className="h-4 w-4 fill-current text-accent" />
+          Launch Benchmark Demo
         </Button>
 
         <Button
           size="lg"
           variant="secondary"
           className="h-12 px-5 text-sm font-medium gap-2 border border-border/80 hover:bg-secondary/80 transition-all"
+          onClick={scrollToSimulator}
+        >
+          <Clock className="h-4 w-4 text-accent" />
+          Time-Gate Simulator
+          <ArrowRight className="h-4 w-4" />
+        </Button>
+
+        <Button
+          size="lg"
+          variant="ghost"
+          className="h-12 px-4 text-sm font-medium gap-2 text-muted-foreground hover:text-foreground transition-all"
           onClick={onOpenFusion}
         >
           <Shuffle className="h-4 w-4 text-accent" />
-          Film Fusion Crossover
+          Film Fusion
         </Button>
       </div>
 

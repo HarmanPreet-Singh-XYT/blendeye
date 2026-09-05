@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Film, Plus, Play, Database, Layers } from "lucide-react";
+import { Film, Plus, Database, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface LandingNavbarProps {
@@ -48,13 +48,13 @@ export function LandingNavbar({ onOpenNewProject }: LandingNavbarProps) {
         </div>
 
         {/* Center: Quick navigation links */}
-        <nav className="hidden xl:flex items-center gap-6 text-xs font-medium text-muted-foreground">
+        <nav className="hidden lg:flex items-center gap-5 text-xs font-medium text-muted-foreground">
           <a
             href="#simulator"
             className="hover:text-foreground transition-colors flex items-center gap-1.5 whitespace-nowrap"
           >
             <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-            Time-Gate Sim
+            Time-Gate
           </a>
           <a
             href="#canvas-backlot"
@@ -73,7 +73,7 @@ export function LandingNavbar({ onOpenNewProject }: LandingNavbarProps) {
             href="#multiverse"
             className="hover:text-foreground transition-colors whitespace-nowrap"
           >
-            Multiverse Takes
+            Multiverse
           </a>
           <a
             href="#slates"
@@ -86,13 +86,13 @@ export function LandingNavbar({ onOpenNewProject }: LandingNavbarProps) {
             className="hover:text-foreground transition-colors flex items-center gap-1 whitespace-nowrap"
           >
             <Database className="h-3 w-3 text-emerald-400" />
-            ClickHouse Core
+            ClickHouse
           </a>
         </nav>
 
         {/* Right: Live Telemetry & Actions */}
-        <div className="flex items-center gap-2.5 shrink-0">
-          <div className="hidden md:flex items-center gap-1.5 text-xs font-mono bg-secondary/50 px-2.5 py-1 rounded-full border border-border text-muted-foreground">
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="hidden xl:flex items-center gap-1.5 text-[11px] font-mono bg-secondary/50 px-2.5 py-1 rounded-full border border-border text-muted-foreground">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399]" />
             <span>ClickHouse:</span>
             <span className="text-emerald-400 font-semibold">1.4ms</span>
@@ -111,11 +111,11 @@ export function LandingNavbar({ onOpenNewProject }: LandingNavbarProps) {
 
           <Button
             size="sm"
-            className="h-8 text-xs gap-1.5 bg-accent text-accent-foreground hover:bg-accent/90 shadow-sm font-medium"
-            onClick={() => router.push("/studio/vault-heist-demo")}
+            className="h-8 px-3 text-xs gap-1.5 bg-accent text-accent-foreground hover:bg-accent/90 shadow-sm font-semibold whitespace-nowrap"
+            onClick={() => router.push("/dashboard")}
           >
-            <Play className="h-3 w-3 fill-current" />
-            <span>Launch Studio</span>
+            <Film className="h-3.5 w-3.5" />
+            <span>Studio Dashboard</span>
           </Button>
         </div>
       </div>

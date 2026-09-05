@@ -176,6 +176,23 @@ export function StripboardView({
 
   const totalDays = Math.max(...strips.map((s) => s.shootDay), 1);
 
+  // Derived from the actual parsed strips rather than fixed literals: total
+  // page count (sum of eighths from each strip's slugline), and a
+  // transparent budget-per-shoot-day heuristic that's labeled as an
+  // estimate formula rather than presented as a fixed dollar figure.
+  const totalEighths = strips.reduce((sum, s) => {
+    const match = s.pages.match(/^(\d+)\s+(\d+)\/8$/);
+    if (!match) return sum;
+    return sum + Number(match[1]) * 8 + Number(match[2]);
+  }, 0);
+  const totalPages = Math.round((totalEighths / 8) * 10) / 10;
+  const BUDGET_PER_SHOOT_DAY_USD = 85_000; // indie/mid-tier per-day rate of thumb
+  const estimatedBudget = totalDays * BUDGET_PER_SHOOT_DAY_USD;
+  const formattedBudget =
+    estimatedBudget >= 1_000_000
+      ? `$${(estimatedBudget / 1_000_000).toFixed(1)}M`
+      : `$${(estimatedBudget / 1_000).toFixed(0)}K`;
+
   return (
     <div className={`flex flex-col rounded-xl border border-border bg-card p-4 space-y-4 ${className ?? ""}`}>
       {/* Header */}
@@ -199,17 +216,21 @@ export function StripboardView({
             <span className="text-[10px] uppercase font-semibold">Estimated Budget</span>
             <DollarSign className="h-3.5 w-3.5 text-emerald-400" />
           </div>
-          <div className="text-base font-bold font-mono text-foreground">$14.5M</div>
-          <span className="text-[10px] text-muted-foreground block">Mid-tier studio package</span>
+          <div className="text-base font-bold font-mono text-foreground">{formattedBudget}</div>
+          <span className="text-[10px] text-muted-foreground block">
+            {totalDays} shoot day{totalDays === 1 ? "" : "s"} × $85K/day (indie/mid-tier estimate)
+          </span>
         </div>
 
         <div className="rounded-lg border border-border bg-secondary/20 p-2.5 space-y-1">
           <div className="flex items-center justify-between text-muted-foreground">
-            <span className="text-[10px] uppercase font-semibold">Shoot Schedule</span>
+            <span className="text-[10px] uppercase font-semibold">Script Pages</span>
             <Calendar className="h-3.5 w-3.5 text-accent" />
           </div>
-          <div className="text-base font-bold font-mono text-foreground">{totalDays * 7} Days</div>
-          <span className="text-[10px] text-muted-foreground block">Principal photography</span>
+          <div className="text-base font-bold font-mono text-foreground">{totalPages || "—"}</div>
+          <span className="text-[10px] text-muted-foreground block">
+            Summed from {strips.length} strip slugline{strips.length === 1 ? "" : "s"}
+          </span>
         </div>
 
         <div className="rounded-lg border border-border bg-secondary/20 p-2.5 space-y-1">

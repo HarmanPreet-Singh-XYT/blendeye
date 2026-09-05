@@ -45,6 +45,8 @@ import { AudioStudioView } from "@/components/cinema/audio-studio-view";
 import { VeoVideoDialog } from "@/components/cinema/veo-video-dialog";
 import { GenerationStudioView } from "@/components/cinema/generation-studio-view";
 import { DirectorLookbookDialog } from "@/components/cinema/director-lookbook-dialog";
+import { toast } from "@/components/ui/toast";
+import { notifyIfFallback } from "@/lib/fallback-notice";
 import {
   StudioVersionControl,
   type SnapshotState,
@@ -259,6 +261,7 @@ export default function StudioPage() {
   // Pipeline Status & Logs
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [generationStage, setGenerationStage] = React.useState<string>("");
+  const pipelineAbortRef = React.useRef<AbortController | null>(null);
   const [isAsking, setIsAsking] = React.useState(false);
   const [queryLogs, setQueryLogs] = React.useState<ClickHouseQueryLog[]>([]);
   const [lastSql, setLastSql] = React.useState<string>("");
@@ -395,6 +398,7 @@ export default function StudioPage() {
 
   // Chemistry Test Execution
   const handleRunChemistry = async () => {
+    if (isChemistryRunning) return;
     setIsChemistryRunning(true);
     const charA = characters[0] || { name: "Lead", archetype: "Protagonist" };
     const charB = characters[1] || characters[0] || { name: "Counterpart", archetype: "Antagonist" };
@@ -416,9 +420,22 @@ export default function StudioPage() {
         setChemistrySceneOutput(data.micro_scene);
         setMainTab("simulation");
         setSimulationTab("chemistry");
+        notifyIfFallback(data, "Chemistry Test");
+      } else {
+        const detail = await res.text().catch(() => "");
+        toast.add({
+          title: "Chemistry test failed",
+          description: detail || `Request failed (${res.status}). Try again.`,
+          type: "error",
+        });
       }
     } catch (err) {
       console.error("Chemistry test failed:", err);
+      toast.add({
+        title: "Chemistry test failed",
+        description: err instanceof Error ? err.message : "Could not reach the chemistry backend.",
+        type: "error",
+      });
     } finally {
       setIsChemistryRunning(false);
     }
@@ -577,14 +594,20 @@ export default function StudioPage() {
   // Run Script Generation & Sharding Pipeline
   const runFullPipeline = async (pid: string, premise: string) => {
     setIsGenerating(true);
+    const controller = new AbortController();
+    pipelineAbortRef.current = controller;
     try {
       setGenerationStage("Drafting Master Screenplay (Gemini 3.7 Flash)...");
       const scriptRes = await fetch("/api/script/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ premise }),
+        signal: controller.signal,
       });
-      if (!scriptRes.ok) throw new Error("Script generation failed");
+      if (!scriptRes.ok) {
+        const detail = await scriptRes.text().catch(() => "");
+        throw new Error(detail || "Script generation failed");
+      }
       const scriptData = await scriptRes.json();
       const generatedScript = scriptData.screenplay_text;
       setScreenplayText(generatedScript);
@@ -597,8 +620,12 @@ export default function StudioPage() {
           projectId: pid,
           screenplayText: generatedScript,
         }),
+        signal: controller.signal,
       });
-      if (!shardRes.ok) throw new Error("Perspective sharding failed");
+      if (!shardRes.ok) {
+        const detail = await shardRes.text().catch(() => "");
+        throw new Error(detail || "Perspective sharding failed");
+      }
       const shardData = await shardRes.json();
 
       const newSceneTitle = shardData.scene_title || `${projectTitle} — Scene 01`;
@@ -649,10 +676,24 @@ export default function StudioPage() {
       setMainTab("planning");
     } catch (err) {
       console.error("Pipeline failed:", err);
+      if (err instanceof Error && err.name === "AbortError") {
+        toast.add({ title: "Generation cancelled", type: "info" });
+      } else {
+        toast.add({
+          title: "Script generation pipeline failed",
+          description: err instanceof Error ? err.message : "Could not reach the generation backend.",
+          type: "error",
+        });
+      }
     } finally {
       setIsGenerating(false);
       setGenerationStage("");
+      pipelineAbortRef.current = null;
     }
+  };
+
+  const handleCancelPipeline = () => {
+    pipelineAbortRef.current?.abort();
   };
 
   // Re-shard script after user edits
@@ -716,6 +757,11 @@ export default function StudioPage() {
       await fetchProjectEvents(projectId);
     } catch (err) {
       console.error("Resharding failed:", err);
+      toast.add({
+        title: "Re-sharding failed",
+        description: err instanceof Error ? err.message : "Could not reach the sharding backend.",
+        type: "error",
+      });
     } finally {
       setIsGenerating(false);
       setGenerationStage("");
@@ -862,17 +908,17 @@ export default function StudioPage() {
           thought_process: data.thought_process,
           actions: data.actions,
           execution_summaries: executedSummaries,
+          precedents_cited: data.precedents_cited,
         };
 
         setShowrunnerMessages((prev) => [...prev, aiMsg]);
 
-        // Log ClickHouse telemetry
-        const elapsed = Math.round(performance.now() - start);
-        logClickHouseQuery(
-          `SELECT actions_executed FROM studio_commander WHERE prompt = '${trimmed.slice(0, 30)}...'`,
-          "precedents",
-          elapsed
-        );
+        // Log the real ClickHouse precedent query the commander used to ground
+        // its creative reasoning (only if precedent rows actually came back).
+        if (data.clickhouse_query_sql) {
+          const elapsed = Math.round(performance.now() - start);
+          logClickHouseQuery(data.clickhouse_query_sql, "precedents", elapsed);
+        }
 
         return {
           ...data,
@@ -2317,6 +2363,15 @@ export default function StudioPage() {
             <div className="text-[11px] text-muted-foreground text-center">
               Generating screenplay text, sharding character knowledge firewalls, and synchronizing blueprint node graph.
             </div>
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleCancelPipeline}
+              className="w-full text-xs cursor-pointer"
+            >
+              Cancel
+            </Button>
           </div>
         </div>
       )}

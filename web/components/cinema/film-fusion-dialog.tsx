@@ -13,6 +13,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { SlateLabel } from "@/components/cinema/slate-label";
 import { Shuffle, Sparkles, ArrowRight, Layers, UserCheck } from "lucide-react";
+import { toast } from "@/components/ui/toast";
+import { notifyIfFallback } from "@/lib/fallback-notice";
 import type { FilmFusionResponse } from "@/lib/agent-service";
 import { getAllProjects, saveProject, type ProjectData, type ProjectCharacter } from "@/lib/project-store";
 
@@ -52,6 +54,7 @@ export function FilmFusionDialog({
   const projB = projects.find((p) => p.id === selectedProjBId) || projects[1] || projects[0];
 
   const handleRunFusion = async () => {
+    if (isFusing) return;
     setIsFusing(true);
     setFusionResult(null);
 
@@ -81,12 +84,21 @@ export function FilmFusionDialog({
         }),
       });
 
-      if (!res.ok) throw new Error("Film fusion failed");
+      if (!res.ok) {
+        const detail = await res.text().catch(() => "");
+        throw new Error(detail || `Film fusion failed (${res.status})`);
+      }
       const data: FilmFusionResponse = await res.json();
+      notifyIfFallback(data, "Film Fusion");
       setFusionResult(data);
       if (onFusionComplete) onFusionComplete(data);
     } catch (err) {
       console.error("Fusion error:", err);
+      toast.add({
+        title: "Film fusion failed",
+        description: err instanceof Error ? err.message : "Could not reach the fusion backend.",
+        type: "error",
+      });
     } finally {
       setIsFusing(false);
     }

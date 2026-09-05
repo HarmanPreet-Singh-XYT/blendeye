@@ -101,10 +101,98 @@ const TURNS_AT_52: HotSeatTurn[] = [
 
 export default function CanvasDemoPage() {
   const [timeSeconds, setTimeSeconds] = React.useState(34 * 60);
+  const [extraTurns34, setExtraTurns34] = React.useState<HotSeatTurn[]>([]);
+  const [extraTurns52, setExtraTurns52] = React.useState<HotSeatTurn[]>([]);
+  const [isAsking, setIsAsking] = React.useState(false);
 
   const atOrAfter52 = timeSeconds >= 52 * 60;
   const knownFacts = atOrAfter52 ? KNOWLEDGE_AT_52 : KNOWLEDGE_AT_34;
-  const turns = atOrAfter52 ? TURNS_AT_52 : TURNS_AT_34;
+  const baseTurns = atOrAfter52 ? TURNS_AT_52 : TURNS_AT_34;
+  const extraTurns = atOrAfter52 ? extraTurns52 : extraTurns34;
+  const turns = [...baseTurns, ...extraTurns];
+
+  const handleSend = async (message: string) => {
+    const text = message.trim();
+    if (!text || isAsking) return;
+
+    setIsAsking(true);
+    const userTurn: HotSeatTurn = { role: "interviewer", content: text };
+    if (atOrAfter52) {
+      setExtraTurns52((prev) => [...prev, userTurn]);
+    } else {
+      setExtraTurns34((prev) => [...prev, userTurn]);
+    }
+
+    const timecode = formatTimecode(timeSeconds);
+
+    try {
+      const res = await fetch("/api/hot-seat/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: "vault-heist-demo",
+          characterName: "Elena",
+          currentTimestamp: timecode,
+          question: text,
+          speechStyle: "Sharp, guarded, high subtext",
+          subtextRatio: "high",
+          priorTurns: turns.map((t) => ({ role: t.role, content: t.content })),
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const characterTurn: HotSeatTurn = {
+          role: "character",
+          content: data.answer,
+          isWithinFirewall: data.is_within_firewall,
+        };
+        if (atOrAfter52) {
+          setExtraTurns52((prev) => [...prev, characterTurn]);
+        } else {
+          setExtraTurns34((prev) => [...prev, characterTurn]);
+        }
+        setIsAsking(false);
+        return;
+      }
+    } catch {
+      // Backend unreachable or offline, generate contextual local answer respecting time firewall
+    }
+
+    // Local in-character fallback response adhering to timeline knowledge firewall
+    let reply = "";
+    let isWithinFirewall = true;
+
+    if (atOrAfter52) {
+      if (text.toLowerCase().includes("key") || text.toLowerCase().includes("marcus")) {
+        reply = "Marcus dropped them right before the service tunnel door. I saw it myself. He didn't lose them — he threw them.";
+      } else {
+        reply = "Look around us. The perimeter is sealed and Marcus is gone. Whatever we had planned is over.";
+      }
+    } else {
+      if (text.toLowerCase().includes("drop") || text.toLowerCase().includes("betray") || text.toLowerCase().includes("tunnel")) {
+        reply = "What are you talking about? Marcus is holding the extraction point right now. Stick to the timeline.";
+        isWithinFirewall = false; // Director asked about future event unknown to Elena yet
+      } else if (text.toLowerCase().includes("key")) {
+        reply = "Marcus has the bypass keys in his jacket. He showed them to me five minutes ago at the loading dock.";
+      } else {
+        reply = "We have five minutes before the security rotation. Ask what you need to ask and let's move.";
+      }
+    }
+
+    const fallbackTurn: HotSeatTurn = {
+      role: "character",
+      content: reply,
+      isWithinFirewall,
+    };
+
+    if (atOrAfter52) {
+      setExtraTurns52((prev) => [...prev, fallbackTurn]);
+    } else {
+      setExtraTurns34((prev) => [...prev, fallbackTurn]);
+    }
+    setIsAsking(false);
+  };
 
   return (
     <div className="flex h-screen flex-col gap-4 p-4">
@@ -136,10 +224,17 @@ export default function CanvasDemoPage() {
 
         <HotSeatChat
           characterName="Elena"
+          characterArchetype="Planner, trusts no one fully"
           currentTimecode={formatTimecode(timeSeconds)}
           knownFacts={knownFacts}
           turns={turns}
-          onSend={() => {}}
+          onSend={handleSend}
+          isAsking={isAsking}
+          suggestedQuestions={[
+            "Do you know who has the keys?",
+            "What happened at the service tunnel?",
+            "Can we trust Marcus right now?",
+          ]}
         />
       </div>
     </div>

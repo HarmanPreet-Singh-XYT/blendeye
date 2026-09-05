@@ -108,7 +108,7 @@ export function executeStudioActions(
             target: actorNodeId,
             type: "deletable",
             animated: true,
-            data: { relationship: "🧠 Mindset" },
+            data: { relationship: "Mindset" },
           });
 
           nodesChanged = true;
@@ -322,7 +322,7 @@ export function executeStudioActions(
               type: "deletable",
               animated: true,
               data: {
-                relationship: action.relationship || "⚡ Friction",
+                relationship: action.relationship || "Friction",
               },
             });
             edgesChanged = true;
@@ -429,128 +429,3 @@ export function executeStudioActions(
   };
 }
 
-/**
- * Intelligent local fallback parser for offline/direct NLP command handling
- */
-export function parseNaturalLanguageCommands(
-  prompt: string,
-  ctx: CommanderContext
-): StudioAction[] {
-  const actions: StudioAction[] = [];
-  const text = prompt.trim();
-  const lower = text.toLowerCase();
-
-  // 1. Auto-tidy command
-  if (lower.includes("tidy") || lower.includes("align") || lower.includes("organize backlot") || lower.includes("clean canvas")) {
-    actions.push({ type: "auto_tidy_backlot" });
-  }
-
-  // 2. Add character command
-  // e.g. "Add character Viktor who is a rival" or "create a character named Viktor"
-  const charAddMatch = prompt.match(
-    /(?:add|create)\s+(?:a\s+)?(?:new\s+)?character\s+(?:named\s+)?([A-Z][a-zA-Z0-9_-]+)(?:\s+(?:who\s+is|as)\s+(?:a\s+)?([^,.]+))?/i
-  );
-  if (charAddMatch) {
-    const name = charAddMatch[1];
-    const roleDesc = charAddMatch[2] || "Supporting Dynamic";
-    const archetype = roleDesc.toLowerCase().includes("rival")
-      ? "Ruthless Rival"
-      : roleDesc.toLowerCase().includes("mentor")
-      ? "Experienced Mentor"
-      : roleDesc.toLowerCase().includes("hacker")
-      ? "Shadow Cyber Analyst"
-      : "Key Dynamic";
-
-    actions.push({
-      type: "create_character",
-      name,
-      role: roleDesc,
-      archetype,
-      confidence: 80,
-      verbalPacing: 70,
-      personalityPreset: "Dynamic Strategic",
-      objective: `Confront the central crisis as ${roleDesc}`,
-    });
-  }
-
-  // 3. Connect nodes command
-  // e.g. "wire Viktor to Elena with Rivalry" or "connect Elena and Marcus"
-  const connectMatch = prompt.match(
-    /(?:wire|connect|link)\s+([A-Za-z0-9_-]+)\s+(?:to|and|with)\s+([A-Za-z0-9_-]+)(?:\s+(?:with|as)\s+([^,.]+))?/i
-  );
-  if (connectMatch) {
-    const source = connectMatch[1];
-    const target = connectMatch[2];
-    const rel = connectMatch[3];
-    let badge = "⚡ Friction";
-    if (rel) {
-      if (rel.toLowerCase().includes("rival")) badge = "⚔️ Rivalry";
-      else if (rel.toLowerCase().includes("alliance") || rel.toLowerCase().includes("ally")) badge = "🤝 Alliance";
-      else if (rel.toLowerCase().includes("mentor")) badge = "🎓 Mentor";
-      else if (rel.toLowerCase().includes("seed") || rel.toLowerCase().includes("plot")) badge = "💡 Plot Seed";
-      else if (rel.toLowerCase().includes("style")) badge = "🎨 Style Sync";
-    }
-
-    actions.push({
-      type: "connect_nodes",
-      source,
-      target,
-      relationship: badge,
-    });
-  }
-
-  // 4. Sever / unlink wires command
-  // e.g. "unlink Elena and Marcus" or "sever connection between..."
-  const severMatch = prompt.match(
-    /(?:unlink|sever|disconnect|remove wire)\s+(?:between\s+)?([A-Za-z0-9_-]+)\s+(?:and|to|from)\s+([A-Za-z0-9_-]+)/i
-  );
-  if (severMatch) {
-    actions.push({
-      type: "sever_wire",
-      source: severMatch[1],
-      target: severMatch[2],
-    });
-  }
-
-  // 5. Delete character or node command
-  // e.g. "delete character Viktor" or "remove node note-1"
-  const deleteCharMatch = prompt.match(/(?:delete|remove)\s+(?:character\s+)?([A-Z][a-zA-Z0-9_-]+)/i);
-  if (deleteCharMatch && ctx.characters.some((c) => c.name.toLowerCase() === deleteCharMatch[1].toLowerCase())) {
-    actions.push({
-      type: "delete_character",
-      name: deleteCharMatch[1],
-    });
-  }
-
-  // 6. Adjust dials / parameters
-  // e.g. "set Elena's confidence to 95" or "crank subtext to 90"
-  const dialMatch = prompt.match(/(?:set|crank|adjust|change)\s+([a-zA-Z]+)(?:'s)?\s+(confidence|pacing|verbal pacing|subtext)\s+(?:to\s+)?(\d+)/i);
-  if (dialMatch) {
-    const charName = dialMatch[1];
-    const dial = dialMatch[2].toLowerCase();
-    const value = parseInt(dialMatch[3], 10);
-    const patch: any = {};
-    if (dial.includes("confid")) patch.confidence = value;
-    if (dial.includes("pacing")) patch.verbalPacing = value;
-    if (dial.includes("subtext")) patch.subtextRatio = value > 75 ? "very high" : value > 50 ? "high" : "low";
-
-    actions.push({
-      type: "update_character",
-      name: charName,
-      patch,
-    });
-  }
-
-  // 7. Add note or camera blocking node
-  if (lower.includes("add note") || lower.includes("create note")) {
-    const noteContent = prompt.replace(/(?:add|create)\s+note\s*(?:saying|with)?/i, "").trim() || "AI Director Note";
-    actions.push({
-      type: "create_node",
-      nodeType: "note",
-      title: "Executive Note",
-      data: { content: noteContent },
-    });
-  }
-
-  return actions;
-}

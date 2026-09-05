@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Database, ShieldCheck, Terminal, Cpu, Activity, CheckCircle2 } from "lucide-react";
+import { Database, ShieldCheck, Terminal, Activity, CheckCircle2, AlertTriangle } from "lucide-react";
 import type { ClickHouseQueryLog } from "@/components/cinema/clickhouse-inspector";
 
 interface ClickHouseToolboxDialogProps {
@@ -20,24 +20,35 @@ interface ClickHouseToolboxDialogProps {
   queryLogs?: ClickHouseQueryLog[];
 }
 
+interface ClickHouseTelemetry {
+  uptime_seconds?: number;
+  clickhouse_ping_ms?: number;
+  story_events_rows?: number;
+  cinematic_precedents_rows?: number;
+  distinct_projects_sharded?: number;
+}
+
 export function ClickHouseToolboxDialog({
   open,
   onOpenChange,
   projectId,
   queryLogs = [],
 }: ClickHouseToolboxDialogProps) {
-  const [metrics, setMetrics] = React.useState<{
-    uptime_seconds?: number;
-    avg_agent_latency_ms?: number;
-    clickhouse_query_p99_ms?: number;
-  } | null>(null);
+  const [metrics, setMetrics] = React.useState<ClickHouseTelemetry | null>(null);
+  const [isLive, setIsLive] = React.useState<boolean>(true);
 
   React.useEffect(() => {
     if (open) {
       fetch("/api/metrics")
         .then((res) => res.json())
-        .then((data) => setMetrics(data.telemetry || null))
-        .catch(() => {});
+        .then((data) => {
+          setMetrics(data.telemetry || null);
+          setIsLive(!data._fallback && data.mcp_servers?.clickhouse_mcp === "online");
+        })
+        .catch(() => {
+          setMetrics(null);
+          setIsLive(false);
+        });
     }
   }, [open]);
 
@@ -66,46 +77,59 @@ export function ClickHouseToolboxDialog({
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground bg-secondary/40 px-2.5 py-1 rounded-md border border-border/60">
-              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>MCP v1.9 Online</span>
+            <div className={`flex items-center gap-1.5 font-mono text-[11px] px-2.5 py-1 rounded-md border ${
+              isLive
+                ? "text-muted-foreground bg-secondary/40 border-border/60"
+                : "text-amber-400 bg-amber-500/10 border-amber-500/40"
+            }`}>
+              <span className={`h-2 w-2 rounded-full animate-pulse ${isLive ? "bg-emerald-500" : "bg-amber-500"}`} />
+              <span>{isLive ? "ClickHouse Connected" : "ClickHouse Unreachable"}</span>
             </div>
           </div>
         </DialogHeader>
 
+        {!isLive && (
+          <div className="flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-400">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+            <span>ClickHouse is unreachable — the figures below are unavailable, not live.</span>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 py-3">
-          {/* Telemetry Cards */}
+          {/* Telemetry Cards — real ClickHouse row counts & ping, not static numbers */}
           <div className="rounded-lg border border-border/70 bg-secondary/20 p-3 flex flex-col gap-1">
             <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
               <Activity className="h-3 w-3 text-cyan-400" />
-              p99 Query Latency
+              ClickHouse Ping
             </span>
             <span className="text-xl font-heading font-bold text-foreground">
-              {metrics?.clickhouse_query_p99_ms || 12} ms
+              {metrics?.clickhouse_ping_ms != null ? `${metrics.clickhouse_ping_ms} ms` : "—"}
             </span>
-            <span className="text-[10px] text-emerald-400">ClickHouse Cloud Vector / Timecode</span>
+            <span className="text-[10px] text-emerald-400">Live SELECT 1 round-trip</span>
           </div>
 
           <div className="rounded-lg border border-border/70 bg-secondary/20 p-3 flex flex-col gap-1">
             <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
               <ShieldCheck className="h-3 w-3 text-amber-400" />
-              Knowledge Firewall
+              Story Events Stored
             </span>
             <span className="text-xl font-heading font-bold text-foreground">
-              Strict Time-Gated
+              {metrics?.story_events_rows != null ? metrics.story_events_rows.toLocaleString() : "—"}
             </span>
-            <span className="text-[10px] text-muted-foreground">Zero Spoiling Enforced</span>
+            <span className="text-[10px] text-muted-foreground">
+              Across {metrics?.distinct_projects_sharded ?? 0} sharded project{metrics?.distinct_projects_sharded === 1 ? "" : "s"}
+            </span>
           </div>
 
           <div className="rounded-lg border border-border/70 bg-secondary/20 p-3 flex flex-col gap-1">
             <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-              <Cpu className="h-3 w-3 text-purple-400" />
-              Grafana Partner Telemetry
+              <Database className="h-3 w-3 text-purple-400" />
+              Cinematic Precedent Rows
             </span>
             <span className="text-xl font-heading font-bold text-foreground">
-              Stream Active
+              {metrics?.cinematic_precedents_rows != null ? metrics.cinematic_precedents_rows.toLocaleString() : "—"}
             </span>
-            <span className="text-[10px] text-muted-foreground">Exposed on /api/metrics</span>
+            <span className="text-[10px] text-muted-foreground">Grounding table for market &amp; commander agents</span>
           </div>
         </div>
 

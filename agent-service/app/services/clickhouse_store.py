@@ -70,6 +70,14 @@ class ClickHouseStore:
         )
         self._client.command(_TABLE_DDL)
 
+    @property
+    def client(self):
+        """Public accessor for callers that need to run ad hoc queries
+        (e.g. /metrics telemetry, market-viability precedent lookups)
+        without duplicating the store's connection setup.
+        """
+        return self._client
+
     def insert_events(self, events: list[StoryEvent]) -> None:
         if not events:
             return

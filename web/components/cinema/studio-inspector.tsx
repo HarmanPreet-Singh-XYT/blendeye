@@ -32,6 +32,8 @@ import {
   Unlink,
   Scissors,
 } from "lucide-react";
+import { toast } from "@/components/ui/toast";
+import { notifyIfFallback } from "@/lib/fallback-notice";
 import type { Edge } from "@xyflow/react";
 
 export interface StudioInspectorProps {
@@ -113,9 +115,22 @@ export function StudioInspector({
       if (res.ok) {
         const data = await res.json();
         setTunedDialogueResult(data.tuned_dialogue || data.dialogue);
+        notifyIfFallback(data, "Dialogue Tuning");
+      } else {
+        const detail = await res.text().catch(() => "");
+        toast.add({
+          title: "Dialogue tuning failed",
+          description: detail || `Request failed (${res.status}). Try again.`,
+          type: "error",
+        });
       }
     } catch (err) {
       console.error("Failed to tune dialogue:", err);
+      toast.add({
+        title: "Dialogue tuning failed",
+        description: err instanceof Error ? err.message : "Could not reach the tuning backend.",
+        type: "error",
+      });
     } finally {
       setIsTuningDialogue(false);
     }
@@ -145,9 +160,22 @@ export function StudioInspector({
           actorComp: data.dream_actor_comp,
           quirks: data.behavioral_tics,
         });
+        notifyIfFallback(data, "Character Synthesis");
+      } else {
+        const detail = await res.text().catch(() => "");
+        toast.add({
+          title: "Character synthesis failed",
+          description: detail || `Request failed (${res.status}). Try again.`,
+          type: "error",
+        });
       }
     } catch (err) {
       console.error("Failed to synthesize character:", err);
+      toast.add({
+        title: "Character synthesis failed",
+        description: err instanceof Error ? err.message : "Could not reach the synthesis backend.",
+        type: "error",
+      });
     } finally {
       setIsSynthesizing(false);
     }
@@ -177,9 +205,22 @@ export function StudioInspector({
           palette: swatches,
           pacing: data.editing_rhythm,
         });
+        notifyIfFallback(data, "Style Extraction");
+      } else {
+        const detail = await res.text().catch(() => "");
+        toast.add({
+          title: "Style extraction failed",
+          description: detail || `Request failed (${res.status}). Try again.`,
+          type: "error",
+        });
       }
     } catch (err) {
       console.error("Failed to extract style:", err);
+      toast.add({
+        title: "Style extraction failed",
+        description: err instanceof Error ? err.message : "Could not reach the extraction backend.",
+        type: "error",
+      });
     } finally {
       setIsExtractingStyle(false);
     }

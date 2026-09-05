@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+from typing import Any
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
@@ -9,7 +12,8 @@ router = APIRouter(prefix="/showrunner", tags=["showrunner"])
 
 
 class ShowrunnerMessage(BaseModel):
-    role: str  # "user" | "showrunner"
+    role: str = "user"  # "user" | "showrunner" | "director"
+    sender: str | None = None
     content: str
 
 
@@ -17,9 +21,9 @@ class ShowrunnerChatRequest(BaseModel):
     project_title: str = ""
     logline: str = ""
     screenplay_text: str = ""
-    characters: list[str] = []
+    characters: list[dict | str | Any] = Field(default_factory=list)
     message: str
-    history: list[ShowrunnerMessage] = []
+    history: list[dict | ShowrunnerMessage | Any] = Field(default_factory=list)
 
 
 class PrecedentItem(BaseModel):
@@ -61,34 +65,70 @@ async def chat_with_showrunner(body: ShowrunnerChatRequest) -> ShowrunnerChatRes
         for p in precedents[:3]
     )
 
+    # Normalize character strings
+    character_names: list[str] = []
+    for c in body.characters:
+        if isinstance(c, str):
+            character_names.append(c)
+        elif isinstance(c, dict):
+            c_name = c.get("name") or "Character"
+            c_role = c.get("role") or c.get("archetype")
+            character_names.append(f"{c_name} ({c_role})" if c_role else c_name)
+        else:
+            character_names.append(str(c))
+
+    has_project = bool(body.project_title and body.project_title != "Untitled Feature")
+
     context_header = f"""
 PROJECT CONTEXT:
-Title: {body.project_title or "Untitled Feature"}
-Logline: {body.logline or "Unspecified"}
-Characters: {", ".join(body.characters) if body.characters else "Ensemble"}
-
-CLICKHOUSE GROUNDING TELEMETRY (REAL CINEMATIC PRECEDENTS & RETENTION BENCHMARKS):
-{precedent_context}
-
-CURRENT SCRIPT EXCERPT:
-{body.screenplay_text or "(No script drafted yet)"}
+Title: {body.project_title if has_project else "(No project initialized yet - in ideation / brainstorming)"}
+Logline: {body.logline if body.logline else "In open creative ideation"}
+Characters: {", ".join(character_names) if character_names else "To be discovered in conversation"}
+{f"CLICKHOUSE GROUNDING TELEMETRY:\n{precedent_context}" if has_project and precedent_context else ""}
+{f"CURRENT SCRIPT EXCERPT:\n{body.screenplay_text}" if body.screenplay_text else ""}
 ---
 """
 
-    history_text = "\n".join(
-        f"{'DIRECTOR' if msg.role == 'user' else 'SHOWRUNNER'}: {msg.content}"
-        for msg in body.history[-6:]
-    )
+    history_lines: list[str] = []
+    for msg in body.history[-6:]:
+        if isinstance(msg, dict):
+            r = msg.get("role") or msg.get("sender") or "user"
+            content = msg.get("content", "")
+        else:
+            r = getattr(msg, "role", None) or getattr(msg, "sender", None) or "user"
+            content = getattr(msg, "content", "")
+        speaker = "DIRECTOR" if str(r).lower() in ("user", "director") else "SHOWRUNNER"
+        if content:
+            history_lines.append(f"{speaker}: {content}")
 
-    full_prompt = f"{context_header}\nCONVERSATION HISTORY:\n{history_text}\n\nDIRECTOR: {body.message}\nSHOWRUNNER:"
+    history_text = "\n".join(history_lines)
+
+    instruction_reminder = """
+IMPORTANT INSTRUCTIONS FOR YOUR RESPONSE:
+- Understand the Director's true intent like a human collaborator (like ChatGPT).
+- If the Director is greeting you, checking in, or making casual conversation, reply conversationally and warmly. Do NOT generate a screenplay scene or dump unsolicited lore!
+- If the Director is brainstorming an idea, explore it with them, ask exciting creative questions, and help build the concept through dialogue.
+- ONLY output a formatted screenplay scene if the Director explicitly asks you to write, draft, or script a scene.
+- Speak in a natural, perceptive Hollywood showrunner voice. Never use emojis.
+"""
+
+    full_prompt = f"{context_header}\nCONVERSATION HISTORY:\n{history_text or '(Fresh conversation)'}\n\n{instruction_reminder}\n\nDIRECTOR: {body.message}\nSHOWRUNNER:"
 
     reply = await run_agent_once(agent, full_prompt, app_name="writers-room-showrunner")
 
-    suggestions = [
-        "How can we heighten Elena's subtext in this scene?",
-        "Check continuity: What does Marcus witness directly?",
-        "Draft an alternate climax with an earlier betrayal",
-    ]
+    # Generate dynamic, context-aware suggestions
+    if has_project:
+        suggestions = [
+            f"Explore {character_names[0].split(' ')[0]}'s hidden secret" if character_names else "Introduce a dramatic complication",
+            "Raise the stakes with a ticking clock",
+            "Pitch an unexpected midpoint reversal",
+        ]
+    else:
+        suggestions = [
+            "Pitch a high-stakes thriller premise",
+            "Brainstorm a sci-fi mystery concept",
+            "Explore character conflict dynamics",
+        ]
 
     return ShowrunnerChatResponse(
         reply=reply,
@@ -102,57 +142,93 @@ class ExecuteDirectiveRequest(BaseModel):
     user_prompt: str
     project_title: str = ""
     logline: str = ""
+    genre: str = ""
     screenplay_text: str = ""
     characters: list[dict] = Field(default_factory=list)
     nodes: list[dict] = Field(default_factory=list)
     edges: list[dict] = Field(default_factory=list)
+    history: list[dict] = Field(default_factory=list)
 
 
 class ExecuteDirectiveResponse(BaseModel):
     thought_process: str
     assistant_message: str
     actions: list[dict] = Field(default_factory=list)
+    precedents_cited: list[PrecedentItem] = Field(default_factory=list)
+    clickhouse_query_sql: str = ""
 
 
 @router.post("/execute", response_model=ExecuteDirectiveResponse)
 async def execute_showrunner_directive(body: ExecuteDirectiveRequest) -> ExecuteDirectiveResponse:
     agent = build_showrunner_agent()
+    store = get_clickhouse_store()
     import json
     import re
 
+    sql_executed = "SELECT genre, trope, historical_reference, tension_level, commercial_territory, audience_retention_pct, precedent_example FROM cinematic_precedents ORDER BY audience_retention_pct DESC LIMIT 3;"
+    try:
+        raw_precedents = store.get_cinematic_precedents(body.genre)
+        precedents = [PrecedentItem(**p) for p in raw_precedents[:3]]
+    except Exception:  # noqa: BLE001
+        precedents = []
+
+    precedent_context = "\n".join(
+        f"- {p.historical_reference} | {p.trope} | Tension {p.tension_level}/10 | {p.audience_retention_pct}% retention ({p.commercial_territory})\n  Notes: {p.precedent_example}"
+        for p in precedents
+    ) if precedents else "- No ClickHouse precedent rows available for this genre."
+
     prompt = f"""
-You are the Omniscient Studio Executive AI & Lead Showrunner for an interactive film studio.
-The director has given the following directive:
-"{body.user_prompt}"
+You are the Omniscient Studio Executive AI & Lead Showrunner for an elite Hollywood production studio.
+You have FULL CREATIVE AND EXECUTIVE AUTHORITY over the entire film project.
+You can modify, change, edit, remove, wire, and execute ANY CRUD operations across the project based on the director's vision.
+
+AVAILABLE ACTIONS YOU CAN EMIT IN "actions":
+1. {{"type": "create_character", "name": "Name", "role": "Role", "archetype": "Archetype", "confidence": 0-100, "verbalPacing": 0-100, "subtextRatio": "high"|"low", "personalityPreset": "Preset", "objective": "Goal"}}
+2. {{"type": "update_character", "name": "Name", "patch": {{"confidence": 95, "verbalPacing": 80, "speechStyle": "...", "objective": "..."}}}}
+3. {{"type": "delete_character", "name": "Name"}}
+4. {{"type": "create_node", "nodeType": "clip"|"note"|"actor"|"personality"|"quirks"|"scene"|"script"|"chemistry"|"storyboard"|"floorplan"|"tensionCurve"|"tableRead"|"market", "title": "...", "data": {{...}}}}
+5. {{"type": "delete_node", "nodeId": "nodeId or name"}}
+6. {{"type": "update_node_data", "nodeId": "nodeId or name", "patch": {{...}}}}
+7. {{"type": "connect_nodes", "source": "nodeId or name", "target": "nodeId or name", "relationship": "Friction"|"Alliance"|"Rivalry"|"Mentor"|"Style Sync"|"Plot Seed"}}
+8. {{"type": "sever_wire", "source": "nodeId or name", "target": "nodeId or name"}}
+9. {{"type": "update_screenplay", "screenplayText": "...", "summary": "..."}}
+10. {{"type": "update_scene_meta", "title": "...", "stakes": "..."}}
+11. {{"type": "auto_tidy_backlot"}}
+12. {{"type": "create_take_milestone", "title": "Milestone Title", "description": "..."}}
 
 PROJECT CONTEXT:
-Title: {body.project_title}
-Logline: {body.logline}
+Title: {body.project_title or "Untitled"}
+Genre: {body.genre or "Drama"}
+Logline: {body.logline or "Unspecified"}
 Characters: {[c.get('name') for c in body.characters]}
 Nodes: {[n.get('id') for n in body.nodes]}
 Edges: {[f"{e.get('source')}->{e.get('target')}" for e in body.edges]}
-Script Excerpt: {body.screenplay_text[:800]}
+Script Excerpt: {body.screenplay_text[:1200] if body.screenplay_text else "(No script drafted yet)"}
 
-Respond ONLY with valid JSON matching this schema:
+CLICKHOUSE GROUNDING TELEMETRY (REAL CINEMATIC PRECEDENTS & RETENTION BENCHMARKS):
+{precedent_context}
+
+DIRECTOR'S COMMAND: "{body.user_prompt}"
+
+OUTPUT FORMAT:
+Respond ONLY with a single, valid, raw JSON object matching:
 {{
-  "thought_process": "creative reasoning for the changes",
-  "assistant_message": "collegial explanation to the director",
-  "actions": [
-    {{"type": "create_character", "name": "...", "role": "...", "archetype": "..."}},
-    {{"type": "connect_nodes", "source": "...", "target": "...", "relationship": "⚡ Friction"|"⚔️ Rivalry"|"🤝 Alliance"}},
-    {{"type": "auto_tidy_backlot"}}
-  ]
+  "thought_process": "Detailed step-by-step creative reasoning on what the director wants and why these changes serve the drama",
+  "assistant_message": "Direct, collegial Hollywood executive response detailing the actions executed",
+  "actions": [ ... list of action objects ... ]
 }}
 """
     raw = await run_agent_once(agent, prompt, app_name="writers-room-showrunner-exec")
     try:
-        match = re.search(r"\{.*\}", raw, re.DOTALL)
+        match = re.search(r"\{[\s\S]*\}", raw)
         if match:
             parsed = json.loads(match.group(0))
             return ExecuteDirectiveResponse(
                 thought_process=parsed.get("thought_process", "Analyzed director intent."),
                 assistant_message=parsed.get("assistant_message", "Executed directive."),
                 actions=parsed.get("actions", []),
+                precedents_cited=precedents,
+                clickhouse_query_sql=sql_executed if precedents else "",
             )
     except Exception:  # noqa: BLE001, S110
         pass
@@ -161,6 +237,8 @@ Respond ONLY with valid JSON matching this schema:
         thought_process=f"Processed directive: {body.user_prompt}",
         assistant_message="I have reviewed your request and updated the production slate accordingly.",
         actions=[],
+        precedents_cited=precedents,
+        clickhouse_query_sql=sql_executed if precedents else "",
     )
 
 

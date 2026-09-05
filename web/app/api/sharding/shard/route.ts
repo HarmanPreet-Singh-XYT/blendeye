@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { shardScript } from "@/lib/agent-service";
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
+  let body: any;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
   const projectId = typeof body?.projectId === "string" ? body.projectId : "";
   const screenplayText =
     typeof body?.screenplayText === "string" ? body.screenplayText.trim() : "";

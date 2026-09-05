@@ -17,6 +17,7 @@ from app.routers import (
     showrunner,
     style_extractor,
 )
+from app.services.clickhouse_store import get_clickhouse_store
 
 
 @asynccontextmanager
@@ -68,23 +69,62 @@ async def health() -> dict[str, str]:
     return {"status": "ok", "environment": settings.environment}
 
 
+_process_start_time = time.time()
+
+
 @app.get("/metrics")
 async def metrics() -> dict[str, object]:
-    """Expose studio production telemetry for Grafana Labs partner dashboard."""
-    return {
-        "studio": "Agentic Cinema Executive Backlot",
-        "partner_integrations": ["ClickHouse Cloud", "Grafana Labs"],
-        "agents_active": 8,
-        "mcp_servers": {
-            "clickhouse_mcp": "online",
-            "state": "operational",
-        },
-        "telemetry": {
-            "uptime_seconds": round(time.time()),
-            "avg_agent_latency_ms": 240,
-            "clickhouse_query_p99_ms": 14,
-            "multimodal_image_jobs": 1,
-            "tts_audio_seconds_generated": 184.2,
-        },
-    }
+    """Expose studio production telemetry for Grafana Labs partner dashboard.
+
+    Queries ClickHouse directly for real row counts rather than reporting
+    static numbers, so this reflects the actual story_events/precedents
+    data in the connected cluster. Falls back to a clearly-flagged estimate
+    only if ClickHouse itself is unreachable.
+    """
+    uptime_seconds = round(time.time() - _process_start_time)
+
+    try:
+        store = get_clickhouse_store()
+        story_events_count = store.client.query(
+            "SELECT count() FROM story_events"
+        ).result_rows[0][0]
+        precedents_count = store.client.query(
+            "SELECT count() FROM cinematic_precedents"
+        ).result_rows[0][0]
+        distinct_projects = store.client.query(
+            "SELECT uniqExact(project_id) FROM story_events"
+        ).result_rows[0][0]
+        query_start = time.time()
+        store.client.query("SELECT 1")
+        query_latency_ms = round((time.time() - query_start) * 1000, 2)
+
+        return {
+            "studio": "Agentic Cinema Executive Backlot",
+            "partner_integrations": ["ClickHouse Cloud"],
+            "mcp_servers": {
+                "clickhouse_mcp": "online",
+                "state": "operational",
+            },
+            "telemetry": {
+                "uptime_seconds": uptime_seconds,
+                "clickhouse_ping_ms": query_latency_ms,
+                "story_events_rows": story_events_count,
+                "cinematic_precedents_rows": precedents_count,
+                "distinct_projects_sharded": distinct_projects,
+            },
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "studio": "Agentic Cinema Executive Backlot",
+            "partner_integrations": ["ClickHouse Cloud"],
+            "mcp_servers": {
+                "clickhouse_mcp": "unreachable",
+                "state": "degraded",
+            },
+            "telemetry": {
+                "uptime_seconds": uptime_seconds,
+            },
+            "_fallback": True,
+            "_error": f"ClickHouse unreachable: {exc}",
+        }
 

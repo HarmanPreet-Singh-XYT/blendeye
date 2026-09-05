@@ -10,6 +10,8 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/toast";
+import { notifyIfFallback } from "@/lib/fallback-notice";
 import { SlateLabel } from "@/components/cinema/slate-label";
 import {
   Video,
@@ -66,6 +68,25 @@ export function VeoVideoDialog({
   const [isGenerating, setIsGenerating] = React.useState<boolean>(false);
   const [generationStage, setGenerationStage] = React.useState<string>("");
   const [operationName, setOperationName] = React.useState<string | null>(null);
+  const pollIntervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopPolling = React.useCallback(() => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+  }, []);
+
+  // Stop any in-flight poll loop if the dialog unmounts or is closed mid-generation.
+  React.useEffect(() => {
+    return () => stopPolling();
+  }, [stopPolling]);
+
+  React.useEffect(() => {
+    if (!open) {
+      stopPolling();
+    }
+  }, [open, stopPolling]);
   const [videoUrl, setVideoUrl] = React.useState<string | null>(
     "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4"
   );
@@ -107,13 +128,28 @@ export function VeoVideoDialog({
           setVideoUrl(data.video_url);
           setIsGenerating(false);
           setGenerationStage("");
+          notifyIfFallback(data, "Video Render");
         } else {
           // Poll operation
           pollVideoStatus(data.operation_name);
         }
+      } else {
+        const detail = await res.text().catch(() => "");
+        toast.add({
+          title: "Video generation failed",
+          description: detail || `Veo request failed (${res.status}). Try again.`,
+          type: "error",
+        });
+        setIsGenerating(false);
+        setGenerationStage("");
       }
     } catch (err) {
       console.error("Video dispatch error:", err);
+      toast.add({
+        title: "Video generation failed",
+        description: err instanceof Error ? err.message : "Could not reach the render backend.",
+        type: "error",
+      });
       setIsGenerating(false);
       setGenerationStage("");
     }
@@ -122,30 +158,67 @@ export function VeoVideoDialog({
   const pollVideoStatus = async (opName: string) => {
     setGenerationStage("Google Veo 3.1 Cloud Synthesis: Painting 16:9 Frames...");
     let attempts = 0;
-    const interval = setInterval(async () => {
+    stopPolling();
+    pollIntervalRef.current = setInterval(async () => {
       attempts++;
       try {
         const res = await fetch(`/api/media/video/status?operation_name=${encodeURIComponent(opName)}`);
         if (res.ok) {
           const statusData = await res.json();
           if (statusData.status === "completed" && statusData.video_url) {
-            clearInterval(interval);
+            stopPolling();
             setVideoUrl(statusData.video_url);
             setIsGenerating(false);
             setGenerationStage("");
+            notifyIfFallback(statusData, "Video Render");
+          } else if (statusData.status === "failed") {
+            stopPolling();
+            toast.add({
+              title: "Video generation failed",
+              description: statusData.error || "Veo reported a failed render.",
+              type: "error",
+            });
+            setIsGenerating(false);
+            setGenerationStage("");
           } else if (attempts > 30) {
-            // Safety timeout after 90s, use completed preview
-            clearInterval(interval);
+            // Safety timeout after 90s
+            stopPolling();
+            toast.add({
+              title: "Video generation timed out",
+              description: "Veo didn't finish rendering within 90s. Try again, or check the agent-service logs.",
+              type: "warning",
+            });
             setIsGenerating(false);
             setGenerationStage("");
           }
+        } else if (attempts > 30) {
+          stopPolling();
+          toast.add({
+            title: "Video generation timed out",
+            description: "Couldn't confirm render status after 90s. Try again.",
+            type: "warning",
+          });
+          setIsGenerating(false);
+          setGenerationStage("");
         }
       } catch {
-        clearInterval(interval);
+        stopPolling();
+        toast.add({
+          title: "Lost connection to render backend",
+          description: "The status check failed. Try generating again.",
+          type: "error",
+        });
         setIsGenerating(false);
         setGenerationStage("");
       }
     }, 3000);
+  };
+
+  const handleCancelGeneration = () => {
+    stopPolling();
+    setIsGenerating(false);
+    setGenerationStage("");
+    toast.add({ title: "Generation cancelled", type: "info" });
   };
 
   const togglePlay = () => {
@@ -339,15 +412,27 @@ export function VeoVideoDialog({
             </div>
 
             {/* Primary Action Button */}
-            <Button
-              size="sm"
-              onClick={handleGenerateVideo}
-              disabled={isGenerating || !customPrompt.trim()}
-              className="w-full h-9 text-xs font-semibold gap-2 bg-purple-600 hover:bg-purple-700 text-white shadow-md cursor-pointer"
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              <span>{isGenerating ? "Rendering with Veo 3.1..." : "Render Scene with Google Veo 3.1"}</span>
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                onClick={handleGenerateVideo}
+                disabled={isGenerating || !customPrompt.trim()}
+                className="flex-1 h-9 text-xs font-semibold gap-2 bg-purple-600 hover:bg-purple-700 text-white shadow-md cursor-pointer"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                <span>{isGenerating ? "Rendering with Veo 3.1..." : "Render Scene with Google Veo 3.1"}</span>
+              </Button>
+              {isGenerating && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleCancelGeneration}
+                  className="h-9 text-xs cursor-pointer"
+                >
+                  Cancel
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </DialogContent>

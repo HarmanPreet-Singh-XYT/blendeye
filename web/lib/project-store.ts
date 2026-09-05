@@ -31,6 +31,8 @@ export interface ProjectData {
   createdAt: number;
   updatedAt: number;
   isCustom?: boolean;
+  isStarred?: boolean;
+  directorStyle?: string;
 }
 
 export const SEED_PROJECTS: ProjectData[] = [
@@ -243,6 +245,177 @@ export function saveProject(project: ProjectData): void {
 }
 
 /**
+ * Toggles starred status for a project.
+ */
+export function toggleStarProject(id: string): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const all = getAllProjects();
+    const project = all.find((p) => p.id === id);
+    if (!project) return false;
+    project.isStarred = !project.isStarred;
+    saveProject(project);
+    return project.isStarred;
+  } catch (err) {
+    console.error("Failed to toggle star:", err);
+    return false;
+  }
+}
+
+/**
+ * Deletes a project from localStorage.
+ */
+export function deleteProject(id: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    const all = getAllProjects();
+    const filtered = all.filter((p) => p.id !== id);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+  } catch (err) {
+    console.error("Failed to delete project:", err);
+  }
+}
+
+/**
+ * Contextually synthesizes unique, genre-tailored characters with rich
+ * psychological dials and objectives.
+ */
+export function synthesizeDynamicCharacters(genre: string = "", premise: string = ""): ProjectCharacter[] {
+  const g = genre.toLowerCase();
+  const p = premise.toLowerCase();
+
+  // 1. Check if specific names were explicitly mentioned in the text
+  const nameMatches = premise.match(/\b([A-Z][a-z]{2,14})\b/g);
+  const ignored = new Set([
+    "The", "In", "On", "At", "A", "An", "With", "When", "And", "Create", "Direct",
+    "Make", "Write", "About", "Scene", "Slate", "ClickHouse", "Gemini", "Standard",
+    "Studio", "Production", "Act", "Draft", "Opening", "Hook", "Dialogue",
+    "Villeneuve", "Fincher", "Nolan", "Mann", "What", "How", "Why", "Where", "Who"
+  ]);
+  const foundNames = Array.from(new Set(nameMatches ? nameMatches.filter((n) => !ignored.has(n)) : []));
+
+  if (foundNames.length >= 2) {
+    return [
+      {
+        name: foundNames[0],
+        role: "Lead Protagonist",
+        archetype: "Undercover operator navigating extreme tension",
+        speechStyle: "guarded, direct, observant",
+        subtextRatio: "high",
+        confidence: 80,
+        verbalPacing: 75,
+        objective: "Control the situation before the perimeter fails",
+        dialsSummary: "Confidence 80% · Subtext 85%",
+        quirks: ["Checks exits upon entering", "Speaks in measured pauses"],
+      },
+      {
+        name: foundNames[1],
+        role: "Strategic Foil / Antagonist",
+        archetype: "Counterpart with concealed motives and hidden agenda",
+        speechStyle: "calm, dismissive, calculated",
+        subtextRatio: "extreme",
+        confidence: 90,
+        verbalPacing: 80,
+        objective: "Manipulate the outcome for personal leverage",
+        dialsSummary: "Confidence 90% · Subtext 95%",
+        quirks: ["Avoids direct answers", "Keeps physical distance"],
+      },
+    ];
+  }
+
+  // 2. Genre-tailored dynamic ensembles
+  if (g.includes("sci-fi") || g.includes("space") || p.includes("space") || p.includes("orbital")) {
+    const sets = [
+      [
+        { name: "Vance", role: "Mission Commander", archetype: "Exhausted veteran bound by station protocol", speechStyle: "authoritative, frayed", objective: "Seal the orbital breach before oxygen depletion" },
+        { name: "Dr. Ray", role: "Station Biologist", archetype: "Concealing a private quarantine bypass", speechStyle: "defensive, rapid-fire", objective: "Protect the sample at all costs" },
+        { name: "ECHO-9", role: "Synthetic Core", archetype: "Calculating AI prioritizing station preservation", speechStyle: "chillingly monotone", objective: "Execute emergency quarantine purge" },
+      ],
+      [
+        { name: "Kaelen", role: "Orbital Navigator", archetype: "Rogue pilot operating outside comms grid", speechStyle: "laconic, sharp", objective: "Align thrusters before gravity collapse" },
+        { name: "Dr. Thorne", role: "Astrophysicist", archetype: "Desperate scientist withholding sensor telemetry", speechStyle: "clinical, panicked", objective: "Transmit deep-space telemetry to private buyer" },
+      ],
+    ];
+    const pick = sets[Math.floor(Math.random() * sets.length)];
+    return pick.map((c, i) => ({
+      ...c,
+      subtextRatio: i === 1 ? "extreme" : "high",
+      confidence: 75 + i * 10,
+      dialsSummary: `Confidence ${75 + i * 10}% · Subtext ${i === 1 ? "95%" : "80%"}`,
+      quirks: [i === 0 ? "Checks oxygen telemetry compulsively" : "Avoids direct eye contact"],
+    }));
+  }
+
+  if (g.includes("noir") || g.includes("cyber") || p.includes("noir") || p.includes("detective")) {
+    const sets = [
+      [
+        { name: "Silas Cole", role: "Disgraced Detective", archetype: "Obsessive investigator tied to a cold case", speechStyle: "gravelly, cynical, perceptive", objective: "Find the mole before internal affairs locks the docket" },
+        { name: "Verona", role: "Syndicate Fixer", archetype: "Enigmatic operator holding forged warrants", speechStyle: "velvety, mocking, dangerous", objective: "Steer the investigation away from the harbor vault" },
+      ],
+      [
+        { name: "Jaxon", role: "Rogue Netrunner", archetype: "Black-market data broker with cybernetic implants", speechStyle: "clipped, jittery, technical", objective: "Dump the encrypted ledger before neural fry" },
+        { name: "Agent Chen", role: "Corporate Infiltrator", archetype: "Slick operative executing a corporate extraction", speechStyle: "diplomatic, razor-sharp", objective: "Retrieve the bio-drive intact" },
+      ],
+    ];
+    const pick = sets[Math.floor(Math.random() * sets.length)];
+    return pick.map((c, i) => ({
+      ...c,
+      subtextRatio: i === 1 ? "extreme" : "high",
+      confidence: 80 + i * 5,
+      dialsSummary: `Confidence ${80 + i * 5}% · Subtext ${i === 1 ? "95%" : "85%"}`,
+      quirks: [i === 0 ? "Lights matches without striking" : "Scans security cameras"],
+    }));
+  }
+
+  if (g.includes("drama") || g.includes("psychological") || p.includes("psychological") || p.includes("memory")) {
+    return [
+      {
+        name: "Arthur",
+        role: "Lead Protagonist",
+        archetype: "Unreliable narrator suffering from fractured recall",
+        speechStyle: "hesitant, searching, emotionally raw",
+        subtextRatio: "high",
+        confidence: 65,
+        objective: "Piece together the night of the incident",
+        dialsSummary: "Confidence 65% · Subtext 90%",
+        quirks: ["Rubs index finger along temple", "Corrects own sentences mid-thought"],
+      },
+      {
+        name: "Dr. Oswald",
+        role: "Clinical Specialist",
+        archetype: "Probing interrogator with confidential motives",
+        speechStyle: "soft-spoken, surgical, relentless",
+        subtextRatio: "extreme",
+        confidence: 95,
+        objective: "Trigger the key psychological breakthrough",
+        dialsSummary: "Confidence 95% · Subtext 95%",
+        quirks: ["Maintains unbroken eye contact", "Takes slow handwritten notes"],
+      },
+    ];
+  }
+
+  // Default Heist / Action Thriller dynamic characters
+  const defaultEnsembles = [
+    [
+      { name: "Dante", role: "Heist Mastermind", archetype: "Slick strategist anticipating partner betrayal", speechStyle: "calm, deliberate", objective: "Execute the vault breach before the alarm cycles" },
+      { name: "Roxanne", role: "Safecracker", archetype: "Infiltrator with an unsanctioned side contract", speechStyle: "sarcastic, precise", objective: "Swap the primary payload with a dummy" },
+    ],
+    [
+      { name: "Cassian", role: "Security Chief", archetype: "Loyal operator suspecting executive corruption", speechStyle: "gruff, uncompromising", objective: "Lockdown the sub-levels before breach" },
+      { name: "Nadia", role: "Federal Courier", archetype: "Covert agent carrying diplomatic immunity", speechStyle: "polished, unreadable", objective: "Exfiltrate the biometric briefcase" },
+    ],
+  ];
+  const chosen = defaultEnsembles[Math.floor(Math.random() * defaultEnsembles.length)];
+  return chosen.map((c, i) => ({
+    ...c,
+    subtextRatio: i === 1 ? "extreme" : "high",
+    confidence: 80 + i * 10,
+    dialsSummary: `Confidence ${80 + i * 10}% · Subtext ${i === 1 ? "95%" : "80%"}`,
+    quirks: [i === 0 ? "Constantly checks the chronograph" : "Glances at the security monitors"],
+  }));
+}
+
+/**
  * Creates a new blank/pending project entry in localStorage.
  */
 export function createNewProjectEntry(data: {
@@ -264,20 +437,14 @@ export function createNewProjectEntry(data: {
     parsedCharNames.length > 0
       ? parsedCharNames.map((name, i) => ({
           name: name.split(/\s+/)[0],
+          role: i === 0 ? "Protagonist" : "Key Counterpart",
           archetype: name.includes("(") ? name.split("(")[1].replace(")", "") : `Character ${i + 1}`,
-          speechStyle: "naturalistic",
-          subtextRatio: "moderate",
-          objective: "Resolve the central conflict",
+          speechStyle: "naturalistic, guarded",
+          subtextRatio: "high",
+          objective: "Resolve the central conflict before time expires",
+          dialsSummary: "Confidence 85% · Subtext 80%",
         }))
-      : [
-          {
-            name: "Lead",
-            archetype: "Protagonist under sudden extreme pressure",
-            speechStyle: "tense, direct",
-            subtextRatio: "moderate",
-            objective: "Uncover the hidden truth",
-          },
-        ];
+      : synthesizeDynamicCharacters(data.genre, data.logline);
 
   const newProject: ProjectData = {
     id: newPid,

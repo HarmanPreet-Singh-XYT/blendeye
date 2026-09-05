@@ -7,12 +7,33 @@
 
 const AGENT_SERVICE_URL = process.env.AGENT_SERVICE_URL ?? "http://localhost:8000";
 
-async function postJson<TResponse>(path: string, body: unknown): Promise<TResponse> {
-  const res = await fetch(`${AGENT_SERVICE_URL}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+// Long enough for a real Gemini/Veo call, short enough that a hung backend
+// doesn't leave the UI (and the user) stuck forever with no feedback.
+const DEFAULT_TIMEOUT_MS = 45_000;
+
+function withTimeout(ms: number): AbortSignal {
+  return AbortSignal.timeout(ms);
+}
+
+async function postJson<TResponse>(
+  path: string,
+  body: unknown,
+  timeoutMs: number = DEFAULT_TIMEOUT_MS
+): Promise<TResponse> {
+  let res: Response;
+  try {
+    res = await fetch(`${AGENT_SERVICE_URL}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: withTimeout(timeoutMs),
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === "TimeoutError") {
+      throw new Error(`agent-service ${path} timed out after ${timeoutMs}ms`);
+    }
+    throw new Error(`agent-service ${path} unreachable: ${err instanceof Error ? err.message : String(err)}`);
+  }
 
   if (!res.ok) {
     const detail = await res.text();
@@ -22,12 +43,24 @@ async function postJson<TResponse>(path: string, body: unknown): Promise<TRespon
   return res.json() as Promise<TResponse>;
 }
 
-async function getJson<TResponse>(path: string): Promise<TResponse> {
-  const res = await fetch(`${AGENT_SERVICE_URL}${path}`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    cache: "no-store",
-  });
+async function getJson<TResponse>(
+  path: string,
+  timeoutMs: number = DEFAULT_TIMEOUT_MS
+): Promise<TResponse> {
+  let res: Response;
+  try {
+    res = await fetch(`${AGENT_SERVICE_URL}${path}`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+      signal: withTimeout(timeoutMs),
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === "TimeoutError") {
+      throw new Error(`agent-service ${path} timed out after ${timeoutMs}ms`);
+    }
+    throw new Error(`agent-service ${path} unreachable: ${err instanceof Error ? err.message : String(err)}`);
+  }
 
   if (!res.ok) {
     const detail = await res.text();
@@ -178,6 +211,32 @@ export function chatWithShowrunner(req: ShowrunnerChatRequest) {
   });
 }
 
+export interface ExecuteDirectiveRequest {
+  userPrompt: string;
+  projectTitle?: string;
+  logline?: string;
+  genre?: string;
+  screenplayText?: string;
+  characters?: any[];
+  nodes?: any[];
+  edges?: any[];
+  history?: any[];
+}
+
+export function executeShowrunnerDirective(req: ExecuteDirectiveRequest) {
+  return postJson<any>("/showrunner/execute", {
+    user_prompt: req.userPrompt,
+    project_title: req.projectTitle ?? "",
+    logline: req.logline ?? "",
+    genre: req.genre ?? "",
+    screenplay_text: req.screenplayText ?? "",
+    characters: req.characters ?? [],
+    nodes: req.nodes ?? [],
+    edges: req.edges ?? [],
+    history: req.history ?? [],
+  });
+}
+
 export interface CharacterRemapping {
   original_name: string;
   original_story: string;
@@ -211,6 +270,8 @@ export interface FilmFusionResponse {
   reconciled_events: FusedTimelineEvent[];
   fused_screenplay: string;
   events_written_to_clickhouse: number;
+  _fallback?: boolean;
+  _error?: string;
 }
 
 export function fuseFilms(req: FilmFusionRequest) {
