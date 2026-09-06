@@ -11,20 +11,26 @@ AVAILABLE ACTIONS YOU CAN EMIT IN "actions":
 1. {"type": "create_character", "name": "Name", "role": "Role", "archetype": "Archetype", "confidence": 0-100, "verbalPacing": 0-100, "subtextRatio": "high"|"low", "personalityPreset": "Preset", "objective": "Goal"}
 2. {"type": "update_character", "name": "Name", "patch": {"confidence": 95, "verbalPacing": 80, "speechStyle": "...", "objective": "..."}}
 3. {"type": "delete_character", "name": "Name"}
-4. {"type": "create_node", "nodeType": "clip"|"note"|"actor"|"personality"|"quirks"|"scene"|"script"|"chemistry"|"storyboard"|"floorplan"|"tensionCurve"|"tableRead"|"market", "title": "...", "data": {...}}
-5. {"type": "delete_node", "nodeId": "nodeId or name"}
-6. {"type": "update_node_data", "nodeId": "nodeId or name", "patch": {...}}
-7. {"type": "connect_nodes", "source": "nodeId or name", "target": "nodeId or name", "relationship": "Friction"|"Alliance"|"Rivalry"|"Mentor"|"Style Sync"|"Plot Seed"}
-8. {"type": "sever_wire", "source": "nodeId or name", "target": "nodeId or name"}
-9. {"type": "update_screenplay", "screenplayText": "...", "summary": "..."}
-10. {"type": "update_scene_meta", "title": "...", "stakes": "..."}
-11. {"type": "auto_tidy_backlot"}
-12. {"type": "create_take_milestone", "title": "Milestone Title", "description": "..."}
-13. {"type": "create_scene", "title": "Scene Title", "slugline": "INT/EXT. LOCATION - DAY/NIGHT", "summary": "Dramatic stakes & narrative progression", "location": "Location Name", "castPresent": ["Character 1", "Character 2"], "durationSeconds": 180, "position": "end"|"start"|number, "screenplayText": "Screenplay content..."}
-14. {"type": "delete_scene", "sceneIdentifier": 2 (sceneNumber) | "scene-id" | "Scene Title"}
-15. {"type": "reorder_scenes", "sceneOrder": [2, 1, 3] (new chronological order of scene numbers, IDs, or titles)}
-16. {"type": "move_scene", "sceneIdentifier": 2, "targetIndex": 0, "direction": "up"|"down"}
-17. {"type": "update_scene", "sceneIdentifier": 2, "patch": {"title": "...", "slugline": "...", "summary": "...", "location": "...", "durationSeconds": 180, "castPresent": ["..."], "screenplayText": "..."}}
+4. {"type": "replace_character", "name": "Old Name", "replacement": {"name": "New Name", "role": "...", "archetype": "...", "confidence": 85, "verbalPacing": 70, "objective": "..."}}
+5. {"type": "create_node", "nodeType": "clip"|"note"|"actor"|"personality"|"quirks"|"scene"|"script"|"chemistry"|"storyboard"|"floorplan"|"tensionCurve"|"tableRead"|"market", "title": "...", "data": {...}}
+6. {"type": "delete_node", "nodeId": "nodeId or name"}
+7. {"type": "update_node_data", "nodeId": "nodeId or name", "patch": {...}}
+8. {"type": "connect_nodes", "source": "nodeId or name", "target": "nodeId or name", "relationship": "Friction"|"Alliance"|"Rivalry"|"Mentor"|"Style Sync"|"Plot Seed"}
+9. {"type": "sever_wire", "source": "nodeId or name", "target": "nodeId or name"}
+10. {"type": "update_screenplay", "screenplayText": "...", "summary": "..."}
+11. {"type": "update_scene_meta", "title": "...", "stakes": "..."}
+12. {"type": "update_project_meta", "patch": {"title": "...", "logline": "...", "genre": "...", "directorStyle": "...", "narrativeFormat": "feature"|"pilot"|"short", "targetRuntimeMinutes": 110}}
+13. {"type": "auto_tidy_backlot"}
+14. {"type": "create_take_milestone", "title": "Milestone Title", "description": "..."}
+15. {"type": "create_scene", "title": "Scene Title", "slugline": "INT/EXT. LOCATION - DAY/NIGHT", "summary": "Dramatic stakes & narrative progression", "location": "Location Name", "castPresent": ["Character 1", "Character 2"], "durationSeconds": 180, "position": "end"|"start"|number, "screenplayText": "Screenplay content..."}
+16. {"type": "delete_scene", "sceneIdentifier": 2 (sceneNumber) | "scene-id" | "Scene Title"}
+17. {"type": "replace_scene", "sceneIdentifier": 2 (sceneNumber) | "scene-id" | "Scene Title", "replacement": {"title": "...", "slugline": "...", "summary": "...", "location": "...", "durationSeconds": 180, "castPresent": ["..."], "screenplayText": "..."}}
+18. {"type": "reorder_scenes", "sceneOrder": [2, 1, 3] (new chronological order of scene numbers, IDs, or titles)}
+19. {"type": "move_scene", "sceneIdentifier": 2, "targetIndex": 0, "direction": "up"|"down"}
+20. {"type": "update_scene", "sceneIdentifier": 2, "patch": {"title": "...", "slugline": "...", "summary": "...", "location": "...", "durationSeconds": 180, "castPresent": ["..."], "screenplayText": "..."}}
+21. {"type": "create_story_event", "atSeconds": 120, "characterName": "Elena", "eventType": "known_fact"|"unaware_of"|"location"|"objective"}
+22. {"type": "delete_story_event", "identifier": 120 (atSeconds) | "Elena" | "objective"}
+23. {"type": "replace_story_event", "identifier": 120, "replacement": {"atSeconds": 150, "characterName": "Elena", "eventType": "objective"}}
 
 OUTPUT FORMAT:
 You MUST respond with a single, valid, raw JSON object matching:
@@ -54,6 +60,7 @@ export async function POST(req: NextRequest) {
         projectTitle: project.title,
         logline: project.premise,
         genre: project.genre,
+        directorStyle: project.directorStyle,
         screenplayText: project.screenplayText,
         characters: project.characters,
         nodes: project.nodes,
@@ -61,6 +68,7 @@ export async function POST(req: NextRequest) {
         history,
         scenes: project.scenes,
         activeSceneId: project.activeSceneId,
+        events: project.events,
       });
 
       if (pythonRes && (pythonRes.actions || pythonRes.assistant_message)) {
@@ -103,11 +111,21 @@ export async function POST(req: NextRequest) {
     const scenesContext = scenesList.length > 0
       ? scenesList
           .map(
-            (s: any, idx: number) =>
-              `  - Scene ${s.sceneNumber || idx + 1}: "${s.title || "Scene"}" (${s.slugline || ""}) | Duration: ${s.durationSeconds || 120}s | Cast: ${(s.castPresent || []).join(", ") || "None"} | Stakes: ${s.summary || "N/A"}${s.id === project.activeSceneId ? " [CURRENT ACTIVE SCENE]" : ""}`
+            (s: any, idx: number) => {
+              const scriptText = (s.screenplayText || "").trim();
+              const scriptSnip = scriptText.length > 250 ? scriptText.slice(0, 250) + "..." : (scriptText || "(No script drafted)");
+              return `  - Scene ${s.sceneNumber || idx + 1}: "${s.title || "Scene"}" (${s.slugline || ""}) | Duration: ${s.durationSeconds || 120}s | Cast: ${(s.castPresent || []).join(", ") || "None"} | Stakes: ${s.summary || "N/A"}${s.id === project.activeSceneId ? " [CURRENT ACTIVE SCENE]" : ""}\n    Script snippet: "${scriptSnip.replace(/\n/g, ' ')}"`;
+            }
           )
           .join("\n")
       : "  - Single scene project";
+
+    const eventsList = Array.isArray(project.events) ? project.events : [];
+    const eventsContext = eventsList.length > 0
+      ? eventsList
+          .map((e: any) => `  - Beat at ${e.atSeconds || 0}s: ${e.characterName || "Character"} (${e.eventType || "event"})`)
+          .join("\n")
+      : "  - No story beat markers";
 
     // Build comprehensive project context for Gemini
     const projectContext = `
@@ -115,11 +133,14 @@ CURRENT PROJECT CONTEXT:
 - Title: ${project.title || "Untitled"}
 - Genre: ${project.genre || "Drama"}
 - Premise: ${project.premise || "N/A"}
+- Director Style: ${project.directorStyle || "Cinematic"}
 - Active Scene Title: ${project.sceneTitle || "Scene 01"}
 - Active Scene Stakes: ${project.sceneSummary || "N/A"}
 - Characters: ${(project.characters || []).map((c: any) => `${c.name} (${c.archetype}, ${c.role})`).join(", ") || "None"}
-- Multi-Scene Sequence Reel:
+- Multi-Scene Sequence Reel (with script snippets):
 ${scenesContext}
+- Timeline Story Beats:
+${eventsContext}
 - Existing Nodes: ${(project.nodes || []).map((n: any) => `${n.id} (${n.type})`).join(", ")}
 - Existing Wires: ${(project.edges || []).map((e: any) => `${e.source} -> ${e.target} [${e.data?.relationship || "wire"}]`).join(", ")}
 - Active Scene Screenplay Excerpt:
@@ -260,6 +281,84 @@ ${precedentContext}
       });
       thought += `Injected high-tension narrative beat into master screenplay draft. `;
       reply = `Rewrote the climax of the current scene to incorporate a high-stakes blackout twist.`;
+    }
+
+    // Replace scene
+    const replaceSceneMatch = userPrompt.match(/(?:replace)\s+(?:scene\s+)?(\d+|[a-zA-Z0-9_-]+)\s+(?:with\s+)?(.+)/i);
+    if (replaceSceneMatch) {
+      const sceneId = replaceSceneMatch[1];
+      const desc = replaceSceneMatch[2].trim();
+      localActions.push({
+        type: "replace_scene",
+        sceneIdentifier: !isNaN(parseInt(sceneId, 10)) ? parseInt(sceneId, 10) : sceneId,
+        replacement: {
+          title: desc.length > 30 ? desc.slice(0, 30) + "..." : desc,
+          summary: desc,
+          slugline: `INT/EXT. ${desc.toUpperCase().slice(0, 20)} - NIGHT`,
+          screenplayText: `INT/EXT. LOCATION - NIGHT\n\n[Action: ${desc}]\n\nCHARACTER\n(determined)\nWe move now.`,
+        },
+      });
+      thought += `Replaced scene ${sceneId} with "${desc}". `;
+      reply = `Replaced Scene ${sceneId} with the new dramatic beat: "${desc}".`;
+    }
+
+    // Delete scene
+    const deleteSceneMatch = userPrompt.match(/(?:delete|remove)\s+scene\s+(\d+|[a-zA-Z0-9_-]+)/i);
+    if (deleteSceneMatch && !replaceSceneMatch) {
+      const sceneId = deleteSceneMatch[1];
+      localActions.push({
+        type: "delete_scene",
+        sceneIdentifier: !isNaN(parseInt(sceneId, 10)) ? parseInt(sceneId, 10) : sceneId,
+      });
+      thought += `Deleted scene ${sceneId}. `;
+      reply = `Deleted Scene ${sceneId} from the sequence reel.`;
+    }
+
+    // Replace character
+    const replaceCharMatch = userPrompt.match(/(?:replace)\s+(?:character\s+)?([A-Za-z0-9_-]+)\s+with\s+([A-Za-z0-9_-]+)/i);
+    if (replaceCharMatch) {
+      const oldName = replaceCharMatch[1];
+      const newName = replaceCharMatch[2];
+      localActions.push({
+        type: "replace_character",
+        name: oldName,
+        replacement: {
+          name: newName,
+          role: "Dynamic Specialist",
+          archetype: "Strategic Operator",
+          confidence: 80,
+          verbalPacing: 70,
+        },
+      });
+      thought += `Replaced character "${oldName}" with "${newName}". `;
+      reply = `Replaced character **${oldName}** with **${newName}** and updated backlot nodes.`;
+    }
+
+    // Delete character
+    const deleteCharMatch = userPrompt.match(/(?:delete|remove)\s+(?:character\s+)?([A-Za-z0-9_-]+)/i);
+    if (deleteCharMatch && !promptLower.includes("scene") && !replaceCharMatch) {
+      const charName = deleteCharMatch[1];
+      localActions.push({
+        type: "delete_character",
+        name: charName,
+      });
+      thought += `Removed character "${charName}". `;
+      reply = `Removed character **${charName}** and cleared associated backlot nodes.`;
+    }
+
+    // Project metadata changes
+    const titleMatch = userPrompt.match(/(?:change|set|update)\s+(?:project\s+|film\s+|movie\s+)?title\s+to\s+["']?([^"'\n.]+)["']?/i);
+    const genreMatch = userPrompt.match(/(?:change|set|update)\s+(?:project\s+|film\s+|movie\s+)?genre\s+to\s+["']?([^"'\n.]+)["']?/i);
+    if (titleMatch || genreMatch) {
+      const metaPatch: any = {};
+      if (titleMatch) metaPatch.title = titleMatch[1].trim();
+      if (genreMatch) metaPatch.genre = genreMatch[1].trim();
+      localActions.push({
+        type: "update_project_meta",
+        patch: metaPatch,
+      });
+      thought += `Updated project metadata. `;
+      reply = `Updated project configuration${metaPatch.title ? ` (Title: "${metaPatch.title}")` : ""}${metaPatch.genre ? ` (Genre: "${metaPatch.genre}")` : ""}.`;
     }
 
     const fallbackResponse: CommanderExecutionResponse = {

@@ -58,11 +58,12 @@ export function ShowrunnerChat({
   onSendMessage,
   isThinking,
   suggestedPrompts = [
+    "Replace Scene 1 with a midnight rooftop interrogation",
+    "Replace Marcus with a cyber-specialist named Kael",
+    "Change film title to 'Shadow Protocol' and genre to Cyber Noir",
     "Introduce a rival cyber-agent named Viktor and wire him to Elena with Rivalry",
     "Crank Elena's subtext to 95% and verbal pacing to 85%",
     "Auto-tidy the entire backlot canvas into production columns",
-    "Rewrite the scene climax with a sudden power blackout",
-    "Sever all connections between the clip reference and Marcus",
   ],
   title = "Studio Executive AI",
   subtitle = "Omniscient Writers' Room & Backlot Commander",
@@ -240,21 +241,36 @@ export function ShowrunnerChat({
 
                 {/* Executed Live CRUD Operations Banner */}
                 {msg.execution_summaries && msg.execution_summaries.length > 0 && (
-                  <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-2.5 space-y-1.5">
-                    <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider text-emerald-400 font-bold">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-                      <span>Live Project Mutations Executed</span>
+                  <div className="rounded-lg border border-border bg-background/60 p-2.5 space-y-1.5 shadow-sm">
+                    <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider text-accent font-bold">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-accent" />
+                      <span>Live Project Mutations Executed ({msg.execution_summaries.length})</span>
                     </div>
-                    <div className="space-y-1">
-                      {msg.execution_summaries.map((summary, sIdx) => (
-                        <div
-                          key={sIdx}
-                          className="flex items-start gap-1.5 text-[11px] text-foreground font-mono"
-                        >
-                          <span className="text-emerald-400 font-bold">✓</span>
-                          <span>{summary}</span>
-                        </div>
-                      ))}
+                    <div className="space-y-1.5">
+                      {msg.execution_summaries.map((summary, sIdx) => {
+                        const isDelete = summary.toLowerCase().includes("deleted") || summary.toLowerCase().includes("removed") || summary.toLowerCase().includes("severed");
+                        const isReplace = summary.toLowerCase().includes("replaced");
+                        const isCreate = summary.toLowerCase().includes("created") || summary.toLowerCase().includes("spawned") || summary.toLowerCase().includes("added");
+                        const badgeColor = isDelete
+                          ? "bg-rose-500/15 text-rose-400 border-rose-500/30"
+                          : isReplace
+                          ? "bg-amber-500/15 text-amber-400 border-amber-500/30"
+                          : isCreate
+                          ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                          : "bg-secondary text-foreground/80 border-border";
+
+                        return (
+                          <div
+                            key={sIdx}
+                            className="flex items-center gap-2 text-[11px] text-foreground font-mono"
+                          >
+                            <span className={cn("px-1.5 py-0.5 rounded text-[9px] uppercase font-bold border tracking-wider", badgeColor)}>
+                              {isDelete ? "DEL" : isReplace ? "REPLACE" : isCreate ? "ADD" : "UPDATE"}
+                            </span>
+                            <span className="truncate">{summary}</span>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}

@@ -1346,9 +1346,13 @@ export default function StudioPage() {
               sceneSummary,
               genre,
               projectId,
+              projectTitle,
+              premise: premiseInput,
+              directorStyle,
               vcs,
               scenes,
               activeSceneId,
+              events,
             },
             {
               setNodes,
@@ -1357,10 +1361,15 @@ export default function StudioPage() {
               setScreenplayText,
               setSceneTitle,
               setSceneSummary,
+              setProjectTitle,
+              setGenre,
+              setPremise: setPremiseInput,
+              setDirectorStyle,
               saveProject: saveCurrentProject,
               recordTakeChange,
               setScenes,
               setActiveSceneId,
+              setEvents,
             }
           );
           executedSummaries = result.summaries;

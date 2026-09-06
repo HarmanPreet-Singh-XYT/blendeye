@@ -167,6 +167,56 @@ function applyShowrunnerActionsToProject(
         }
         break;
       }
+      case "replace_character": {
+        const charName = (action.name || "").trim().toLowerCase();
+        const idx = currentProj.characters.findIndex((c) => c.name.toLowerCase() === charName);
+        const rep = action.replacement || {};
+        const newName = rep.name ? rep.name.trim() : action.name;
+        const replacedChar: ProjectCharacter = {
+          name: newName,
+          role: rep.role || (idx !== -1 ? currentProj.characters[idx].role : "Key Dynamic"),
+          archetype: rep.archetype || (idx !== -1 ? currentProj.characters[idx].archetype : "Dynamic Specialist"),
+          speechStyle: rep.speechStyle || (idx !== -1 ? currentProj.characters[idx].speechStyle : "naturalistic"),
+          subtextRatio: rep.subtextRatio || (idx !== -1 ? currentProj.characters[idx].subtextRatio : "high"),
+          confidence: typeof rep.confidence === "number" ? rep.confidence : (idx !== -1 ? (currentProj.characters[idx].confidence ?? 75) : 75),
+          verbalPacing: typeof rep.verbalPacing === "number" ? rep.verbalPacing : (idx !== -1 ? (currentProj.characters[idx].verbalPacing ?? 65) : 65),
+          personalityPreset: rep.personalityPreset || (idx !== -1 ? currentProj.characters[idx].personalityPreset : "Balanced Professional"),
+          actorComp: rep.actorComp || `${newName} Prototype`,
+          objective: rep.objective || (idx !== -1 ? currentProj.characters[idx].objective : "Navigate the unfolding dramatic crisis"),
+          quirks: Array.isArray(rep.quirks) ? rep.quirks : (idx !== -1 ? currentProj.characters[idx].quirks : ["Observant"]),
+        };
+        if (idx !== -1) {
+          currentProj.characters[idx] = replacedChar;
+        } else {
+          currentProj.characters.push(replacedChar);
+        }
+        modifiedFields.push(`Replaced Character: ${action.name} → ${newName}`);
+        break;
+      }
+      case "update_project_meta": {
+        const patch = action.patch || {};
+        if (patch.title) {
+          currentProj.title = patch.title;
+          modifiedFields.push(`Project Title: "${patch.title}"`);
+        }
+        if (patch.genre) {
+          currentProj.genre = patch.genre;
+          modifiedFields.push(`Project Genre: "${patch.genre}"`);
+        }
+        if (patch.premise || patch.logline) {
+          currentProj.premise = patch.premise || patch.logline;
+          modifiedFields.push(`Project Premise updated`);
+        }
+        if (patch.directorStyle) {
+          currentProj.directorStyle = patch.directorStyle;
+          modifiedFields.push(`Director Style: "${patch.directorStyle}"`);
+        }
+        if (patch.targetRuntimeMinutes) {
+          currentProj.targetRuntimeMinutes = patch.targetRuntimeMinutes;
+          modifiedFields.push(`Target Runtime: ${patch.targetRuntimeMinutes}m`);
+        }
+        break;
+      }
       case "update_screenplay": {
         if (action.screenplayText) {
           currentProj.screenplayText = action.screenplayText;
@@ -346,6 +396,108 @@ function applyShowrunnerActionsToProject(
           currentScenes[idx] = { ...currentScenes[idx], ...action.patch };
           currentProj.scenes = currentScenes;
           modifiedFields.push(`Updated Scene ${currentScenes[idx].sceneNumber}: "${currentScenes[idx].title}"`);
+        }
+        break;
+      }
+      case "replace_scene": {
+        const currentScenes: FilmScene[] = [...(currentProj.scenes || [])];
+        const ident = String(action.sceneIdentifier).toLowerCase().trim();
+        const numIdent = parseInt(ident, 10);
+        let targetIdx = currentScenes.findIndex((s, i) => {
+          if (!isNaN(numIdent) && (s.sceneNumber === numIdent || i + 1 === numIdent)) return true;
+          if (s.id.toLowerCase() === ident) return true;
+          if (s.title.toLowerCase().includes(ident)) return true;
+          return false;
+        });
+
+        if (targetIdx === -1 && currentScenes.length === 1) {
+          targetIdx = 0;
+        }
+
+        if (targetIdx !== -1) {
+          const old = currentScenes[targetIdx];
+          const rep = action.replacement || {};
+          const duration = rep.durationSeconds || old.durationSeconds || 180;
+          const updated: FilmScene = {
+            ...old,
+            ...rep,
+            title: rep.title || old.title,
+            slugline: rep.slugline || old.slugline,
+            summary: rep.summary || old.summary,
+            location: rep.location || old.location || "Studio Location",
+            durationSeconds: duration,
+            castPresent: Array.isArray(rep.castPresent) && rep.castPresent.length > 0
+              ? rep.castPresent
+              : old.castPresent,
+            screenplayText: rep.screenplayText !== undefined
+              ? rep.screenplayText
+              : old.screenplayText,
+          };
+
+          currentScenes[targetIdx] = updated;
+          let cursor = 0;
+          currentProj.scenes = currentScenes.map((s, idx) => {
+            const reindexed = { ...s, sceneNumber: idx + 1, startSeconds: cursor };
+            cursor += s.durationSeconds || 180;
+            return reindexed;
+          });
+
+          if (currentProj.activeSceneId === old.id) {
+            currentProj.sceneTitle = updated.title;
+            currentProj.sceneSummary = updated.summary;
+            currentProj.screenplayText = updated.screenplayText;
+          }
+
+          modifiedFields.push(`Replaced Scene ${targetIdx + 1}: "${old.title}" → "${updated.title}"`);
+        }
+        break;
+      }
+      case "create_story_event": {
+        const events = [...(currentProj.initialEvents || [])];
+        events.push({
+          atSeconds: typeof action.atSeconds === "number" ? action.atSeconds : 0,
+          characterName: action.characterName || (currentProj.characters[0]?.name || "Lead"),
+          eventType: action.eventType || "known_fact",
+        });
+        events.sort((a, b) => a.atSeconds - b.atSeconds);
+        currentProj.initialEvents = events;
+        modifiedFields.push(`Added Story Event (${action.eventType}) at ${action.atSeconds}s`);
+        break;
+      }
+      case "delete_story_event": {
+        const ident = String(action.identifier).toLowerCase().trim();
+        const numIdent = parseInt(ident, 10);
+        const prevLen = (currentProj.initialEvents || []).length;
+        currentProj.initialEvents = (currentProj.initialEvents || []).filter((ev, idx) => {
+          if (!isNaN(numIdent) && (ev.atSeconds === numIdent || idx === numIdent)) return false;
+          if (ev.characterName.toLowerCase() === ident) return false;
+          if (ev.eventType.toLowerCase() === ident) return false;
+          return true;
+        });
+        if ((currentProj.initialEvents || []).length < prevLen) {
+          modifiedFields.push(`Deleted Story Event "${action.identifier}"`);
+        }
+        break;
+      }
+      case "replace_story_event": {
+        const events = [...(currentProj.initialEvents || [])];
+        const ident = String(action.identifier).toLowerCase().trim();
+        const numIdent = parseInt(ident, 10);
+        const idx = events.findIndex((ev, i) => {
+          if (!isNaN(numIdent) && (ev.atSeconds === numIdent || i === numIdent)) return true;
+          if (ev.characterName.toLowerCase() === ident) return true;
+          return false;
+        });
+        if (idx !== -1) {
+          const old = events[idx];
+          events[idx] = {
+            atSeconds: typeof action.replacement.atSeconds === "number" ? action.replacement.atSeconds : old.atSeconds,
+            characterName: action.replacement.characterName || old.characterName,
+            eventType: action.replacement.eventType || old.eventType,
+          };
+          events.sort((a, b) => a.atSeconds - b.atSeconds);
+          currentProj.initialEvents = events;
+          modifiedFields.push(`Replaced Story Event at ${events[idx].atSeconds}s`);
         }
         break;
       }

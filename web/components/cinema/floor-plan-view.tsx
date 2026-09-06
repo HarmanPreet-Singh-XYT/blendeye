@@ -1671,18 +1671,23 @@ export function FloorPlanView({
                       </text>
                     </g>
 
-                    <circle
-                      cx={rotHandleX}
-                      cy={rotHandleY}
-                      r="4.5"
-                      fill={char.color}
-                      stroke="var(--background)"
-                      strokeWidth="1.5"
-                      className="cursor-grab hover:scale-125 transition-transform"
+                    <g
+                      className="group cursor-grab"
                       onPointerDown={(e) => handlePointerDown(e, "char_rot", char.id)}
                     >
+                      {/* Generous hit target */}
+                      <circle cx={rotHandleX} cy={rotHandleY} r="14" fill="transparent" />
+                      <circle
+                        cx={rotHandleX}
+                        cy={rotHandleY}
+                        r="4.5"
+                        fill={char.color}
+                        stroke="var(--background)"
+                        strokeWidth="1.5"
+                        className="transition-all duration-150 group-hover:stroke-[2.5px] pointer-events-none"
+                      />
                       <title>{`Drag to rotate ${char.name}'s gaze (Current: ${char.angle}°)`}</title>
-                    </circle>
+                    </g>
 
                     <text
                       x={char.x}

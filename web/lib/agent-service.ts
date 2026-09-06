@@ -280,6 +280,7 @@ export interface ExecuteDirectiveRequest {
   projectTitle?: string;
   logline?: string;
   genre?: string;
+  directorStyle?: string;
   screenplayText?: string;
   characters?: any[];
   nodes?: any[];
@@ -287,6 +288,7 @@ export interface ExecuteDirectiveRequest {
   history?: any[];
   scenes?: any[];
   activeSceneId?: string;
+  events?: any[];
 }
 
 export function executeShowrunnerDirective(req: ExecuteDirectiveRequest) {
@@ -295,6 +297,7 @@ export function executeShowrunnerDirective(req: ExecuteDirectiveRequest) {
     project_title: req.projectTitle ?? "",
     logline: req.logline ?? "",
     genre: req.genre ?? "",
+    director_style: req.directorStyle ?? "",
     screenplay_text: req.screenplayText ?? "",
     characters: req.characters ?? [],
     nodes: req.nodes ?? [],
@@ -302,6 +305,7 @@ export function executeShowrunnerDirective(req: ExecuteDirectiveRequest) {
     history: req.history ?? [],
     scenes: req.scenes ?? [],
     active_scene_id: req.activeSceneId ?? "",
+    events: req.events ?? [],
   });
 }
 

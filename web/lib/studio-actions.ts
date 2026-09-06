@@ -9,15 +9,21 @@ export type StudioActionType =
   | "create_character"
   | "update_character"
   | "delete_character"
+  | "replace_character"
   | "update_screenplay"
   | "update_scene_meta"
+  | "update_project_meta"
   | "auto_tidy_backlot"
   | "create_take_milestone"
   | "create_scene"
   | "delete_scene"
+  | "replace_scene"
   | "reorder_scenes"
   | "move_scene"
-  | "update_scene";
+  | "update_scene"
+  | "create_story_event"
+  | "delete_story_event"
+  | "replace_story_event";
 
 export interface CreateNodeAction {
   type: "create_node";
@@ -92,6 +98,12 @@ export interface DeleteCharacterAction {
   name: string;
 }
 
+export interface ReplaceCharacterAction {
+  type: "replace_character";
+  name: string;
+  replacement: Partial<ProjectCharacter>;
+}
+
 export interface UpdateScreenplayAction {
   type: "update_screenplay";
   screenplayText: string;
@@ -103,6 +115,20 @@ export interface UpdateSceneMetaAction {
   title?: string;
   stakes?: string;
   genre?: string;
+}
+
+export interface UpdateProjectMetaAction {
+  type: "update_project_meta";
+  patch: {
+    title?: string;
+    logline?: string;
+    premise?: string;
+    genre?: string;
+    directorStyle?: string;
+    narrativeFormat?: string;
+    targetRuntimeMinutes?: number;
+    primaryLocation?: string;
+  };
 }
 
 export interface AutoTidyBacklotAction {
@@ -132,6 +158,12 @@ export interface DeleteSceneAction {
   sceneIdentifier: number | string;
 }
 
+export interface ReplaceSceneAction {
+  type: "replace_scene";
+  sceneIdentifier: number | string;
+  replacement: Partial<FilmScene>;
+}
+
 export interface ReorderScenesAction {
   type: "reorder_scenes";
   sceneOrder: Array<number | string>;
@@ -150,6 +182,28 @@ export interface UpdateSceneAction {
   patch: Partial<FilmScene>;
 }
 
+export interface CreateStoryEventAction {
+  type: "create_story_event";
+  atSeconds: number;
+  characterName: string;
+  eventType: "known_fact" | "unaware_of" | "location" | "objective";
+}
+
+export interface DeleteStoryEventAction {
+  type: "delete_story_event";
+  identifier: number | string;
+}
+
+export interface ReplaceStoryEventAction {
+  type: "replace_story_event";
+  identifier: number | string;
+  replacement: {
+    atSeconds?: number;
+    characterName?: string;
+    eventType?: "known_fact" | "unaware_of" | "location" | "objective";
+  };
+}
+
 export type StudioAction =
   | CreateNodeAction
   | DeleteNodeAction
@@ -159,15 +213,21 @@ export type StudioAction =
   | CreateCharacterAction
   | UpdateCharacterAction
   | DeleteCharacterAction
+  | ReplaceCharacterAction
   | UpdateScreenplayAction
   | UpdateSceneMetaAction
+  | UpdateProjectMetaAction
   | AutoTidyBacklotAction
   | CreateTakeMilestoneAction
   | CreateSceneAction
   | DeleteSceneAction
+  | ReplaceSceneAction
   | ReorderScenesAction
   | MoveSceneAction
-  | UpdateSceneAction;
+  | UpdateSceneAction
+  | CreateStoryEventAction
+  | DeleteStoryEventAction
+  | ReplaceStoryEventAction;
 
 export interface CitedPrecedent {
   genre: string;

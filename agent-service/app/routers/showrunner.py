@@ -153,6 +153,7 @@ class ExecuteDirectiveRequest(BaseModel):
     project_title: str = ""
     logline: str = ""
     genre: str = ""
+    director_style: str = ""
     screenplay_text: str = ""
     characters: list[dict] = Field(default_factory=list)
     nodes: list[dict] = Field(default_factory=list)
@@ -160,6 +161,7 @@ class ExecuteDirectiveRequest(BaseModel):
     history: list[dict] = Field(default_factory=list)
     scenes: list[dict | Any] = Field(default_factory=list)
     active_scene_id: str = ""
+    events: list[dict | Any] = Field(default_factory=list)
 
 
 class ExecuteDirectiveResponse(BaseModel):
@@ -191,9 +193,23 @@ async def execute_showrunner_directive(body: ExecuteDirectiveRequest) -> Execute
 
     scenes_summary = ""
     if body.scenes:
-        scenes_summary = "Sequence Reel:\n" + "\n".join(
-            f"  - Scene {s.get('sceneNumber', i+1)}: \"{s.get('title', 'Scene')}\" ({s.get('slugline', '')}) | Cast: {', '.join(s.get('castPresent', [])) or 'None'} | Stakes: {s.get('summary', 'N/A')}{' [CURRENT ACTIVE SCENE]' if s.get('id') == body.active_scene_id else ''}"
-            for i, s in enumerate(body.scenes)
+        scenes_lines = []
+        for i, s in enumerate(body.scenes):
+            sc_num = s.get('sceneNumber', i+1)
+            is_active = s.get('id') == body.active_scene_id
+            script_text = (s.get('screenplayText') or "").strip()
+            script_snip = (script_text[:280] + "...") if len(script_text) > 280 else (script_text or "(No script drafted)")
+            script_snip = script_snip.replace('\n', ' ')
+            scenes_lines.append(
+                f"  - Scene {sc_num}: \"{s.get('title', 'Scene')}\" ({s.get('slugline', '')}) | Cast: {', '.join(s.get('castPresent', [])) or 'None'} | Stakes: {s.get('summary', 'N/A')}{' [CURRENT ACTIVE SCENE]' if is_active else ''}\n    Script snippet: \"{script_snip}\""
+            )
+        scenes_summary = "Sequence Reel (with script excerpts):\n" + "\n".join(scenes_lines)
+
+    events_summary = ""
+    if body.events:
+        events_summary = "Timeline Story Beats:\n" + "\n".join(
+            f"  - Beat at {e.get('atSeconds', 0)}s: {e.get('characterName', 'Character')} ({e.get('eventType', 'known_fact')})"
+            for e in body.events
         )
 
     prompt = f"""
@@ -205,27 +221,35 @@ AVAILABLE ACTIONS YOU CAN EMIT IN "actions":
 1. {{"type": "create_character", "name": "Name", "role": "Role", "archetype": "Archetype", "confidence": 0-100, "verbalPacing": 0-100, "subtextRatio": "high"|"low", "personalityPreset": "Preset", "objective": "Goal"}}
 2. {{"type": "update_character", "name": "Name", "patch": {{"confidence": 95, "verbalPacing": 80, "speechStyle": "...", "objective": "..."}}}}
 3. {{"type": "delete_character", "name": "Name"}}
-4. {{"type": "create_node", "nodeType": "clip"|"note"|"actor"|"personality"|"quirks"|"scene"|"script"|"chemistry"|"storyboard"|"floorplan"|"tensionCurve"|"tableRead"|"market", "title": "...", "data": {{...}}}}
-5. {{"type": "delete_node", "nodeId": "nodeId or name"}}
-6. {{"type": "update_node_data", "nodeId": "nodeId or name", "patch": {{...}}}}
-7. {{"type": "connect_nodes", "source": "nodeId or name", "target": "nodeId or name", "relationship": "Friction"|"Alliance"|"Rivalry"|"Mentor"|"Style Sync"|"Plot Seed"}}
-8. {{"type": "sever_wire", "source": "nodeId or name", "target": "nodeId or name"}}
-9. {{"type": "update_screenplay", "screenplayText": "...", "summary": "..."}}
-10. {{"type": "update_scene_meta", "title": "...", "stakes": "..."}}
-11. {{"type": "auto_tidy_backlot"}}
-12. {{"type": "create_take_milestone", "title": "Milestone Title", "description": "..."}}
-13. {{"type": "create_scene", "title": "Scene Title", "slugline": "INT/EXT. LOCATION - DAY/NIGHT", "summary": "Dramatic stakes & narrative progression", "location": "Location Name", "castPresent": ["Character 1", "Character 2"], "durationSeconds": 180, "position": "end"|"start"|number, "screenplayText": "Standard formatted screenplay text..."}}
-14. {{"type": "delete_scene", "sceneIdentifier": 2 (sceneNumber) | "scene-id" | "Scene Title"}}
-15. {{"type": "reorder_scenes", "sceneOrder": [2, 1, 3] (new chronological order of scene numbers, IDs, or titles)}}
-16. {{"type": "move_scene", "sceneIdentifier": 2, "targetIndex": 0, "direction": "up"|"down"}}
-17. {{"type": "update_scene", "sceneIdentifier": 2, "patch": {{"title": "...", "slugline": "...", "summary": "...", "location": "...", "durationSeconds": 180, "castPresent": ["..."], "screenplayText": "..."}}}}
+4. {{"type": "replace_character", "name": "Old Name", "replacement": {{"name": "New Name", "role": "...", "archetype": "...", "confidence": 85, "verbalPacing": 70, "objective": "..."}}}}
+5. {{"type": "create_node", "nodeType": "clip"|"note"|"actor"|"personality"|"quirks"|"scene"|"script"|"chemistry"|"storyboard"|"floorplan"|"tensionCurve"|"tableRead"|"market", "title": "...", "data": {{...}}}}
+6. {{"type": "delete_node", "nodeId": "nodeId or name"}}
+7. {{"type": "update_node_data", "nodeId": "nodeId or name", "patch": {{...}}}}
+8. {{"type": "connect_nodes", "source": "nodeId or name", "target": "nodeId or name", "relationship": "Friction"|"Alliance"|"Rivalry"|"Mentor"|"Style Sync"|"Plot Seed"}}
+9. {{"type": "sever_wire", "source": "nodeId or name", "target": "nodeId or name"}}
+10. {{"type": "update_screenplay", "screenplayText": "...", "summary": "..."}}
+11. {{"type": "update_scene_meta", "title": "...", "stakes": "..."}}
+12. {{"type": "update_project_meta", "patch": {{"title": "...", "logline": "...", "genre": "...", "directorStyle": "...", "narrativeFormat": "feature"|"pilot"|"short", "targetRuntimeMinutes": 110}}}}
+13. {{"type": "auto_tidy_backlot"}}
+14. {{"type": "create_take_milestone", "title": "Milestone Title", "description": "..."}}
+15. {{"type": "create_scene", "title": "Scene Title", "slugline": "INT/EXT. LOCATION - DAY/NIGHT", "summary": "Dramatic stakes & narrative progression", "location": "Location Name", "castPresent": ["Character 1", "Character 2"], "durationSeconds": 180, "position": "end"|"start"|number, "screenplayText": "Standard formatted screenplay text..."}}
+16. {{"type": "delete_scene", "sceneIdentifier": 2 (sceneNumber) | "scene-id" | "Scene Title"}}
+17. {{"type": "replace_scene", "sceneIdentifier": 2 (sceneNumber) | "scene-id" | "Scene Title", "replacement": {{"title": "...", "slugline": "...", "summary": "...", "location": "...", "durationSeconds": 180, "castPresent": ["..."], "screenplayText": "..."}}}}
+18. {{"type": "reorder_scenes", "sceneOrder": [2, 1, 3] (new chronological order of scene numbers, IDs, or titles)}}
+19. {{"type": "move_scene", "sceneIdentifier": 2, "targetIndex": 0, "direction": "up"|"down"}}
+20. {{"type": "update_scene", "sceneIdentifier": 2, "patch": {{"title": "...", "slugline": "...", "summary": "...", "location": "...", "durationSeconds": 180, "castPresent": ["..."], "screenplayText": "..."}}}}
+21. {{"type": "create_story_event", "atSeconds": 120, "characterName": "Elena", "eventType": "known_fact"|"unaware_of"|"location"|"objective"}}
+22. {{"type": "delete_story_event", "identifier": 120 (atSeconds) | "Elena" | "objective"}}
+23. {{"type": "replace_story_event", "identifier": 120, "replacement": {{"atSeconds": 150, "characterName": "Elena", "eventType": "objective"}}}}
 
 PROJECT CONTEXT:
 Title: {body.project_title or "Untitled"}
 Genre: {body.genre or "Drama"}
 Logline: {body.logline or "Unspecified"}
+Director Style: {body.director_style or "Cinematic"}
 Characters: {[c.get('name') for c in body.characters]}
 {scenes_summary}
+{events_summary}
 Nodes: {[n.get('id') for n in body.nodes]}
 Edges: {[f"{e.get('source')}->{e.get('target')}" for e in body.edges]}
 Active Scene Script Excerpt: {body.screenplay_text[:1200] if body.screenplay_text else "(No script drafted yet)"}

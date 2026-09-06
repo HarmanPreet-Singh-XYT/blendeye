@@ -512,19 +512,57 @@ export function TensionCurveView({
           />
 
           {/* Beat Points on Curve */}
-          {points.map((p, idx) => (
-            <g key={idx} className="transition-transform hover:scale-125 cursor-pointer">
-              <circle
-                cx={p.x}
-                cy={p.y}
-                r="4.5"
-                fill="var(--background)"
-                stroke="var(--accent)"
-                strokeWidth="2"
-              />
-              <circle cx={p.x} cy={p.y} r="2" fill="var(--accent)" />
-            </g>
-          ))}
+          {points.map((p, idx) => {
+            const isNearest = activeBeat.timeSeconds === p.timeSeconds;
+            return (
+              <g
+                key={idx}
+                className="group cursor-pointer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const emitSec = isSceneMode ? sceneStart + p.timeSeconds : p.timeSeconds;
+                  onScrubTime?.(emitSec);
+                }}
+              >
+                {/* Generous invisible hit target to prevent edge jitter & position shifts */}
+                <circle cx={p.x} cy={p.y} r="16" fill="transparent" />
+
+                {/* Hover / Active Pulse Halo */}
+                <circle
+                  cx={p.x}
+                  cy={p.y}
+                  r="9"
+                  fill="var(--accent)"
+                  className={`transition-all duration-200 pointer-events-none ${
+                    isNearest ? "opacity-35" : "opacity-0 group-hover:opacity-25"
+                  }`}
+                />
+
+                {/* Base outer circle */}
+                <circle
+                  cx={p.x}
+                  cy={p.y}
+                  r={isNearest ? 5.5 : 4.5}
+                  fill="var(--background)"
+                  stroke="var(--accent)"
+                  strokeWidth={isNearest ? 2.5 : 2}
+                  className="transition-all duration-150 group-hover:stroke-[2.5px] pointer-events-none"
+                />
+
+                {/* Inner core dot */}
+                <circle
+                  cx={p.x}
+                  cy={p.y}
+                  r={isNearest ? 2.5 : 2}
+                  fill="var(--accent)"
+                  className="transition-all duration-150 pointer-events-none"
+                />
+
+                {/* Beat tooltip on hover */}
+                <title>{`${p.title} (${p.score}% Tension · ${formatTimecode(p.timeSeconds)})`}</title>
+              </g>
+            );
+          })}
 
           {/* Live Timeline Scrubber Needle */}
           <line

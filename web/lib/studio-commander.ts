@@ -1,5 +1,6 @@
 import type { Node, Edge } from "@xyflow/react";
 import type { ProjectCharacter, FilmScene } from "@/lib/project-store";
+import type { StoryEventMarker } from "@/components/cinema/timeline-scrubber";
 import type { StudioAction, CommanderExecutionResponse } from "@/lib/studio-actions";
 import { autoTidyBacklot } from "@/lib/backlot-layout";
 import { StudioVersionControl } from "@/lib/version-control";
@@ -13,9 +14,13 @@ export interface CommanderContext {
   sceneSummary?: string;
   genre?: string;
   projectId?: string;
+  projectTitle?: string;
+  premise?: string;
+  directorStyle?: string;
   vcs?: StudioVersionControl | null;
   scenes?: FilmScene[];
   activeSceneId?: string;
+  events?: StoryEventMarker[];
 }
 
 export interface CommanderCallbacks {
@@ -25,10 +30,15 @@ export interface CommanderCallbacks {
   setScreenplayText?: (text: string) => void;
   setSceneTitle?: (title: string) => void;
   setSceneSummary?: (summary: string) => void;
+  setProjectTitle?: (title: string) => void;
+  setGenre?: (genre: string) => void;
+  setPremise?: (premise: string) => void;
+  setDirectorStyle?: (style: string) => void;
   saveProject?: (patch: Record<string, any>) => void;
   recordTakeChange?: (summary: string, category: any, custom?: any) => void;
   setScenes?: (scenes: FilmScene[]) => void;
   setActiveSceneId?: (id: string) => void;
+  setEvents?: (events: StoryEventMarker[]) => void;
 }
 
 /**
@@ -49,6 +59,7 @@ export function executeStudioActions(
   let currentSummary = ctx.sceneSummary || "";
   let currentScenes = ctx.scenes ? [...ctx.scenes] : [];
   let currentActiveSceneId = ctx.activeSceneId;
+  let currentEvents = ctx.events ? [...ctx.events] : [];
 
   let nodesChanged = false;
   let edgesChanged = false;
@@ -56,6 +67,7 @@ export function executeStudioActions(
   let scriptChanged = false;
   let metaChanged = false;
   let scenesChanged = false;
+  let eventsChanged = false;
 
   for (const action of actions) {
     switch (action.type) {
@@ -190,6 +202,107 @@ export function executeStudioActions(
         nodesChanged = true;
         edgesChanged = true;
         summaries.push(`Removed character "${action.name}" and cleared associated nodes`);
+        break;
+      }
+
+      case "replace_character": {
+        const targetName = action.name.toLowerCase().trim();
+        const idx = currentCharacters.findIndex(
+          (c) => c.name.toLowerCase() === targetName
+        );
+        const rep = action.replacement || {};
+        const newName = rep.name ? rep.name.trim() : action.name;
+
+        const replacedChar: ProjectCharacter = {
+          name: newName,
+          role: rep.role || (idx !== -1 ? currentCharacters[idx].role : "Key Dynamic"),
+          archetype: rep.archetype || (idx !== -1 ? currentCharacters[idx].archetype : "Dynamic Specialist"),
+          speechStyle: rep.speechStyle || (idx !== -1 ? currentCharacters[idx].speechStyle : "naturalistic"),
+          subtextRatio: rep.subtextRatio || (idx !== -1 ? currentCharacters[idx].subtextRatio : "high"),
+          confidence: typeof rep.confidence === "number" ? rep.confidence : (idx !== -1 ? (currentCharacters[idx].confidence ?? 75) : 75),
+          verbalPacing: typeof rep.verbalPacing === "number" ? rep.verbalPacing : (idx !== -1 ? (currentCharacters[idx].verbalPacing ?? 65) : 65),
+          personalityPreset: rep.personalityPreset || (idx !== -1 ? currentCharacters[idx].personalityPreset : "Balanced Professional"),
+          actorComp: rep.actorComp || `${newName} Prototype`,
+          objective: rep.objective || (idx !== -1 ? currentCharacters[idx].objective : "Navigate the unfolding dramatic crisis"),
+          quirks: Array.isArray(rep.quirks) ? rep.quirks : (idx !== -1 ? currentCharacters[idx].quirks : ["Observant"]),
+        };
+
+        if (idx !== -1) {
+          currentCharacters[idx] = replacedChar;
+        } else {
+          currentCharacters.push(replacedChar);
+        }
+        charsChanged = true;
+
+        // Update or recreate corresponding nodes on backlot canvas
+        let foundNode = false;
+        currentNodes = currentNodes.map((n) => {
+          if (n.type === "actor" && (n.data as any)?.name?.toLowerCase() === targetName) {
+            foundNode = true;
+            return {
+              ...n,
+              data: {
+                ...n.data,
+                name: replacedChar.name,
+                archetype: replacedChar.archetype,
+                actorComp: replacedChar.actorComp,
+                objective: replacedChar.objective,
+              },
+            };
+          }
+          if (n.type === "personality" && n.id.includes(targetName)) {
+            return {
+              ...n,
+              data: {
+                ...n.data,
+                presetName: replacedChar.personalityPreset,
+                confidence: replacedChar.confidence,
+                verbalPacing: replacedChar.verbalPacing,
+                subtextRatio: replacedChar.subtextRatio,
+              },
+            };
+          }
+          return n;
+        });
+
+        if (!foundNode) {
+          const actorNodeId = `node-actor-${newName.toLowerCase().replace(/[^a-z0-9]/g, "-")}`;
+          const personalityNodeId = `node-pers-${newName.toLowerCase().replace(/[^a-z0-9]/g, "-")}`;
+          currentNodes.push({
+            id: actorNodeId,
+            type: "actor",
+            position: { x: 460, y: 80 + currentCharacters.length * 200 },
+            data: {
+              name: replacedChar.name,
+              archetype: replacedChar.archetype,
+              actorComp: replacedChar.actorComp,
+              objective: replacedChar.objective,
+            },
+          });
+          currentNodes.push({
+            id: personalityNodeId,
+            type: "personality",
+            position: { x: 460, y: 80 + currentCharacters.length * 200 + 130 },
+            data: {
+              presetName: replacedChar.personalityPreset,
+              confidence: replacedChar.confidence,
+              verbalPacing: replacedChar.verbalPacing,
+              subtextRatio: replacedChar.subtextRatio,
+            },
+          });
+          currentEdges.push({
+            id: `e-${personalityNodeId}-${actorNodeId}-${Date.now().toString(36)}`,
+            source: personalityNodeId,
+            target: actorNodeId,
+            type: "deletable",
+            animated: true,
+            data: { relationship: "Mindset" },
+          });
+          edgesChanged = true;
+        }
+
+        nodesChanged = true;
+        summaries.push(`Replaced character "${action.name}" with "${newName}" (${replacedChar.role})`);
         break;
       }
 
@@ -384,6 +497,37 @@ export function executeStudioActions(
         break;
       }
 
+      case "update_project_meta": {
+        const patch = action.patch || {};
+        if (patch.title) {
+          cb.setProjectTitle?.(patch.title);
+          summaries.push(`Updated project title to "${patch.title}"`);
+        }
+        if (patch.genre) {
+          cb.setGenre?.(patch.genre);
+          summaries.push(`Updated project genre to "${patch.genre}"`);
+        }
+        if (patch.logline || patch.premise) {
+          const p = patch.premise || patch.logline || "";
+          cb.setPremise?.(p);
+          summaries.push(`Updated project premise/logline`);
+        }
+        if (patch.directorStyle) {
+          cb.setDirectorStyle?.(patch.directorStyle);
+          summaries.push(`Updated director style to "${patch.directorStyle}"`);
+        }
+        cb.saveProject?.({
+          title: patch.title,
+          genre: patch.genre,
+          premise: patch.premise || patch.logline,
+          directorStyle: patch.directorStyle,
+          narrativeFormat: patch.narrativeFormat,
+          targetRuntimeMinutes: patch.targetRuntimeMinutes,
+          primaryLocation: patch.primaryLocation,
+        });
+        break;
+      }
+
       case "auto_tidy_backlot": {
         currentNodes = autoTidyBacklot(currentNodes);
         nodesChanged = true;
@@ -475,6 +619,68 @@ export function executeStudioActions(
 
           scenesChanged = true;
           summaries.push(`Deleted Scene ${targetIdx + 1}: "${removed.title}"`);
+        }
+        break;
+      }
+
+      case "replace_scene": {
+        const ident = String(action.sceneIdentifier).toLowerCase().trim();
+        const numIdent = parseInt(ident, 10);
+
+        let targetIdx = currentScenes.findIndex((s, idx) => {
+          if (!isNaN(numIdent) && (s.sceneNumber === numIdent || idx + 1 === numIdent)) return true;
+          if (s.id.toLowerCase() === ident) return true;
+          if (s.title.toLowerCase().includes(ident)) return true;
+          return false;
+        });
+
+        // Fallback: If only 1 scene and targetIdx not found, target that single scene
+        if (targetIdx === -1 && currentScenes.length === 1) {
+          targetIdx = 0;
+        }
+
+        if (targetIdx !== -1) {
+          const oldScene = currentScenes[targetIdx];
+          const rep = action.replacement || {};
+          const duration = rep.durationSeconds || oldScene.durationSeconds || 180;
+          const updatedScene: FilmScene = {
+            ...oldScene,
+            ...rep,
+            title: rep.title || oldScene.title,
+            slugline: rep.slugline || oldScene.slugline,
+            summary: rep.summary || oldScene.summary,
+            location: rep.location || oldScene.location || "Studio Location",
+            durationSeconds: duration,
+            castPresent: Array.isArray(rep.castPresent) && rep.castPresent.length > 0
+              ? rep.castPresent
+              : oldScene.castPresent,
+            screenplayText: rep.screenplayText !== undefined
+              ? rep.screenplayText
+              : oldScene.screenplayText,
+          };
+
+          currentScenes[targetIdx] = updatedScene;
+
+          // Re-index sequence timestamps
+          let cursor = 0;
+          currentScenes = currentScenes.map((s, idx) => {
+            const reindexed = { ...s, sceneNumber: idx + 1, startSeconds: cursor };
+            cursor += s.durationSeconds || 180;
+            return reindexed;
+          });
+
+          if (currentScenes[targetIdx].id === currentActiveSceneId) {
+            currentTitle = updatedScene.title;
+            currentSummary = updatedScene.summary;
+            currentScreenplay = updatedScene.screenplayText;
+            metaChanged = true;
+            scriptChanged = true;
+          }
+
+          scenesChanged = true;
+          summaries.push(`Replaced Scene ${targetIdx + 1}: "${oldScene.title}" → "${updatedScene.title}"`);
+        } else {
+          summaries.push(`Could not find scene matching "${action.sceneIdentifier}" to replace`);
         }
         break;
       }
@@ -588,6 +794,63 @@ export function executeStudioActions(
         }
         break;
       }
+
+      case "create_story_event": {
+        const newEvent: StoryEventMarker = {
+          atSeconds: typeof action.atSeconds === "number" ? action.atSeconds : 0,
+          characterName: action.characterName || (currentCharacters[0]?.name || "Character"),
+          eventType: action.eventType || "known_fact",
+        };
+        currentEvents.push(newEvent);
+        currentEvents.sort((a, b) => a.atSeconds - b.atSeconds);
+        eventsChanged = true;
+        summaries.push(`Created story event for "${newEvent.characterName}" at ${newEvent.atSeconds}s (${newEvent.eventType})`);
+        break;
+      }
+
+      case "delete_story_event": {
+        const ident = String(action.identifier).toLowerCase().trim();
+        const numIdent = parseInt(ident, 10);
+        const prevLen = currentEvents.length;
+        currentEvents = currentEvents.filter((ev, idx) => {
+          if (!isNaN(numIdent) && (ev.atSeconds === numIdent || idx === numIdent)) return false;
+          if (ev.characterName.toLowerCase() === ident) return false;
+          if (ev.eventType.toLowerCase() === ident) return false;
+          return true;
+        });
+        if (currentEvents.length < prevLen) {
+          eventsChanged = true;
+          summaries.push(`Deleted story event matching "${action.identifier}"`);
+        } else {
+          summaries.push(`Could not find story event matching "${action.identifier}" to delete`);
+        }
+        break;
+      }
+
+      case "replace_story_event": {
+        const ident = String(action.identifier).toLowerCase().trim();
+        const numIdent = parseInt(ident, 10);
+        const idx = currentEvents.findIndex((ev, i) => {
+          if (!isNaN(numIdent) && (ev.atSeconds === numIdent || i === numIdent)) return true;
+          if (ev.characterName.toLowerCase() === ident) return true;
+          return false;
+        });
+
+        if (idx !== -1) {
+          const old = currentEvents[idx];
+          currentEvents[idx] = {
+            atSeconds: typeof action.replacement.atSeconds === "number" ? action.replacement.atSeconds : old.atSeconds,
+            characterName: action.replacement.characterName || old.characterName,
+            eventType: action.replacement.eventType || old.eventType,
+          };
+          currentEvents.sort((a, b) => a.atSeconds - b.atSeconds);
+          eventsChanged = true;
+          summaries.push(`Replaced story event at ${currentEvents[idx].atSeconds}s for "${currentEvents[idx].characterName}"`);
+        } else {
+          summaries.push(`Could not find story event matching "${action.identifier}" to replace`);
+        }
+        break;
+      }
     }
   }
 
@@ -604,6 +867,9 @@ export function executeStudioActions(
     cb.setScenes?.(currentScenes);
     if (currentActiveSceneId) cb.setActiveSceneId?.(currentActiveSceneId);
   }
+  if (eventsChanged) {
+    cb.setEvents?.(currentEvents);
+  }
 
   // Save to persistence
   cb.saveProject?.({
@@ -613,6 +879,7 @@ export function executeStudioActions(
     sceneSummary: metaChanged ? currentSummary : undefined,
     scenes: scenesChanged ? currentScenes : undefined,
     activeSceneId: scenesChanged ? currentActiveSceneId : undefined,
+    initialEvents: eventsChanged ? currentEvents : undefined,
   });
 
   // Record Take in Version Control
