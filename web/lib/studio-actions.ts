@@ -1,4 +1,4 @@
-import type { ProjectCharacter } from "@/lib/project-store";
+import type { ProjectCharacter, FilmScene } from "@/lib/project-store";
 
 export type StudioActionType =
   | "create_node"
@@ -12,7 +12,12 @@ export type StudioActionType =
   | "update_screenplay"
   | "update_scene_meta"
   | "auto_tidy_backlot"
-  | "create_take_milestone";
+  | "create_take_milestone"
+  | "create_scene"
+  | "delete_scene"
+  | "reorder_scenes"
+  | "move_scene"
+  | "update_scene";
 
 export interface CreateNodeAction {
   type: "create_node";
@@ -110,6 +115,41 @@ export interface CreateTakeMilestoneAction {
   description?: string;
 }
 
+export interface CreateSceneAction {
+  type: "create_scene";
+  title: string;
+  slugline?: string;
+  summary?: string;
+  location?: string;
+  castPresent?: string[];
+  durationSeconds?: number;
+  position?: "end" | "start" | number;
+  screenplayText?: string;
+}
+
+export interface DeleteSceneAction {
+  type: "delete_scene";
+  sceneIdentifier: number | string;
+}
+
+export interface ReorderScenesAction {
+  type: "reorder_scenes";
+  sceneOrder: Array<number | string>;
+}
+
+export interface MoveSceneAction {
+  type: "move_scene";
+  sceneIdentifier: number | string;
+  targetIndex?: number;
+  direction?: "up" | "down";
+}
+
+export interface UpdateSceneAction {
+  type: "update_scene";
+  sceneIdentifier: number | string;
+  patch: Partial<FilmScene>;
+}
+
 export type StudioAction =
   | CreateNodeAction
   | DeleteNodeAction
@@ -122,7 +162,12 @@ export type StudioAction =
   | UpdateScreenplayAction
   | UpdateSceneMetaAction
   | AutoTidyBacklotAction
-  | CreateTakeMilestoneAction;
+  | CreateTakeMilestoneAction
+  | CreateSceneAction
+  | DeleteSceneAction
+  | ReorderScenesAction
+  | MoveSceneAction
+  | UpdateSceneAction;
 
 export interface CitedPrecedent {
   genre: string;

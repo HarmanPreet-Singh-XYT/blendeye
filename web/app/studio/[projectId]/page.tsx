@@ -37,6 +37,7 @@ import {
   MultiverseTakesDialog,
   type MultiverseTake,
 } from "@/components/cinema/multiverse-takes-dialog";
+import { ContinuityCheckerDialog } from "@/components/cinema/continuity-checker-dialog";
 import { VersionControlDialog } from "@/components/cinema/version-control-dialog";
 import { AICommanderDialog } from "@/components/cinema/ai-commander-dialog";
 import { ClickHouseToolboxDialog } from "@/components/cinema/clickhouse-toolbox-dialog";
@@ -127,6 +128,7 @@ import {
   Clock,
   Timer,
   Milestone,
+  ShieldAlert,
 } from "lucide-react";
 import type { ShowrunnerMessage } from "@/lib/agent-service";
 import {
@@ -149,8 +151,8 @@ import { ProjectTimeframeDialog } from "@/components/cinema/project-timeframe-di
 
 export const PRESET_SCENARIOS = SEED_PROJECTS;
 
-type MainStudioTab = "planning" | "simulation" | "generation";
-type SimulationSubTab = "audio" | "hotseat" | "chemistry" | "showrunner";
+type MainStudioTab = "planning" | "simulation" | "generation" | "showrunner";
+type SimulationSubTab = "audio" | "hotseat" | "chemistry";
 type DeckSubTab = "blocking" | "tension";
 
 export default function StudioPage() {
@@ -393,6 +395,9 @@ export default function StudioPage() {
         } else if (e.key === "3") {
           e.preventDefault();
           setMainTab("generation");
+        } else if (e.key === "4") {
+          e.preventDefault();
+          setMainTab("showrunner");
         } else if (e.key.toLowerCase() === "c") {
           e.preventDefault();
           setIsClickHouseInspectorOpen((prev) => !prev);
@@ -408,6 +413,7 @@ export default function StudioPage() {
   const [isGeneratingProject, setIsGeneratingProject] = React.useState(false);
   const [fusionOpen, setFusionOpen] = React.useState(false);
   const [multiverseOpen, setMultiverseOpen] = React.useState(false);
+  const [continuityOpen, setContinuityOpen] = React.useState(false);
   const [scriptViewerOpen, setScriptViewerOpen] = React.useState(false);
   const [showTableRead, setShowTableRead] = React.useState(false);
   const [versionControlOpen, setVersionControlOpen] = React.useState(false);
@@ -1341,6 +1347,8 @@ export default function StudioPage() {
               genre,
               projectId,
               vcs,
+              scenes,
+              activeSceneId,
             },
             {
               setNodes,
@@ -1351,6 +1359,8 @@ export default function StudioPage() {
               setSceneSummary,
               saveProject: saveCurrentProject,
               recordTakeChange,
+              setScenes,
+              setActiveSceneId,
             }
           );
           executedSummaries = result.summaries;
@@ -2065,7 +2075,7 @@ export default function StudioPage() {
           })()}
         </div>
 
-        {/* Center: 3 Scene Workspaces (Studio | Simulation | Generation) */}
+        {/* Center: 4 Scene Workspaces (Studio | Simulation | Generation | Showrunner AI) */}
         <div className="flex items-center justify-center">
           <div className="flex items-center rounded-lg border border-border/80 bg-secondary/30 p-0.5 shadow-xs">
             <button
@@ -2112,6 +2122,21 @@ export default function StudioPage() {
               <Sparkles className="h-3.5 w-3.5" />
               <span>Generation</span>
             </button>
+
+            <button
+              type="button"
+              onClick={() => setMainTab("showrunner")}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-all cursor-pointer",
+                mainTab === "showrunner"
+                  ? "bg-accent text-accent-foreground shadow-xs"
+                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+              )}
+              title="Showrunner AI Co-Pilot: Central Directing Partner & Strategy (Shift+4)"
+            >
+              <Bot className="h-3.5 w-3.5 text-emerald-400" />
+              <span>Showrunner AI</span>
+            </button>
           </div>
         </div>
 
@@ -2134,6 +2159,18 @@ export default function StudioPage() {
             )}
           </Button>
 
+          {/* Continuity & Plot-Hole Auditor (ClickHouse Knowledge Firewall) */}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setContinuityOpen(true)}
+            className="h-7 px-2.5 gap-1.5 text-xs border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 cursor-pointer transition-colors"
+            title="ClickHouse Asymmetric Knowledge & Continuity Audit"
+          >
+            <ShieldAlert className="h-3.5 w-3.5 text-amber-400" />
+            <span className="hidden md:inline">Continuity Audit</span>
+          </Button>
+
           {/* Unified Creative Tools Dropdown Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger className="inline-flex items-center h-7 gap-1.5 text-xs font-medium border border-border/70 rounded-md px-2.5 bg-secondary/30 hover:bg-secondary/70 text-foreground cursor-pointer transition-colors">
@@ -2153,6 +2190,16 @@ export default function StudioPage() {
                 <div className="flex flex-col">
                   <span className="font-medium">Character DNA Lab</span>
                   <span className="text-[10px] text-muted-foreground">Modular casting &amp; voice chemistry</span>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setContinuityOpen(true)}
+                className="flex items-center gap-2.5 px-2.5 py-1.5 rounded text-xs cursor-pointer hover:bg-secondary"
+              >
+                <ShieldAlert className="h-4 w-4 text-amber-400 shrink-0" />
+                <div className="flex flex-col">
+                  <span className="font-medium">Continuity &amp; Plot-Hole Auditor</span>
+                  <span className="text-[10px] text-muted-foreground">ClickHouse knowledge firewall audit</span>
                 </div>
               </DropdownMenuItem>
               <DropdownMenuItem
@@ -2292,25 +2339,25 @@ export default function StudioPage() {
             collapsible={true}
             collapsedSize="0%"
             defaultSize="65%"
-            minSize="0%"
-            maxSize="100%"
+            minSize="15%"
+            maxSize="90%"
             className="relative"
             onResize={(panelSize) => {
               if (panelSize.asPercentage <= 2) {
-                setLayoutMode("dock-only");
+                setLayoutMode((prev) => (prev !== "dock-only" ? "dock-only" : prev));
               } else {
                 const bottomSize = bottomPanelRef.current?.getSize()?.asPercentage;
                 if (bottomSize !== undefined && bottomSize <= 2) {
-                  setLayoutMode("canvas-only");
-                } else if (layoutMode === "dock-only") {
-                  setLayoutMode("split");
+                  setLayoutMode((prev) => (prev !== "canvas-only" ? "canvas-only" : prev));
+                } else {
+                  setLayoutMode((prev) => (prev !== "split" ? "split" : prev));
                 }
               }
             }}
           >
             <ResizablePanelGroup orientation="horizontal" className="h-full w-full">
               {/* Left Panel: React Flow Story Canvas */}
-              <ResizablePanel defaultSize="72%" minSize="35%">
+              <ResizablePanel defaultSize="72%" minSize="20%">
                 <div className="relative h-full w-full overflow-hidden bg-background">
                   <StoryCanvas
                     nodes={nodes}
@@ -2360,10 +2407,11 @@ export default function StudioPage() {
                 collapsible={true}
                 collapsedSize="0%"
                 defaultSize="28%"
-                minSize="18%"
-                maxSize="50%"
+                minSize="14%"
+                maxSize="80%"
                 onResize={(panelSize) => {
-                  setIsSidebarOpen(panelSize.asPercentage > 2);
+                  const open = panelSize.asPercentage > 2;
+                  setIsSidebarOpen((prev) => (prev !== open ? open : prev));
                 }}
               >
                 <StudioInspector
@@ -2417,18 +2465,18 @@ export default function StudioPage() {
             collapsible={true}
             collapsedSize="0%"
             defaultSize="35%"
-            minSize="0%"
-            maxSize="100%"
+            minSize="10%"
+            maxSize="85%"
             className="flex flex-col overflow-hidden bg-card/95 backdrop-blur border-t border-border"
             onResize={(panelSize) => {
               if (panelSize.asPercentage <= 2) {
-                setLayoutMode("canvas-only");
+                setLayoutMode((prev) => (prev !== "canvas-only" ? "canvas-only" : prev));
               } else {
                 const topSize = topPanelRef.current?.getSize()?.asPercentage;
                 if (topSize !== undefined && topSize <= 2) {
-                  setLayoutMode("dock-only");
-                } else if (layoutMode === "canvas-only") {
-                  setLayoutMode("split");
+                  setLayoutMode((prev) => (prev !== "dock-only" ? "dock-only" : prev));
+                } else {
+                  setLayoutMode((prev) => (prev !== "split" ? "split" : prev));
                 }
               }
             }}
@@ -2545,6 +2593,8 @@ export default function StudioPage() {
                   sceneTitle={sceneTitle}
                   characters={characters}
                   primaryLocation={primaryLocation}
+                  screenplayText={screenplayText}
+                  directorStyle={directorStyle}
                   onSendToVeo={handleSendStagingToVeo}
                 />
               )}
@@ -2616,24 +2666,20 @@ export default function StudioPage() {
                   <Flame className="h-3.5 w-3.5 text-rose-400" />
                   <span>Dream Casting &amp; Chemistry</span>
                 </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSimulationTab("showrunner")}
-                  className={cn(
-                    "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer",
-                    simulationTab === "showrunner"
-                      ? "bg-accent text-accent-foreground shadow-xs"
-                      : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-                  )}
-                >
-                  <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
-                  <span>Showrunner AI Co-Pilot</span>
-                </button>
               </div>
 
-              {/* Quick Link to Generation */}
+              {/* Quick Links to Showrunner & Generation */}
               <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setMainTab("showrunner")}
+                  className="flex items-center gap-1.5 text-xs text-emerald-300 hover:text-emerald-200 px-2.5 py-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 cursor-pointer transition-colors"
+                  title="Switch to Showrunner AI Co-Pilot (Shift+4)"
+                >
+                  <Bot className="h-3.5 w-3.5" />
+                  <span>Showrunner AI ↗</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={() => setMainTab("generation")}
@@ -2791,22 +2837,6 @@ export default function StudioPage() {
               </div>
             )}
 
-            {/* Sub-Tab 4: Showrunner AI Co-Pilot */}
-            {simulationTab === "showrunner" && (
-              <div className="flex-1 min-h-0 overflow-hidden p-3 flex flex-col">
-                <ShowrunnerChat
-                  messages={showrunnerMessages}
-                  isThinking={isShowrunnerThinking}
-                  onSendMessage={handleSendShowrunner}
-                  suggestedPrompts={[
-                    `Analyze dramatic tension for ${projectTitle}`,
-                    `Suggest subtext improvements for ${activeCharacterName}'s dialogue`,
-                    "Query ClickHouse box-office precedents for this premise",
-                  ]}
-                  className="h-full w-full"
-                />
-              </div>
-            )}
           </div>
         )}
 
@@ -2825,6 +2855,68 @@ export default function StudioPage() {
             initialCameraMotion={stagedCameraMotion}
             initialPromptNote={stagedPromptNote}
           />
+        )}
+
+        {/* TAB 4: Showrunner AI Co-Pilot Dedicated Workspace */}
+        {mainTab === "showrunner" && (
+          <div className="flex flex-1 flex-col min-h-0 overflow-hidden bg-background">
+            {/* Showrunner Header Bar */}
+            <div className="flex h-11 shrink-0 items-center justify-between border-b border-border px-4 bg-card/60 backdrop-blur-sm">
+              <div className="flex items-center gap-2.5">
+                <div className="flex items-center justify-center h-6 w-6 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
+                  <Bot className="h-3.5 w-3.5" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-foreground tracking-tight">
+                    Showrunner AI Co-Pilot
+                  </span>
+                  <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 bg-emerald-500/10 text-[10px] font-mono">
+                    Autonomous Creative Partner
+                  </Badge>
+                </div>
+                <span className="text-[11px] text-muted-foreground hidden sm:inline border-l border-border pl-2 font-mono">
+                  {projectTitle} &bull; {genre}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsClickHouseInspectorOpen((prev) => !prev)}
+                  className="flex items-center gap-1 text-[11px] font-mono text-muted-foreground hover:text-foreground px-2 py-1 rounded border border-border bg-secondary/30 transition-colors cursor-pointer"
+                  title="Toggle ClickHouse Telemetry & Query Log (Shift+C)"
+                >
+                  <Database className="h-3 w-3 text-amber-400" />
+                  <span>Telemetry</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setMainTab("planning")}
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-2.5 py-1 rounded-md border border-border bg-secondary/40 cursor-pointer transition-colors"
+                  title="Return to Studio Blueprint (Shift+1)"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                  <span>Back to Studio</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 min-h-0 overflow-hidden p-3 md:p-4 flex flex-col">
+              <ShowrunnerChat
+                messages={showrunnerMessages}
+                isThinking={isShowrunnerThinking}
+                onSendMessage={handleSendShowrunner}
+                suggestedPrompts={[
+                  `Analyze dramatic tension for ${projectTitle}`,
+                  `Suggest subtext improvements for ${activeCharacterName}'s dialogue`,
+                  "Query ClickHouse box-office precedents for this premise",
+                  `Draft a plot twist connecting ${sceneTitle} to the climax`,
+                ]}
+                className="h-full w-full"
+              />
+            </div>
+          </div>
         )}
       </div>
 
@@ -3005,6 +3097,28 @@ export default function StudioPage() {
         projectTitle={projectTitle}
         characters={characters}
         screenplayText={screenplayText}
+      />
+
+      {/* Continuity & Plot-Hole Auditor Modal (ClickHouse Knowledge Firewalls) */}
+      <ContinuityCheckerDialog
+        open={continuityOpen}
+        onOpenChange={setContinuityOpen}
+        projectId={projectId}
+        projectTitle={projectTitle}
+        screenplayText={screenplayText}
+        characters={characters}
+        scenes={scenes}
+        onApplyFix={(fixedSnippet, originalCitation) => {
+          if (originalCitation && screenplayText.includes(originalCitation)) {
+            const updated = screenplayText.replace(originalCitation, fixedSnippet);
+            setScreenplayText(updated);
+            saveCurrentProject({ screenplayText: updated });
+          } else {
+            const updated = `${screenplayText}\n\n/* Continuity Revision */\n${fixedSnippet}`;
+            setScreenplayText(updated);
+            saveCurrentProject({ screenplayText: updated });
+          }
+        }}
       />
 
       {/* Film Fusion Crossover Modal */}

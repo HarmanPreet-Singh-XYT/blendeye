@@ -100,6 +100,44 @@ export function rewriteScene(req: RewriteSceneRequest) {
   });
 }
 
+export interface MultiverseTakeOut {
+  id: string;
+  take_label: string;
+  director_style: string;
+  pov_character: string;
+  tone: string;
+  pacing_bpm: number;
+  subtext_ratio: string;
+  camera_movement: string;
+  synopsis: string;
+  rewritten_scene: string;
+}
+
+export interface MultiverseTakesRequest {
+  sceneText: string;
+  characters?: string[];
+  projectTitle?: string;
+  count?: number;
+  customDirection?: string;
+}
+
+export interface MultiverseTakesResponse {
+  takes: MultiverseTakeOut[];
+  _fallback?: boolean;
+  _error?: string;
+  _cached?: boolean;
+}
+
+export function generateMultiverseTakes(req: MultiverseTakesRequest) {
+  return postJson<MultiverseTakesResponse>("/script/multiverse", {
+    scene_text: req.sceneText,
+    characters: req.characters || [],
+    project_title: req.projectTitle || "Feature Film",
+    count: req.count || 3,
+    custom_direction: req.customDirection || "",
+  });
+}
+
 export interface StoryEvent {
   project_id: string;
   character_name: string;
@@ -344,6 +382,8 @@ export interface CharacterSynthesizeResponse {
   archetype: string;
   bio: string;
   dream_actor_comp: string;
+  casting_reasoning?: string;
+  alternate_casting_comp?: string;
   speech_style: string;
   subtext_ratio: string;
   flaw_and_blindspot: string;
@@ -359,6 +399,8 @@ export interface EnsembleCharacter {
   name: string;
   role: string;
   archetype: string;
+  dreamActorComp?: string;
+  castingReasoning?: string;
   speechStyle: string;
   subtextRatio: string;
   confidence: number;
@@ -479,11 +521,12 @@ export interface MarketPredictResponse {
   clickhouse_query_executed: string;
 }
 
-export function predictMarket(genre: string, logline: string, targetTerritories?: string[]) {
+export function predictMarket(genre: string, logline: string, targetTerritories?: string[], activeLevers?: string[]) {
   return postJson<MarketPredictResponse>("/market/predict", {
     genre,
     logline,
     target_territories: targetTerritories || [],
+    active_levers: activeLevers || [],
   });
 }
 
@@ -502,10 +545,40 @@ export interface GenerateMediaTTSResponse {
   speaker: string;
   voice_name: string;
   duration_estimate_sec: number;
+  dsp_applied?: Record<string, unknown>;
 }
 
-export function generateMediaTTS(text: string, speaker?: string, voiceName?: string) {
-  return postJson<GenerateMediaTTSResponse>("/media/tts", { text, speaker, voice_name: voiceName });
+export interface GenerateMediaTTSOptions {
+  text: string;
+  speaker?: string;
+  voiceName?: string;
+  deliveryStyle?: string;
+  speed?: number;
+  pitchFine?: number;
+  formantShift?: number;
+  reverbRoom?: string;
+  reverbSend?: number;
+}
+
+export function generateMediaTTS(
+  textOrReq: string | GenerateMediaTTSOptions,
+  speaker?: string,
+  voiceName?: string
+) {
+  if (typeof textOrReq === "string") {
+    return postJson<GenerateMediaTTSResponse>("/media/tts", { text: textOrReq, speaker, voice_name: voiceName });
+  }
+  return postJson<GenerateMediaTTSResponse>("/media/tts", {
+    text: textOrReq.text,
+    speaker: textOrReq.speaker,
+    voice_name: textOrReq.voiceName,
+    delivery_style: textOrReq.deliveryStyle,
+    speed: textOrReq.speed,
+    pitch_fine: textOrReq.pitchFine,
+    formant_shift: textOrReq.formantShift,
+    reverb_room: textOrReq.reverbRoom,
+    reverb_send: textOrReq.reverbSend,
+  });
 }
 
 export interface GenerateMediaVideoResponse {
@@ -537,4 +610,123 @@ export function getVideoStatus(operationName: string) {
   return getJson<{ status: string; video_url?: string; error?: string }>(
     `/media/video/status?operation_name=${encodeURIComponent(operationName)}`
   );
+}
+
+export interface ContinuityIssue {
+  id: string;
+  severity: "critical" | "warning" | "minor";
+  issue_type: "knowledge_breach" | "timeline_inconsistency" | "dropped_thread" | "logic_contradiction";
+  character: string;
+  scene_ref: string;
+  dialogue_citation: string;
+  clickhouse_fact_contradicted: string;
+  explanation: string;
+  suggested_fix: string;
+}
+
+export interface ContinuityCheckResponse {
+  overall_continuity_score: number;
+  total_issues: number;
+  clickhouse_events_analyzed: number;
+  verdict_summary: string;
+  clickhouse_query_executed: string;
+  issues: ContinuityIssue[];
+  _fallback?: boolean;
+  _error?: string;
+  _cached?: boolean;
+}
+
+export function checkContinuity(
+  projectId: string,
+  screenplayText: string,
+  characters: string[] = [],
+  scenes: any[] = []
+) {
+  return postJson<ContinuityCheckResponse>("/continuity/check", {
+    project_id: projectId,
+    screenplay_text: screenplayText,
+    characters,
+    scenes,
+  });
+}
+
+export interface ShotItem {
+  shot_number: number;
+  shot_type: string;
+  lens: string;
+  angle: string;
+  camera_movement: string;
+  blocking_notes: string;
+  lighting_setup: string;
+  dramatic_intent: string;
+  imagen_prompt: string;
+  estimated_duration_sec: number;
+}
+
+export interface ShotlistResponse {
+  scene_title: string;
+  director_style: string;
+  visual_rhythm: string;
+  aspect_ratio: string;
+  color_temperature: string;
+  shots: ShotItem[];
+  _fallback?: boolean;
+  _error?: string;
+  _cached?: boolean;
+}
+
+export function generateShotlist(req: {
+  sceneText: string;
+  sceneTitle?: string;
+  directorStyle?: string;
+  characters?: string[];
+}) {
+  return postJson<ShotlistResponse>("/shotlist/generate", {
+    scene_text: req.sceneText,
+    scene_title: req.sceneTitle || "INT. SCENE - NIGHT",
+    director_style: req.directorStyle || "David Fincher / Neo-Noir Precision",
+    characters: req.characters || [],
+  });
+}
+
+export interface StripboardSceneInput {
+  scene_number: string;
+  setting: string;
+  time_of_day: string;
+  location: string;
+  summary?: string;
+  screenplay_text?: string;
+}
+
+export interface StripboardBreakdownRequest {
+  project_title: string;
+  genre: string;
+  scenes?: StripboardSceneInput[];
+  raw_screenplay?: string;
+}
+
+export interface SceneProductionBreakdown {
+  scene_number: string;
+  stunts: string;
+  stunt_tier: "None" | "Low" | "Moderate" | "High";
+  practical_fx: string;
+  vfx_tier: "Class A" | "Class B" | "Class C" | "None";
+  special_equipment: string;
+  permits_and_hazards: string;
+  complexity_rating: number;
+  production_notes: string;
+}
+
+export interface StripboardBreakdownResponse {
+  total_shoot_days: number;
+  estimated_budget_multiplier: number;
+  production_summary: string;
+  breakdown: SceneProductionBreakdown[];
+  _fallback?: boolean;
+  _error?: string;
+  _cached?: boolean;
+}
+
+export function generateStripboardBreakdown(req: StripboardBreakdownRequest) {
+  return postJson<StripboardBreakdownResponse>("/production/stripboard-breakdown", req);
 }

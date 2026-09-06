@@ -1,30 +1,34 @@
 import type { Node, Edge } from "@xyflow/react";
-import type { ProjectCharacter } from "@/lib/project-store";
+import type { ProjectCharacter, FilmScene } from "@/lib/project-store";
 import type { StudioAction, CommanderExecutionResponse } from "@/lib/studio-actions";
 import { autoTidyBacklot } from "@/lib/backlot-layout";
 import { StudioVersionControl } from "@/lib/version-control";
 
 export interface CommanderContext {
-  nodes: Node[];
-  edges: Edge[];
+  nodes?: Node[];
+  edges?: Edge[];
   characters: ProjectCharacter[];
-  screenplayText: string;
-  sceneTitle: string;
-  sceneSummary: string;
-  genre: string;
-  projectId: string;
-  vcs: StudioVersionControl | null;
+  screenplayText?: string;
+  sceneTitle?: string;
+  sceneSummary?: string;
+  genre?: string;
+  projectId?: string;
+  vcs?: StudioVersionControl | null;
+  scenes?: FilmScene[];
+  activeSceneId?: string;
 }
 
 export interface CommanderCallbacks {
-  setNodes: React.Dispatch<React.SetStateAction<Node[]>>;
-  setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
-  setCharacters: React.Dispatch<React.SetStateAction<ProjectCharacter[]>>;
-  setScreenplayText: (text: string) => void;
-  setSceneTitle: (title: string) => void;
-  setSceneSummary: (summary: string) => void;
-  saveProject: (patch: Record<string, any>) => void;
-  recordTakeChange: (summary: string, category: any, custom?: any) => void;
+  setNodes?: React.Dispatch<React.SetStateAction<Node[]>>;
+  setEdges?: React.Dispatch<React.SetStateAction<Edge[]>>;
+  setCharacters?: React.Dispatch<React.SetStateAction<ProjectCharacter[]>>;
+  setScreenplayText?: (text: string) => void;
+  setSceneTitle?: (title: string) => void;
+  setSceneSummary?: (summary: string) => void;
+  saveProject?: (patch: Record<string, any>) => void;
+  recordTakeChange?: (summary: string, category: any, custom?: any) => void;
+  setScenes?: (scenes: FilmScene[]) => void;
+  setActiveSceneId?: (id: string) => void;
 }
 
 /**
@@ -37,18 +41,21 @@ export function executeStudioActions(
 ): { executedCount: number; summaries: string[] } {
   const summaries: string[] = [];
 
-  let currentNodes = [...ctx.nodes];
-  let currentEdges = [...ctx.edges];
-  let currentCharacters = [...ctx.characters];
-  let currentScreenplay = ctx.screenplayText;
-  let currentTitle = ctx.sceneTitle;
-  let currentSummary = ctx.sceneSummary;
+  let currentNodes = ctx.nodes ? [...ctx.nodes] : [];
+  let currentEdges = ctx.edges ? [...ctx.edges] : [];
+  let currentCharacters = ctx.characters ? [...ctx.characters] : [];
+  let currentScreenplay = ctx.screenplayText || "";
+  let currentTitle = ctx.sceneTitle || "";
+  let currentSummary = ctx.sceneSummary || "";
+  let currentScenes = ctx.scenes ? [...ctx.scenes] : [];
+  let currentActiveSceneId = ctx.activeSceneId;
 
   let nodesChanged = false;
   let edgesChanged = false;
   let charsChanged = false;
   let scriptChanged = false;
   let metaChanged = false;
+  let scenesChanged = false;
 
   for (const action of actions) {
     switch (action.type) {
@@ -389,29 +396,227 @@ export function executeStudioActions(
         summaries.push(`Locked milestone take: "${action.title}"`);
         break;
       }
+
+      case "create_scene": {
+        const nextSceneNumber = currentScenes.length + 1;
+        const newSceneId = `scene-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 5)}`;
+        const duration = action.durationSeconds || 180;
+        const newScene: FilmScene = {
+          id: newSceneId,
+          sceneNumber: nextSceneNumber,
+          title: action.title || `Scene ${nextSceneNumber}`,
+          slugline: action.slugline || "INT. SCENE LOCATION - DAY",
+          summary: action.summary || "New dramatic beat created by Studio Showrunner.",
+          location: action.location || "Studio Location",
+          durationSeconds: duration,
+          startSeconds: 0,
+          castPresent: Array.isArray(action.castPresent) && action.castPresent.length > 0
+            ? action.castPresent
+            : currentCharacters.slice(0, 2).map((c) => c.name),
+          castRoles: {},
+          screenplayText:
+            action.screenplayText ||
+            `${action.slugline || "INT. SCENE LOCATION - DAY"}\n\n[Action description]\n\n${currentCharacters[0]?.name || "CHARACTER"}\n(beat)\nDialogue goes here.`,
+        };
+
+        let insertIdx = currentScenes.length;
+        if (action.position === "start") {
+          insertIdx = 0;
+        } else if (typeof action.position === "number") {
+          insertIdx = Math.max(0, Math.min(action.position - 1, currentScenes.length));
+        }
+
+        currentScenes.splice(insertIdx, 0, newScene);
+
+        // Re-index all scenes
+        let cursor = 0;
+        currentScenes = currentScenes.map((s, idx) => {
+          const updated = { ...s, sceneNumber: idx + 1, startSeconds: cursor };
+          cursor += s.durationSeconds || 180;
+          return updated;
+        });
+
+        currentActiveSceneId = newScene.id;
+        scenesChanged = true;
+        summaries.push(`Created Scene ${newScene.sceneNumber}: "${newScene.title}" (${newScene.slugline})`);
+        break;
+      }
+
+      case "delete_scene": {
+        if (currentScenes.length <= 1) {
+          summaries.push(`Cannot delete only remaining scene in project`);
+          break;
+        }
+
+        const ident = String(action.sceneIdentifier).toLowerCase().trim();
+        const numIdent = parseInt(ident, 10);
+
+        const targetIdx = currentScenes.findIndex((s, idx) => {
+          if (!isNaN(numIdent) && (s.sceneNumber === numIdent || idx + 1 === numIdent)) return true;
+          if (s.id.toLowerCase() === ident) return true;
+          if (s.title.toLowerCase().includes(ident)) return true;
+          return false;
+        });
+
+        if (targetIdx !== -1) {
+          const removed = currentScenes[targetIdx];
+          currentScenes.splice(targetIdx, 1);
+
+          let cursor = 0;
+          currentScenes = currentScenes.map((s, idx) => {
+            const updated = { ...s, sceneNumber: idx + 1, startSeconds: cursor };
+            cursor += s.durationSeconds || 180;
+            return updated;
+          });
+
+          if (currentActiveSceneId === removed.id) {
+            currentActiveSceneId = currentScenes[0]?.id;
+          }
+
+          scenesChanged = true;
+          summaries.push(`Deleted Scene ${targetIdx + 1}: "${removed.title}"`);
+        }
+        break;
+      }
+
+      case "reorder_scenes": {
+        if (Array.isArray(action.sceneOrder) && action.sceneOrder.length > 0) {
+          const orderMap = new Map<string, number>();
+          action.sceneOrder.forEach((item, orderIdx) => {
+            orderMap.set(String(item).toLowerCase().trim(), orderIdx);
+            const n = parseInt(String(item), 10);
+            if (!isNaN(n)) orderMap.set(String(n), orderIdx);
+          });
+
+          const reordered = [...currentScenes].sort((a, b) => {
+            const aKey1 = String(a.sceneNumber);
+            const aKey2 = a.id.toLowerCase();
+            const aKey3 = a.title.toLowerCase();
+            const bKey1 = String(b.sceneNumber);
+            const bKey2 = b.id.toLowerCase();
+            const bKey3 = b.title.toLowerCase();
+
+            const orderA = orderMap.get(aKey1) ?? orderMap.get(aKey2) ?? orderMap.get(aKey3) ?? 999;
+            const orderB = orderMap.get(bKey1) ?? orderMap.get(bKey2) ?? orderMap.get(bKey3) ?? 999;
+            return orderA - orderB;
+          });
+
+          let cursor = 0;
+          currentScenes = reordered.map((s, idx) => {
+            const updated = { ...s, sceneNumber: idx + 1, startSeconds: cursor };
+            cursor += s.durationSeconds || 180;
+            return updated;
+          });
+
+          scenesChanged = true;
+          summaries.push(`Reordered sequence reel into ${currentScenes.length} scenes`);
+        }
+        break;
+      }
+
+      case "move_scene": {
+        const ident = String(action.sceneIdentifier).toLowerCase().trim();
+        const numIdent = parseInt(ident, 10);
+        const idx = currentScenes.findIndex((s, i) => {
+          if (!isNaN(numIdent) && (s.sceneNumber === numIdent || i + 1 === numIdent)) return true;
+          if (s.id.toLowerCase() === ident) return true;
+          if (s.title.toLowerCase().includes(ident)) return true;
+          return false;
+        });
+
+        if (idx !== -1) {
+          let destIdx = idx;
+          if (typeof action.targetIndex === "number") {
+            destIdx = Math.max(0, Math.min(action.targetIndex, currentScenes.length - 1));
+          } else if (action.direction === "up") {
+            destIdx = Math.max(0, idx - 1);
+          } else if (action.direction === "down") {
+            destIdx = Math.min(currentScenes.length - 1, idx + 1);
+          }
+
+          if (destIdx !== idx) {
+            const [moved] = currentScenes.splice(idx, 1);
+            currentScenes.splice(destIdx, 0, moved);
+
+            let cursor = 0;
+            currentScenes = currentScenes.map((s, i) => {
+              const updated = { ...s, sceneNumber: i + 1, startSeconds: cursor };
+              cursor += s.durationSeconds || 180;
+              return updated;
+            });
+
+            scenesChanged = true;
+            summaries.push(`Moved "${moved.title}" to Scene ${destIdx + 1}`);
+          }
+        }
+        break;
+      }
+
+      case "update_scene": {
+        const ident = String(action.sceneIdentifier).toLowerCase().trim();
+        const numIdent = parseInt(ident, 10);
+        const idx = currentScenes.findIndex((s, i) => {
+          if (!isNaN(numIdent) && (s.sceneNumber === numIdent || i + 1 === numIdent)) return true;
+          if (s.id.toLowerCase() === ident) return true;
+          if (s.title.toLowerCase().includes(ident)) return true;
+          return false;
+        });
+
+        if (idx !== -1 && action.patch) {
+          currentScenes[idx] = {
+            ...currentScenes[idx],
+            ...action.patch,
+          };
+
+          if (currentScenes[idx].id === currentActiveSceneId) {
+            if (action.patch.title) {
+              currentTitle = action.patch.title;
+              metaChanged = true;
+            }
+            if (action.patch.summary) {
+              currentSummary = action.patch.summary;
+              metaChanged = true;
+            }
+            if (action.patch.screenplayText) {
+              currentScreenplay = action.patch.screenplayText;
+              scriptChanged = true;
+            }
+          }
+
+          scenesChanged = true;
+          summaries.push(`Updated Scene ${currentScenes[idx].sceneNumber}: "${currentScenes[idx].title}"`);
+        }
+        break;
+      }
     }
   }
 
   // Batch commit state updates
-  if (nodesChanged) cb.setNodes(currentNodes);
-  if (edgesChanged) cb.setEdges(currentEdges);
-  if (charsChanged) cb.setCharacters(currentCharacters);
-  if (scriptChanged) cb.setScreenplayText(currentScreenplay);
+  if (nodesChanged) cb.setNodes?.(currentNodes);
+  if (edgesChanged) cb.setEdges?.(currentEdges);
+  if (charsChanged) cb.setCharacters?.(currentCharacters);
+  if (scriptChanged) cb.setScreenplayText?.(currentScreenplay);
   if (metaChanged) {
-    cb.setSceneTitle(currentTitle);
-    cb.setSceneSummary(currentSummary);
+    cb.setSceneTitle?.(currentTitle);
+    cb.setSceneSummary?.(currentSummary);
+  }
+  if (scenesChanged) {
+    cb.setScenes?.(currentScenes);
+    if (currentActiveSceneId) cb.setActiveSceneId?.(currentActiveSceneId);
   }
 
   // Save to persistence
-  cb.saveProject({
+  cb.saveProject?.({
     characters: charsChanged ? currentCharacters : undefined,
     screenplayText: scriptChanged ? currentScreenplay : undefined,
     sceneTitle: metaChanged ? currentTitle : undefined,
     sceneSummary: metaChanged ? currentSummary : undefined,
+    scenes: scenesChanged ? currentScenes : undefined,
+    activeSceneId: scenesChanged ? currentActiveSceneId : undefined,
   });
 
   // Record Take in Version Control
-  if (summaries.length > 0) {
+  if (summaries.length > 0 && cb.recordTakeChange) {
     const summaryHeadline = `AI Executive: ${summaries[0]}${summaries.length > 1 ? ` (+${summaries.length - 1} actions)` : ""}`;
     cb.recordTakeChange(summaryHeadline, "parameter", {
       nodes: currentNodes,

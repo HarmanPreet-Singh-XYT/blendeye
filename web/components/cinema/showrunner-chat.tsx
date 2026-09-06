@@ -28,6 +28,7 @@ import {
 import type { CitedPrecedent, StudioAction } from "@/lib/studio-actions";
 
 export interface ExtendedShowrunnerMessage {
+  id?: string;
   role: "user" | "showrunner";
   content: string;
   thought_process?: string;
@@ -37,12 +38,19 @@ export interface ExtendedShowrunnerMessage {
   is_fallback?: boolean;
 }
 
-interface ShowrunnerChatProps {
+export interface ShowrunnerChatProps {
   messages: ExtendedShowrunnerMessage[];
   onSendMessage: (msg: string) => void;
   isThinking: boolean;
   suggestedPrompts?: string[];
   className?: string;
+  title?: string;
+  subtitle?: string;
+  badgeLabel?: string;
+  placeholder?: string;
+  hideHeader?: boolean;
+  emptyStateTitle?: string;
+  emptyStateDescription?: string;
 }
 
 export function ShowrunnerChat({
@@ -56,6 +64,13 @@ export function ShowrunnerChat({
     "Rewrite the scene climax with a sudden power blackout",
     "Sever all connections between the clip reference and Marcus",
   ],
+  title = "Studio Executive AI",
+  subtitle = "Omniscient Writers' Room & Backlot Commander",
+  badgeLabel = "Live CRUD Mode",
+  placeholder = "Command the Studio Executive (e.g. 'Add rival Viktor, wire to Elena, crank subtext to 95%')...",
+  hideHeader = false,
+  emptyStateTitle = "Centralized Studio Executive AI Ready",
+  emptyStateDescription = "Give any natural language command. The AI will reason step-by-step and autonomously execute CRUD mutations across nodes, wires, characters, dials, and screenplays.",
   className,
 }: ShowrunnerChatProps) {
   const [draft, setDraft] = React.useState("");
@@ -93,28 +108,30 @@ export function ShowrunnerChat({
       )}
     >
       {/* Header */}
-      <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-2.5 bg-secondary/30">
-        <div className="flex items-center gap-2">
-          <div className="h-7 w-7 rounded-lg bg-accent/15 border border-accent/30 flex items-center justify-center text-accent shadow-sm">
-            <Zap className="h-4 w-4" />
-          </div>
-          <div className="flex flex-col gap-0.5">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-foreground">Studio Executive AI</span>
-              <span className="flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.2 text-[9px] font-mono font-medium text-emerald-400">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Live CRUD Mode
-              </span>
+      {!hideHeader && (
+        <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-2.5 bg-secondary/30">
+          <div className="flex items-center gap-2">
+            <div className="h-7 w-7 rounded-lg bg-accent/15 border border-accent/30 flex items-center justify-center text-accent shadow-sm">
+              <Zap className="h-4 w-4" />
             </div>
-            <SlateLabel>Omniscient Writers&apos; Room &amp; Backlot Commander</SlateLabel>
+            <div className="flex flex-col gap-0.5">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-foreground">{title}</span>
+                <span className="flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.2 text-[9px] font-mono font-medium text-emerald-400">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  {badgeLabel}
+                </span>
+              </div>
+              <SlateLabel>{subtitle}</SlateLabel>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] text-accent font-mono font-medium">
+              Gemini 3.7 / 2.5
+            </span>
           </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] text-accent font-mono font-medium">
-            Gemini 3.7 / 2.5
-          </span>
-        </div>
-      </div>
+      )}
 
       {/* Transcript */}
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
@@ -125,10 +142,10 @@ export function ShowrunnerChat({
             </div>
             <div>
               <p className="font-heading font-bold text-foreground text-sm">
-                Centralized Studio Executive AI Ready
+                {emptyStateTitle}
               </p>
               <p className="max-w-md mx-auto mt-1 leading-relaxed text-muted-foreground">
-                Give any natural language command. The AI will reason step-by-step and autonomously execute CRUD mutations across nodes, wires, characters, dials, and screenplays.
+                {emptyStateDescription}
               </p>
             </div>
           </div>
@@ -292,7 +309,7 @@ export function ShowrunnerChat({
           disabled={isThinking}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && submit()}
-          placeholder="Command the Studio Executive (e.g. 'Add rival Viktor, wire to Elena, crank subtext to 95%')..."
+          placeholder={placeholder}
           className="flex-1 text-xs sm:text-sm h-9 bg-card"
         />
         <Button

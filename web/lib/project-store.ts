@@ -7,6 +7,8 @@ export interface ProjectCharacter {
   speechStyle?: string;
   subtextRatio?: string;
   actorComp?: string;
+  castingReasoning?: string;
+  alternateCastingComp?: string;
   objective?: string;
   dialsSummary?: string;
   quirks?: string[];

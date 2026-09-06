@@ -158,6 +158,9 @@ export function StudioInspector({
           speechStyle: data.speech_style,
           subtextRatio: data.subtext_ratio,
           actorComp: data.dream_actor_comp,
+          actorName: data.dream_actor_comp,
+          castingReasoning: data.casting_reasoning,
+          alternateCastingComp: data.alternate_casting_comp,
           quirks: data.behavioral_tics,
         });
         notifyIfFallback(data, "Character Synthesis");
@@ -538,6 +541,23 @@ export function StudioInspector({
                       className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground"
                     />
                   </div>
+
+                  {nodeData.castingReasoning && (
+                    <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-2.5 space-y-1">
+                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-400">
+                        <Sparkles className="h-3 w-3" />
+                        <span>Psychological Casting Comp</span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed">
+                        {nodeData.castingReasoning}
+                      </p>
+                      {nodeData.alternateCastingComp && (
+                        <p className="text-[10px] text-foreground/80 pt-1 border-t border-emerald-500/20">
+                          <strong className="text-emerald-300">Alt Comp:</strong> {nodeData.alternateCastingComp}
+                        </p>
+                      )}
+                    </div>
+                  )}
 
                   <div className="pt-2">
                     <Button

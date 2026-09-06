@@ -108,6 +108,9 @@ export function CharacterLabDialog({
   const [isTuningDialogue, setIsTuningDialogue] = React.useState(false);
   const [tunedDialogueResult, setTunedDialogueResult] = React.useState<string | null>(null);
 
+  // Actor comp synthesis state
+  const [isRecompingActor, setIsRecompingActor] = React.useState(false);
+
   // Load characters and vault
   React.useEffect(() => {
     if (open) {
@@ -307,6 +310,60 @@ export function CharacterLabDialog({
       });
     } finally {
       setIsTuningDialogue(false);
+    }
+  };
+
+  // Re-comp Actor with Gemini based on character dials
+  const handleRecompActor = async () => {
+    if (isRecompingActor || !activeChar) return;
+    setIsRecompingActor(true);
+    try {
+      const res = await fetch("/api/character/synthesize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: activeChar.name,
+          base_archetype: activeChar.archetype,
+          dream_actor: activeChar.actorComp || "",
+          personality_dials: {
+            confidence: (activeChar.confidence || 75) / 100,
+            verbal_speed: (activeChar.verbalPacing ?? 50) > 65 ? "rapid-staccato" : "measured-deliberate",
+            subtext_ratio: activeChar.subtextRatio || "high",
+          },
+          behavioral_tics: activeChar.quirks || [],
+          additional_notes: `Role: ${activeChar.role || "Lead"}. Objective: ${activeChar.objective || ""}`,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        handleUpdateActiveChar({
+          actorComp: data.dream_actor_comp || activeChar.actorComp,
+          castingReasoning: data.casting_reasoning,
+          alternateCastingComp: data.alternate_casting_comp,
+        });
+        notifyIfFallback(data, "Actor Comp Synthesis");
+        toast.add({
+          title: "Casting Comp Synthesized",
+          description: `Comp grounded in ${activeChar.name}'s psychological dials.`,
+          type: "success",
+        });
+      } else {
+        toast.add({
+          title: "Casting Comp Failed",
+          description: "Could not synthesize casting comp.",
+          type: "error",
+        });
+      }
+    } catch (err) {
+      console.error("Failed to recomp actor:", err);
+      toast.add({
+        title: "Casting Comp Failed",
+        description: err instanceof Error ? err.message : "Backend unavailable.",
+        type: "error",
+      });
+    } finally {
+      setIsRecompingActor(false);
     }
   };
 
@@ -1115,25 +1172,100 @@ export function CharacterLabDialog({
             {/* TAB 3: DREAM ACTOR & COMPS */}
             {activeTab === "actor" && (
               <div className="space-y-4 animate-in fade-in-50 duration-150">
-                <div>
-                  <label className="text-xs font-medium text-foreground block mb-1">
-                    Dream Actor Likeness
-                  </label>
-                  <Input
-                    value={activeChar.actorComp || ""}
-                    onChange={(e) => handleUpdateActiveChar({ actorComp: e.target.value })}
-                    placeholder="e.g. Jake Gyllenhaal, Florence Pugh, Willem Dafoe, Oscar Isaac..."
-                    className="text-xs h-8 bg-secondary/20"
-                  />
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-xs font-bold text-foreground block">
+                      Dream Actor Likeness
+                    </label>
+                    <p className="text-[11px] text-muted-foreground">
+                      Reference actor for vocal tone, status posture, and visual likeness.
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={handleRecompActor}
+                    disabled={isRecompingActor}
+                    className="text-xs h-7 gap-1.5 bg-accent text-accent-foreground hover:bg-accent/90 font-medium"
+                  >
+                    {isRecompingActor ? (
+                      <RefreshCw className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-3 w-3" />
+                    )}
+                    <span>{isRecompingActor ? "Synthesizing Comp..." : "AI Re-Comp (Gemini 3.7)"}</span>
+                  </Button>
                 </div>
 
-                <div className="p-3.5 rounded-xl border border-border/80 bg-secondary/20 text-xs text-muted-foreground space-y-2">
-                  <span className="font-semibold text-foreground block">
-                    Performance Comp Inspiration
-                  </span>
-                  <p className="text-[11px]">
-                    Grounding your character with historical actor references helps the Gemini agent adopt consistent vocal gravity, status posturing, and subtextual pauses in both the script generator and hot-seat interrogation.
-                  </p>
+                <Input
+                  value={activeChar.actorComp || ""}
+                  onChange={(e) => handleUpdateActiveChar({ actorComp: e.target.value })}
+                  placeholder="e.g. Willem Dafoe (The Lighthouse), Florence Pugh (Oppenheimer)..."
+                  className="text-xs h-8 bg-secondary/20 font-medium"
+                />
+
+                {activeChar.castingReasoning ? (
+                  <div className="p-3.5 rounded-xl border border-accent/30 bg-accent/5 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-accent flex items-center gap-1.5">
+                        <Sparkles className="h-3.5 w-3.5" />
+                        Psychological Casting Rationale
+                      </span>
+                      <Badge variant="outline" className="text-[10px] font-mono text-accent border-accent/30">
+                        Dial-Grounded
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-foreground/90 leading-relaxed">
+                      {activeChar.castingReasoning}
+                    </p>
+                    <div className="text-[10px] font-mono text-muted-foreground pt-1 border-t border-accent/20 flex items-center justify-between">
+                      <span>Grounded in {activeChar.confidence || 75}% Confidence • {activeChar.subtextRatio || "high"} Subtext</span>
+                      <span>Gemini 3.7 Casting Agent</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3.5 rounded-xl border border-border/80 bg-secondary/20 text-xs text-muted-foreground space-y-1">
+                    <span className="font-semibold text-foreground block">
+                      Autonomous Performance Comping
+                    </span>
+                    <p className="text-[11px]">
+                      Click <strong>AI Re-Comp</strong> to let Gemini 3.7 analyze {activeChar.name}&apos;s psychological dials ({activeChar.confidence || 75}% confidence, {activeChar.verbalPacing || 75}% pacing, {activeChar.subtextRatio || "high"} subtext) and propose an exact performance comp with psychological casting reasoning.
+                    </p>
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-xs font-semibold text-foreground block mb-1">
+                    Alternate Contemporary Comp
+                  </label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={activeChar.alternateCastingComp || ""}
+                      onChange={(e) => handleUpdateActiveChar({ alternateCastingComp: e.target.value })}
+                      placeholder="e.g. Ben Foster in Hell or High Water (gritty psychological resilience)..."
+                      className="text-xs h-8 bg-secondary/20 flex-1"
+                    />
+                    {activeChar.alternateCastingComp && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          const currentMain = activeChar.actorComp;
+                          handleUpdateActiveChar({
+                            actorComp: activeChar.alternateCastingComp,
+                            alternateCastingComp: currentMain,
+                          });
+                          toast.add({
+                            title: "Casting Comp Swapped",
+                            description: `Promoted ${activeChar.alternateCastingComp} to primary likeness.`,
+                            type: "success",
+                          });
+                        }}
+                        className="text-xs h-8 text-xs font-mono shrink-0"
+                      >
+                        Swap Primary
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
             )}

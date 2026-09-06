@@ -917,7 +917,20 @@ export function NewProjectDialog({
                           const data = await res.json();
                           const isFallback = notifyIfFallback(data, "Match Genre");
                           if (Array.isArray(data.characters) && data.characters.length > 0 && !isFallback) {
-                            setCharactersList(data.characters);
+                            const mapped: ProjectCharacter[] = data.characters.map((c: any) => ({
+                              name: c.name,
+                              role: c.role || "Lead",
+                              archetype: c.archetype,
+                              speechStyle: c.speechStyle || "",
+                              subtextRatio: c.subtextRatio || "high",
+                              actorComp: c.actorComp || c.dreamActorComp || "",
+                              castingReasoning: c.castingReasoning || "",
+                              confidence: typeof c.confidence === "number" ? c.confidence : 80,
+                              verbalPacing: typeof c.verbalPacing === "number" ? c.verbalPacing : 75,
+                              objective: c.objective || "",
+                              quirks: Array.isArray(c.quirks) ? c.quirks : [],
+                            }));
+                            setCharactersList(mapped);
                             setSelectedCharIdx(0);
                           } else {
                             const dynamicChars = synthesizeDynamicCharacters(effectiveGenre, logline);
@@ -1100,6 +1113,15 @@ export function NewProjectDialog({
                     placeholder="e.g. Jake Gyllenhaal (Nightcrawler) or Florence Pugh (Lady Macbeth)..."
                     className="text-xs h-8 bg-background"
                   />
+                  {activeChar.castingReasoning && (
+                    <div className="mt-2 p-2.5 rounded-lg bg-accent/5 border border-accent/25 text-[11px] text-muted-foreground flex items-start gap-2">
+                      <Sparkles className="h-3.5 w-3.5 text-accent shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-semibold text-accent block mb-0.5">Gemini Casting Rationale</span>
+                        <span>{activeChar.castingReasoning}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">

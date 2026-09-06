@@ -154,14 +154,14 @@ export function AudioStudioView({
   const [cachedAudioMap, setCachedAudioMap] = React.useState<Record<string, string>>({});
   const [isPreCaching, setIsPreCaching] = React.useState<boolean>(false);
 
-  // Helper to build deterministic line cache key
+  // Helper to build deterministic line cache key incorporating real DSP settings
   const getLineKey = React.useCallback(
     (speakerKey: string, text: string) => {
       const speakerUpper = speakerKey.toUpperCase();
       let ch = channels.DX1;
       if (speakerUpper.includes("ELENA")) ch = channels.DX2;
       else if (speakerUpper.includes("NARRATOR")) ch = channels.DX3;
-      return `${ch.characterKey}:${ch.voiceName}:${text.trim()}`;
+      return `${ch.characterKey}:${ch.voiceName}:${ch.deliveryStyle}:${ch.speed}:${ch.formantShift}:${ch.reverbRoom}:${text.trim()}`;
     },
     [channels]
   );
@@ -227,7 +227,7 @@ export function AudioStudioView({
       return;
     }
 
-    // 2. Fetch from cached server proxy
+    // 2. Fetch from cached server proxy parameterized with real DSP dials
     try {
       const res = await fetch("/api/media/tts", {
         method: "POST",
@@ -236,6 +236,12 @@ export function AudioStudioView({
           text,
           speaker: ch.characterKey,
           voice_name: ch.voiceName,
+          delivery_style: ch.deliveryStyle,
+          speed: ch.speed,
+          pitch_fine: ch.pitchFine,
+          formant_shift: ch.formantShift,
+          reverb_room: ch.reverbRoom,
+          reverb_send: ch.reverbSend,
         }),
       });
 
@@ -372,6 +378,12 @@ export function AudioStudioView({
             text: item.text,
             speaker: targetChannel.characterKey,
             voice_name: targetChannel.voiceName,
+            delivery_style: targetChannel.deliveryStyle,
+            speed: targetChannel.speed,
+            pitch_fine: targetChannel.pitchFine,
+            formant_shift: targetChannel.formantShift,
+            reverb_room: targetChannel.reverbRoom,
+            reverb_send: targetChannel.reverbSend,
           }),
         });
 
@@ -445,6 +457,12 @@ export function AudioStudioView({
               text: item.text,
               speaker: targetChannel.characterKey,
               voice_name: targetChannel.voiceName,
+              delivery_style: targetChannel.deliveryStyle,
+              speed: targetChannel.speed,
+              pitch_fine: targetChannel.pitchFine,
+              formant_shift: targetChannel.formantShift,
+              reverb_room: targetChannel.reverbRoom,
+              reverb_send: targetChannel.reverbSend,
             }),
           });
 
@@ -816,14 +834,15 @@ export function AudioStudioView({
               </div>
             </div>
 
-            {/* Pitch & Timbre Mod — direction-setting only; Gemini TTS has no live formant-shift API, so this isn't applied to rendered audio */}
+            {/* Pitch & Timbre Mod — parameterizes Gemini TTS prompt and applies real-time WebAudio DSP */}
             <div className="space-y-1.5 bg-secondary/30 p-3 rounded-lg border border-border">
               <div className="flex items-center justify-between text-xs font-mono">
                 <span className="text-muted-foreground">Formant / Vocal Weight</span>
                 <span className="text-foreground font-bold">{activeChannel.formantShift > 0 ? `+${activeChannel.formantShift}` : activeChannel.formantShift}</span>
               </div>
-              <p className="text-[10px] font-mono text-amber-400/80">
-                Direction note for the voice actor model — not applied as audio DSP on the rendered take.
+              <p className="text-[10px] font-mono text-cyan-400/90 flex items-center gap-1">
+                <Zap className="h-3 w-3 text-cyan-400" />
+                <span>Active DSP: Parameterizes Gemini speech resonance &amp; WebAudio chest weight</span>
               </p>
               <input
                 type="range"

@@ -15,14 +15,18 @@ except Exception:
 from app.config import get_settings
 from app.routers import (
     character_lab,
+    continuity,
     fusion,
     hot_seat,
     location_scout,
     market_viability,
     media,
+    multiverse,
+    production,
     scene_rewrite,
     script,
     sharding,
+    shotlist,
     showrunner,
     style_extractor,
 )
@@ -62,15 +66,19 @@ app.add_middleware(
 )
 
 app.include_router(script.router)
+app.include_router(multiverse.router)
 app.include_router(scene_rewrite.router)
 app.include_router(sharding.router)
 app.include_router(hot_seat.router)
+app.include_router(continuity.router)
 app.include_router(showrunner.router)
 app.include_router(fusion.router)
 app.include_router(character_lab.router)
 app.include_router(style_extractor.router)
 app.include_router(location_scout.router)
+app.include_router(shotlist.router)
 app.include_router(market_viability.router)
+app.include_router(production.router)
 app.include_router(media.router)
 
 

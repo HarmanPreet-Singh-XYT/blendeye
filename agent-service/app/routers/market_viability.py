@@ -16,6 +16,7 @@ class MarketPredictRequest(BaseModel):
     genre: str = "Heist Thriller"
     logline: str = "A crew discovers the escape keys are missing while trapped inside a locked underground bank vault."
     target_territories: list[str] = Field(default_factory=list)
+    active_levers: list[str] = Field(default_factory=list)
 
 
 class TerritoryScore(BaseModel):
@@ -53,11 +54,20 @@ async def predict_market(req: MarketPredictRequest):
     if req.target_territories:
         target_territories_hint = f"Priority Target Commercial Territories: {', '.join(req.target_territories)}\n"
 
+    active_levers_hint = ""
+    if req.active_levers:
+        active_levers_hint = (
+            "Active 'What-If' Script & Production Optimization Levers:\n"
+            + "\n".join([f"- {lever}" for lever in req.active_levers])
+            + "\nRe-evaluate and dynamically boost/penalize territorial scores according to these active levers!\n"
+        )
+
     agent = build_market_viability_agent()
     prompt = (
         f"Genre: {req.genre}\n"
         f"Logline: {req.logline}\n"
         f"{target_territories_hint}"
+        f"{active_levers_hint}"
         f"ClickHouse Historical Grounding:\n{precedents_context}\n"
         f"Perform territory market fit analysis and output JSON."
     )

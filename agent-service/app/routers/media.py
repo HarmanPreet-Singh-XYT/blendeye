@@ -4,6 +4,7 @@ import logging
 import uuid
 import wave
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from google import genai
@@ -52,6 +53,12 @@ class GenerateTTSRequest(BaseModel):
     text: str = Field(..., description="Dialogue line or direction to speak")
     speaker: str | None = Field(default=None, description="Character name to assign voice timbre")
     voice_name: str | None = Field(default=None, description="Direct voice override (Aoede, Fenrir, Puck, Zephyr, Charon, Kore)")
+    delivery_style: str | None = Field(default=None, description="Delivery style / tone instruction")
+    speed: float | None = Field(default=1.0, description="Pacing multiplier (0.8 - 1.3)")
+    pitch_fine: float | None = Field(default=0.0, description="Pitch modifier (-6 to +6)")
+    formant_shift: float | None = Field(default=0.0, description="Formant shift / chest resonance (-6 to +6)")
+    reverb_room: str | None = Field(default=None, description="Acoustic environment space")
+    reverb_send: float | None = Field(default=0.0, description="Reverb wet send percentage (0 - 100)")
 
 
 class GenerateTTSResponse(BaseModel):
@@ -59,6 +66,7 @@ class GenerateTTSResponse(BaseModel):
     speaker: str
     voice_name: str
     duration_estimate_sec: float
+    dsp_applied: dict[str, Any] | None = None
 
 
 @router.post("/image", response_model=GenerateImageResponse)
@@ -121,6 +129,30 @@ async def generate_tts(req: GenerateTTSRequest):
     if not voice_selected:
         voice_selected = VOICE_MAP.get(speaker_clean, VOICE_MAP["DEFAULT"])
 
+    # Construct cinematic delivery guidance for Gemini TTS
+    directives: list[str] = []
+    if req.delivery_style:
+        directives.append(f"Tone: {req.delivery_style}")
+    if req.speed and abs(req.speed - 1.0) > 0.05:
+        cadence = "deliberate and measured" if req.speed < 1.0 else "urgent and rapid"
+        directives.append(f"Cadence: {cadence} ({req.speed:.2f}x)")
+    if req.formant_shift and req.formant_shift != 0:
+        weight = "deep chest resonance" if req.formant_shift < 0 else "elevated high-tension timbre"
+        directives.append(f"Resonance: {weight}")
+    if req.reverb_room:
+        directives.append(f"Acoustics: {req.reverb_room}")
+
+    prompt_text = f"({', '.join(directives)}) {req.text}" if directives else req.text
+
+    dsp_profile = {
+        "delivery_style": req.delivery_style,
+        "speed": req.speed or 1.0,
+        "pitch_fine": req.pitch_fine or 0.0,
+        "formant_shift": req.formant_shift or 0.0,
+        "reverb_room": req.reverb_room,
+        "reverb_send": req.reverb_send or 0.0,
+    }
+
     tts_models = [
         "models/gemini-3.1-flash-tts-preview",
     ]
@@ -130,7 +162,7 @@ async def generate_tts(req: GenerateTTSRequest):
         try:
             res = client.models.generate_content(
                 model=m,
-                contents=req.text,
+                contents=prompt_text,
                 config={
                     "response_modalities": ["AUDIO"],
                     "speech_config": {
@@ -154,6 +186,7 @@ async def generate_tts(req: GenerateTTSRequest):
                         speaker=speaker_clean,
                         voice_name=voice_selected,
                         duration_estimate_sec=round(duration, 2),
+                        dsp_applied=dsp_profile,
                     )
         except Exception as e:  # noqa: BLE001
             last_err = str(e)

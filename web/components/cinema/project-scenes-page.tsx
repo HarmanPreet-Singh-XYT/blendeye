@@ -33,9 +33,10 @@ import { SlateLabel } from "@/components/cinema/slate-label";
 import { CreateSceneDialog } from "@/components/cinema/create-scene-dialog";
 import { StripboardView } from "@/components/cinema/stripboard-view";
 import { TerritoryHeatmapView } from "@/components/cinema/territory-heatmap-view";
-import { ShowrunnerChat } from "@/components/cinema/showrunner-chat";
+import { ShowrunnerChat, type ExtendedShowrunnerMessage } from "@/components/cinema/showrunner-chat";
 import { SequenceTimelineView } from "@/components/cinema/sequence-timeline-view";
 import { SceneGraphView } from "@/components/cinema/scene-graph-view";
+import { executeStudioActions } from "@/lib/studio-commander";
 import { toast } from "@/components/ui/toast";
 import {
   type ProjectData,
@@ -316,6 +317,120 @@ export function ProjectScenesPage({
     }
   };
 
+  const [showrunnerMessages, setShowrunnerMessages] = React.useState<ExtendedShowrunnerMessage[]>([
+    {
+      role: "showrunner",
+      content: `Greetings. I am your Showrunner AI Director for "${project.title}". I can manage your sequence chronology (create, delete, reorder scenes), audit franchise continuity, run stripboard breakdown, or execute multiverse takes. How shall we refine the reel?`,
+    },
+  ]);
+  const [isShowrunnerThinking, setIsShowrunnerThinking] = React.useState(false);
+
+  const handleSendShowrunner = async (userText: string) => {
+    const userMsg: ExtendedShowrunnerMessage = {
+      role: "user",
+      content: userText,
+    };
+    setShowrunnerMessages((prev) => [...prev, userMsg]);
+    setIsShowrunnerThinking(true);
+
+    try {
+      const activeSc = scenes.find((s) => s.id === activeSceneId) || scenes[0];
+      const payload = {
+        instruction: userText,
+        projectContext: {
+          id: project.id,
+          title: project.title,
+          genre: project.genre,
+          directorStyle: project.directorStyle,
+          premise: project.premise,
+          activeSceneId,
+          activeSceneTitle: activeSc?.title,
+          activeSceneSummary: activeSc?.summary,
+          activeScreenplayText: activeSc?.screenplayText,
+          scenes: scenes.map((s) => ({
+            id: s.id,
+            sceneNumber: s.sceneNumber,
+            title: s.title,
+            slugline: s.slugline,
+            summary: s.summary,
+            location: s.location,
+            castPresent: s.castPresent,
+            durationSeconds: s.durationSeconds,
+            startSeconds: s.startSeconds,
+          })),
+          characters: (project.characters || []).map((c) => ({
+            name: c.name,
+            role: c.role,
+            archetype: c.archetype,
+          })),
+        },
+      };
+
+      const res = await fetch("/api/showrunner/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Showrunner directive failed with status ${res.status}`);
+      }
+
+      const data = await res.json();
+      const actions = data.actions || [];
+      const commentary = data.commentary || data.result || "Directive processed.";
+
+      if (actions.length > 0) {
+        executeStudioActions(
+          actions,
+          {
+            scenes,
+            activeSceneId,
+            characters: project.characters || [],
+          },
+          {
+            setScenes: (updatedScenes) => {
+              saveScenes(updatedScenes);
+            },
+            setActiveSceneId: (newId) => {
+              setActiveSceneId(newId);
+            },
+            setScreenplayText: (newText) => {
+              if (activeSc) {
+                const updated = scenes.map((s) => (s.id === activeSc.id ? { ...s, screenplayText: newText } : s));
+                saveScenes(updated);
+              }
+            },
+          }
+        );
+      }
+
+      const assistantMsg: ExtendedShowrunnerMessage = {
+        role: "showrunner",
+        content: commentary,
+        thought_process: data.thought_process,
+        actions,
+        execution_summaries: data.execution_summaries,
+        precedents_cited: data.precedents_cited,
+      };
+      setShowrunnerMessages((prev) => [...prev, assistantMsg]);
+    } catch (err: any) {
+      console.error("Showrunner execution error:", err);
+      toast.add({
+        title: "Showrunner Directive Failed",
+        description: err?.message || "Failed to process directive.",
+        type: "error",
+      });
+      const errorMsg: ExtendedShowrunnerMessage = {
+        role: "showrunner",
+        content: `Error processing directive: ${err?.message || "Unknown error"}. Please try again.`,
+      };
+      setShowrunnerMessages((prev) => [...prev, errorMsg]);
+    } finally {
+      setIsShowrunnerThinking(false);
+    }
+  };
+
   return (
     <div className="flex flex-col min-h-screen bg-background text-foreground">
       {/* ── TOP HERO BANNER: Project Overview & Meta ── */}
@@ -435,6 +550,18 @@ export function ProjectScenesPage({
             >
               <TrendingUp className="h-3.5 w-3.5" />
               Market Grounding (ClickHouse)
+            </button>
+            <button
+              onClick={() => setActiveTab("showrunner")}
+              className={cn(
+                "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer",
+                activeTab === "showrunner"
+                  ? "bg-accent text-accent-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary/40"
+              )}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              Showrunner AI Director
             </button>
           </div>
         </div>
@@ -884,6 +1011,148 @@ export function ProjectScenesPage({
               logline={project.premise}
               targetTerritories={project.targetTerritories}
             />
+          </div>
+        )}
+
+        {/* TAB 5: SHOWRUNNER AI DIRECTOR */}
+        {activeTab === "showrunner" && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Left Sidebar: Real-time Sequence Reel State (4 columns on lg) */}
+            <div className="lg:col-span-4 space-y-4">
+              <div className="rounded-xl border border-border bg-card p-4 space-y-3.5 shadow-sm">
+                <div className="flex items-center justify-between border-b border-border pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <Film className="h-4 w-4 text-accent" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-foreground">
+                      Sequence Reel ({scenes.length})
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-mono text-muted-foreground">
+                    {totalRuntimeMinutes}m Runtime
+                  </span>
+                </div>
+
+                <div className="space-y-2 max-h-[calc(100vh-380px)] min-h-[260px] overflow-y-auto pr-1">
+                  {scenes.map((sc, idx) => (
+                    <div
+                      key={sc.id}
+                      onClick={() => handleOpenSceneStudio(sc.id)}
+                      className={cn(
+                        "rounded-lg border p-2.5 text-xs transition-all space-y-1.5 cursor-pointer",
+                        activeSceneId === sc.id
+                          ? "border-accent/60 bg-accent/10"
+                          : "border-border/70 bg-secondary/30 hover:border-accent/40 hover:bg-secondary/50"
+                      )}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono text-[10px] font-bold text-accent">
+                          SCENE {sc.sceneNumber || idx + 1}
+                          {isBridgeScene(sc) && (
+                            <span className="ml-1.5 text-[9px] px-1 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 uppercase">
+                              Bridge
+                            </span>
+                          )}
+                        </span>
+                        <span className="font-mono text-[10px] text-muted-foreground">
+                          {Math.round((sc.durationSeconds || 180) / 60)}m
+                        </span>
+                      </div>
+                      <div className="font-semibold text-foreground truncate">{sc.title}</div>
+                      <div className="text-[11px] font-mono text-muted-foreground truncate">
+                        {sc.slugline}
+                      </div>
+                      {sc.castPresent && sc.castPresent.length > 0 && (
+                        <div className="flex flex-wrap gap-1 pt-0.5">
+                          {sc.castPresent.map((c) => (
+                            <span
+                              key={c}
+                              className="text-[9px] px-1.5 py-0.2 rounded bg-background/80 border border-border text-muted-foreground font-mono"
+                            >
+                              {c}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="pt-2 border-t border-border/60">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsCreateDialogOpen(true)}
+                    className="w-full text-xs font-medium gap-1.5 border-dashed hover:border-accent hover:text-accent"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add Scene Manually
+                  </Button>
+                </div>
+              </div>
+
+              {/* Quick Directives / Macro Audits */}
+              <div className="rounded-xl border border-border bg-card p-4 space-y-2.5 shadow-sm">
+                <span className="text-[11px] font-mono font-semibold uppercase tracking-wider text-muted-foreground block">
+                  One-Click Sequence Directives
+                </span>
+                <div className="grid grid-cols-1 gap-1.5 text-left">
+                  <button
+                    type="button"
+                    onClick={() => handleSendShowrunner("Audit franchise continuity and character logic across all scenes")}
+                    className="p-2.5 text-left text-xs rounded-lg border border-border/80 bg-secondary/20 hover:bg-accent/10 hover:border-accent/40 transition-colors flex items-center justify-between cursor-pointer"
+                  >
+                    <div>
+                      <div className="font-medium text-foreground">🔍 Audit Continuity</div>
+                      <div className="text-[10px] text-muted-foreground font-mono">Cross-scene narrative check</div>
+                    </div>
+                    <Sparkles className="h-3.5 w-3.5 text-accent shrink-0" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSendShowrunner("Analyze sequence pacing and suggest where a bridge scene is needed to build tension")}
+                    className="p-2.5 text-left text-xs rounded-lg border border-border/80 bg-secondary/20 hover:bg-accent/10 hover:border-accent/40 transition-colors flex items-center justify-between cursor-pointer"
+                  >
+                    <div>
+                      <div className="font-medium text-foreground">⚡ Pacing &amp; Bridge Audit</div>
+                      <div className="text-[10px] text-muted-foreground font-mono">Tension curve analysis</div>
+                    </div>
+                    <Sparkles className="h-3.5 w-3.5 text-accent shrink-0" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSendShowrunner("Break down the shooting schedule, night shoots, and stunt risk for these scenes")}
+                    className="p-2.5 text-left text-xs rounded-lg border border-border/80 bg-secondary/20 hover:bg-accent/10 hover:border-accent/40 transition-colors flex items-center justify-between cursor-pointer"
+                  >
+                    <div>
+                      <div className="font-medium text-foreground">📋 Production Breakdown</div>
+                      <div className="text-[10px] text-muted-foreground font-mono">Stripboard &amp; risk factors</div>
+                    </div>
+                    <Sparkles className="h-3.5 w-3.5 text-accent shrink-0" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Main Panel: Showrunner AI Chat Console (8 columns on lg) */}
+            <div className="lg:col-span-8 h-[calc(100vh-210px)] min-h-[640px]">
+              <ShowrunnerChat
+                messages={showrunnerMessages}
+                isThinking={isShowrunnerThinking}
+                onSendMessage={handleSendShowrunner}
+                title="Showrunner AI Sequence Director"
+                subtitle="Macro Sequence Reel · Multi-Scene Chronology & Continuity Engine"
+                badgeLabel="Sequence CRUD Active"
+                placeholder="Issue sequence directive (e.g. 'Add a bridge beat after Scene 1', 'Reorder scenes', 'Audit continuity')..."
+                suggestedPrompts={[
+                  "Insert a high-tension bridge scene between Scene 1 and Scene 2",
+                  "Audit continuity and narrative logic across all scenes",
+                  "Reorder scenes to open in media res with the heist climax",
+                  "Synthesize an emotional fallout scene after the escape",
+                  "Break down shooting schedule & location logistics",
+                ]}
+                className="h-full shadow-sm"
+              />
+            </div>
           </div>
         )}
       </main>

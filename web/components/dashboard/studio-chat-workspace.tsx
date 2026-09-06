@@ -31,6 +31,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   type ProjectData,
   type ProjectCharacter,
+  type FilmScene,
   createNewProjectEntry,
   buildProjectNodesAndEdges,
   saveProject,
@@ -104,6 +105,259 @@ function getGenreStyle(genre: string) {
   if (g.includes("drama") || g.includes("character")) return GENRE_STYLES.drama;
   if (g.includes("thriller") || g.includes("action")) return GENRE_STYLES.thriller;
   return GENRE_STYLES.default;
+}
+
+function applyShowrunnerActionsToProject(
+  proj: ProjectData,
+  actions: any[]
+): { updatedProject: ProjectData; modifiedFields: string[] } {
+  const currentProj: ProjectData = {
+    ...proj,
+    characters: [...(proj.characters || [])],
+  };
+  const modifiedFields: string[] = [];
+
+  for (const action of actions) {
+    switch (action.type) {
+      case "create_character": {
+        const charName = (action.name || "").trim();
+        if (
+          charName &&
+          !currentProj.characters.some((c) => c.name.toLowerCase() === charName.toLowerCase())
+        ) {
+          const newChar: ProjectCharacter = {
+            name: charName,
+            role: action.role || "Supporting Role",
+            archetype: action.archetype || "Key Dramatic Dynamic",
+            speechStyle: action.speechStyle || "naturalistic",
+            subtextRatio: action.subtextRatio || "high",
+            confidence: typeof action.confidence === "number" ? action.confidence : 75,
+            verbalPacing: typeof action.verbalPacing === "number" ? action.verbalPacing : 65,
+            personalityPreset: action.personalityPreset || "Balanced Professional",
+            actorComp: action.actorComp || `${charName} Prototype`,
+            objective: action.objective || "Navigate the unfolding dramatic crisis",
+            quirks: Array.isArray(action.quirks) ? action.quirks : ["Observant, measures each pause"],
+          };
+          currentProj.characters.push(newChar);
+          modifiedFields.push(`Created Character: ${charName} (${newChar.role})`);
+        }
+        break;
+      }
+      case "update_character": {
+        const charName = (action.name || "").trim().toLowerCase();
+        const idx = currentProj.characters.findIndex((c) => c.name.toLowerCase() === charName);
+        if (idx !== -1 && action.patch) {
+          currentProj.characters[idx] = {
+            ...currentProj.characters[idx],
+            ...action.patch,
+          };
+          const patchKeys = Object.keys(action.patch).join(", ");
+          modifiedFields.push(`Updated ${currentProj.characters[idx].name} (${patchKeys})`);
+        }
+        break;
+      }
+      case "delete_character": {
+        const charName = (action.name || "").trim().toLowerCase();
+        const initialLen = currentProj.characters.length;
+        currentProj.characters = currentProj.characters.filter(
+          (c) => c.name.toLowerCase() !== charName
+        );
+        if (currentProj.characters.length < initialLen) {
+          modifiedFields.push(`Removed Character: ${action.name}`);
+        }
+        break;
+      }
+      case "update_screenplay": {
+        if (action.screenplayText) {
+          currentProj.screenplayText = action.screenplayText;
+          modifiedFields.push("Updated Screenplay Draft");
+        }
+        if (action.summary) {
+          currentProj.sceneSummary = action.summary;
+          modifiedFields.push("Updated Scene Stakes");
+        }
+        break;
+      }
+      case "update_scene_meta": {
+        if (action.title) {
+          currentProj.sceneTitle = action.title;
+          modifiedFields.push(`Scene Title: ${action.title}`);
+        }
+        if (action.stakes) {
+          currentProj.sceneSummary = action.stakes;
+          modifiedFields.push(`Scene Stakes: ${action.stakes}`);
+        }
+        break;
+      }
+      case "create_scene": {
+        const currentScenes: FilmScene[] = [...(currentProj.scenes || [])];
+        const nextSceneNumber = currentScenes.length + 1;
+        const newSceneId = `scene-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 5)}`;
+        const duration = action.durationSeconds || 180;
+        const newScene: FilmScene = {
+          id: newSceneId,
+          sceneNumber: nextSceneNumber,
+          title: action.title || `Scene ${nextSceneNumber}`,
+          slugline: action.slugline || "INT. SCENE LOCATION - DAY",
+          summary: action.summary || "New dramatic beat created by Studio Showrunner.",
+          location: action.location || "Studio Location",
+          durationSeconds: duration,
+          startSeconds: 0,
+          castPresent: Array.isArray(action.castPresent) && action.castPresent.length > 0
+            ? action.castPresent
+            : currentProj.characters.slice(0, 2).map((c) => c.name),
+          castRoles: {},
+          screenplayText:
+            action.screenplayText ||
+            `${action.slugline || "INT. SCENE LOCATION - DAY"}\n\n[Action description]\n\n${currentProj.characters[0]?.name || "CHARACTER"}\n(beat)\nDialogue goes here.`,
+        };
+
+        let insertIdx = currentScenes.length;
+        if (action.position === "start") {
+          insertIdx = 0;
+        } else if (typeof action.position === "number") {
+          insertIdx = Math.max(0, Math.min(action.position - 1, currentScenes.length));
+        }
+
+        currentScenes.splice(insertIdx, 0, newScene);
+        let cursor = 0;
+        currentProj.scenes = currentScenes.map((s, idx) => {
+          const updated = { ...s, sceneNumber: idx + 1, startSeconds: cursor };
+          cursor += s.durationSeconds || 180;
+          return updated;
+        });
+
+        currentProj.activeSceneId = newScene.id;
+        currentProj.sceneTitle = newScene.title;
+        currentProj.sceneSummary = newScene.summary;
+        modifiedFields.push(`Created Scene ${newScene.sceneNumber}: "${newScene.title}"`);
+        break;
+      }
+      case "delete_scene": {
+        const currentScenes: FilmScene[] = [...(currentProj.scenes || [])];
+        if (currentScenes.length > 1) {
+          const ident = String(action.sceneIdentifier).toLowerCase().trim();
+          const numIdent = parseInt(ident, 10);
+          const targetIdx = currentScenes.findIndex((s, idx) => {
+            if (!isNaN(numIdent) && (s.sceneNumber === numIdent || idx + 1 === numIdent)) return true;
+            if (s.id.toLowerCase() === ident) return true;
+            if (s.title.toLowerCase().includes(ident)) return true;
+            return false;
+          });
+
+          if (targetIdx !== -1) {
+            const removed = currentScenes[targetIdx];
+            currentScenes.splice(targetIdx, 1);
+            let cursor = 0;
+            currentProj.scenes = currentScenes.map((s, idx) => {
+              const updated = { ...s, sceneNumber: idx + 1, startSeconds: cursor };
+              cursor += s.durationSeconds || 180;
+              return updated;
+            });
+            if (currentProj.activeSceneId === removed.id) {
+              currentProj.activeSceneId = currentProj.scenes[0]?.id;
+            }
+            modifiedFields.push(`Deleted Scene: "${removed.title}"`);
+          }
+        }
+        break;
+      }
+      case "reorder_scenes": {
+        const currentScenes: FilmScene[] = [...(currentProj.scenes || [])];
+        if (Array.isArray(action.sceneOrder) && action.sceneOrder.length > 0 && currentScenes.length > 0) {
+          const orderMap = new Map<string, number>();
+          action.sceneOrder.forEach((item: any, orderIdx: number) => {
+            orderMap.set(String(item).toLowerCase().trim(), orderIdx);
+            const n = parseInt(String(item), 10);
+            if (!isNaN(n)) orderMap.set(String(n), orderIdx);
+          });
+
+          const reordered = [...currentScenes].sort((a, b) => {
+            const aKey1 = String(a.sceneNumber);
+            const aKey2 = a.id.toLowerCase();
+            const aKey3 = a.title.toLowerCase();
+            const bKey1 = String(b.sceneNumber);
+            const bKey2 = b.id.toLowerCase();
+            const bKey3 = b.title.toLowerCase();
+
+            const orderA = orderMap.get(aKey1) ?? orderMap.get(aKey2) ?? orderMap.get(aKey3) ?? 999;
+            const orderB = orderMap.get(bKey1) ?? orderMap.get(bKey2) ?? orderMap.get(bKey3) ?? 999;
+            return orderA - orderB;
+          });
+
+          let cursor = 0;
+          currentProj.scenes = reordered.map((s, idx) => {
+            const updated = { ...s, sceneNumber: idx + 1, startSeconds: cursor };
+            cursor += s.durationSeconds || 180;
+            return updated;
+          });
+
+          modifiedFields.push(`Reordered Sequence (${currentProj.scenes.length} Scenes)`);
+        }
+        break;
+      }
+      case "move_scene": {
+        const currentScenes: FilmScene[] = [...(currentProj.scenes || [])];
+        const ident = String(action.sceneIdentifier).toLowerCase().trim();
+        const numIdent = parseInt(ident, 10);
+        const idx = currentScenes.findIndex((s, i) => {
+          if (!isNaN(numIdent) && (s.sceneNumber === numIdent || i + 1 === numIdent)) return true;
+          if (s.id.toLowerCase() === ident) return true;
+          if (s.title.toLowerCase().includes(ident)) return true;
+          return false;
+        });
+
+        if (idx !== -1) {
+          let destIdx = idx;
+          if (typeof action.targetIndex === "number") {
+            destIdx = Math.max(0, Math.min(action.targetIndex, currentScenes.length - 1));
+          } else if (action.direction === "up") {
+            destIdx = Math.max(0, idx - 1);
+          } else if (action.direction === "down") {
+            destIdx = Math.min(currentScenes.length - 1, idx + 1);
+          }
+
+          if (destIdx !== idx) {
+            const [moved] = currentScenes.splice(idx, 1);
+            currentScenes.splice(destIdx, 0, moved);
+            let cursor = 0;
+            currentProj.scenes = currentScenes.map((s, i) => {
+              const updated = { ...s, sceneNumber: i + 1, startSeconds: cursor };
+              cursor += s.durationSeconds || 180;
+              return updated;
+            });
+            modifiedFields.push(`Moved "${moved.title}" to Scene ${destIdx + 1}`);
+          }
+        }
+        break;
+      }
+      case "update_scene": {
+        const currentScenes: FilmScene[] = [...(currentProj.scenes || [])];
+        const ident = String(action.sceneIdentifier).toLowerCase().trim();
+        const numIdent = parseInt(ident, 10);
+        const idx = currentScenes.findIndex((s, i) => {
+          if (!isNaN(numIdent) && (s.sceneNumber === numIdent || i + 1 === numIdent)) return true;
+          if (s.id.toLowerCase() === ident) return true;
+          if (s.title.toLowerCase().includes(ident)) return true;
+          return false;
+        });
+
+        if (idx !== -1 && action.patch) {
+          currentScenes[idx] = { ...currentScenes[idx], ...action.patch };
+          currentProj.scenes = currentScenes;
+          modifiedFields.push(`Updated Scene ${currentScenes[idx].sceneNumber}: "${currentScenes[idx].title}"`);
+        }
+        break;
+      }
+    }
+  }
+
+  const { nodes, edges } = buildProjectNodesAndEdges(currentProj);
+  currentProj.nodes = nodes;
+  currentProj.edges = edges;
+  currentProj.updatedAt = Date.now();
+
+  return { updatedProject: currentProj, modifiedFields };
 }
 
 export function StudioChatWorkspace({
@@ -481,132 +735,103 @@ export function StudioChatWorkspace({
       }
 
       // ────────────────────────────────────────────────────────
-      // CASE 2: DIRECTIVE MODIFICATIONS ON EXISTING ACTIVE SLATE
+      // CASE 2: SHOWRUNNER DIRECTIVE EXECUTION ON ACTIVE SLATE
+      // Replaced regex with live Gemini 3.7 Showrunner Directive Agent
       // ────────────────────────────────────────────────────────
-      const isModificationDirective = Boolean(
-        targetProject &&
-        (
-          /(?:add|introduce)\s+(?:a\s+)?(?:character\s+)?(?:named\s+)?([A-Z][a-zA-Z0-9_-]+)/i.test(userPrompt) ||
-          /(?:set|crank|adjust|change)\s+([a-zA-Z]+)(?:'s)?\s+(confidence|pacing|subtext|tension)/i.test(userPrompt) ||
-          promptLower.includes("director style") ||
-          promptLower.includes("switch style to") ||
-          promptLower.includes("change style to") ||
-          promptLower.includes("rewrite the climax") ||
-          promptLower.includes("rewrite ending")
-        )
-      );
+      if (targetProject) {
+        try {
+          const res = await fetch("/api/showrunner/execute", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              userPrompt,
+              project: targetProject,
+              history: newMessages.slice(-6).map((m) => ({
+                role: m.role === "user" ? "user" : "assistant",
+                content: m.content,
+              })),
+            }),
+          });
 
-      if (targetProject && isModificationDirective) {
-        const currentProj = { ...targetProject };
-        const modifiedFields: string[] = [];
-        let thought = `Directorial directive applied to slate "${currentProj.title}": "${userPrompt}".\n`;
-        let replyText = "";
+          if (res.ok) {
+            const data = await res.json();
+            const actions = Array.isArray(data.actions) ? data.actions : [];
 
-        // 1. Add character
-        const addCharMatch = userPrompt.match(/(?:add|introduce)\s+(?:a\s+)?(?:character\s+)?(?:named\s+)?([A-Z][a-zA-Z0-9_-]+)/i);
-        if (addCharMatch) {
-          const charName = addCharMatch[1];
-          const isRival = promptLower.includes("rival") || promptLower.includes("enemy");
-          const role = isRival ? "Rival Antagonist" : "Dynamic Specialist";
+            if (actions.length > 0) {
+              const { updatedProject, modifiedFields } = applyShowrunnerActionsToProject(
+                targetProject,
+                actions
+              );
 
-          const newChar: ProjectCharacter = {
-            name: charName,
-            role,
-            archetype: isRival ? "Ruthless Syndicate Operative" : "Strategic Specialist",
-            speechStyle: isRival ? "clipped, icy, interrogative" : "direct, guarded",
-            subtextRatio: "high",
-            confidence: 85,
-            verbalPacing: 75,
-            objective: `Challenge existing dynamics as ${role}`,
-            dialsSummary: "Confidence 85% · Subtext 80%",
-            quirks: ["Scans the room before speaking"],
-          };
+              saveProject(updatedProject);
+              onRefreshProjects();
 
-          currentProj.characters = [...(currentProj.characters || []), newChar];
-          const { nodes, edges } = buildProjectNodesAndEdges(currentProj);
-          currentProj.nodes = nodes;
-          currentProj.edges = edges;
+              let thought = data.thought_process || `Showrunner executed directive for "${updatedProject.title}".`;
+              if (data.precedents_cited && data.precedents_cited.length > 0) {
+                thought +=
+                  `\n\nClickHouse Precedent Telemetry:\n` +
+                  data.precedents_cited
+                    .map(
+                      (p: any) =>
+                        `- ${p.historical_reference}: ${p.trope} (Retention ${p.audience_retention_pct}%)`
+                    )
+                    .join("\n");
+              }
 
-          modifiedFields.push(`Added Character: ${charName} (${role})`);
-          thought += `Added character "${charName}" and spawned actor and dial nodes on canvas.\n`;
-          replyText += `I have introduced **${charName}** (${role}) into the slate, configured their psychological dials, and wired their actor node into the visual backlot canvas. `;
-        }
+              const assistantReply: DashboardChatMessage = {
+                id: `asst-${Date.now()}`,
+                role: "assistant",
+                content:
+                  data.assistant_message ||
+                  `I have executed your requested modifications on **"${updatedProject.title}"**. The visual backlot nodes and temporal timeline reflect these live changes.`,
+                thought,
+                timestamp: Date.now(),
+                updatedProject,
+                modifiedFields,
+                suggestedPrompts: [
+                  `Open Studio & Backlot for "${updatedProject.title}"`,
+                  `Audit shoot logistics on stripboard`,
+                  `Check continuity against ClickHouse timeline`,
+                ],
+              };
 
-        // 2. Adjust dial
-        const dialMatch = userPrompt.match(/(?:set|crank|adjust|change)\s+([a-zA-Z]+)(?:'s)?\s+(confidence|pacing|subtext|tension)\s+(?:to\s+)?(\d+)?/i);
-        if (dialMatch) {
-          const charName = dialMatch[1];
-          const dialType = dialMatch[2].toLowerCase();
-          const val = dialMatch[3] ? parseInt(dialMatch[3], 10) : 95;
+              setMessages((prev) => [...prev, assistantReply]);
+              setIsThinking(false);
+              return;
+            } else if (data.assistant_message) {
+              // Showrunner answered conversationally without mutating state
+              let thought = data.thought_process || `Showrunner cognitive analysis for "${targetProject.title}".`;
+              if (data.precedents_cited && data.precedents_cited.length > 0) {
+                thought +=
+                  `\n\nClickHouse Grounding:\n` +
+                  data.precedents_cited
+                    .map(
+                      (p: any) =>
+                        `- ${p.historical_reference}: ${p.trope} (Retention ${p.audience_retention_pct}%)`
+                    )
+                    .join("\n");
+              }
 
-          const charIndex = currentProj.characters.findIndex(
-            (c) => c.name.toLowerCase() === charName.toLowerCase()
-          );
+              const assistantReply: DashboardChatMessage = {
+                id: `asst-${Date.now()}`,
+                role: "assistant",
+                content: data.assistant_message,
+                thought,
+                timestamp: Date.now(),
+                suggestedPrompts: [
+                  `Open Studio & Backlot for "${targetProject.title}"`,
+                  `Crank scene tension to 95%`,
+                  `Introduce a rival operative`,
+                ],
+              };
 
-          if (charIndex >= 0) {
-            const char = { ...currentProj.characters[charIndex] };
-            if (dialType.includes("confid")) char.confidence = val;
-            if (dialType.includes("pacing")) char.verbalPacing = val;
-            if (dialType.includes("subtext")) char.subtextRatio = val > 75 ? "very high" : "high";
-            char.dialsSummary = `Confidence ${char.confidence || 85}% · Subtext ${char.subtextRatio || "high"}`;
-
-            currentProj.characters[charIndex] = char;
-            modifiedFields.push(`${char.name}: ${dialType} dial set to ${val}%`);
-            thought += `Adjusted ${char.name}'s ${dialType} dial to ${val}%.\n`;
-            replyText += `Adjusted **${char.name}'s** ${dialType} dial to **${val}%**. `;
+              setMessages((prev) => [...prev, assistantReply]);
+              setIsThinking(false);
+              return;
+            }
           }
-        }
-
-        // 3. Change Director Style
-        if (promptLower.includes("director style") || promptLower.includes("switch style") || promptLower.includes("change style")) {
-          let newStyle = currentProj.directorStyle || "Hollywood Standard";
-          if (promptLower.includes("nolan")) newStyle = "Christopher Nolan (Temporal)";
-          else if (promptLower.includes("villeneuve")) newStyle = "Denis Villeneuve (Atmospheric)";
-          else if (promptLower.includes("fincher")) newStyle = "David Fincher (Procedural)";
-          else if (promptLower.includes("mann")) newStyle = "Michael Mann (High Tension)";
-          else if (promptLower.includes("a24")) newStyle = "A24 Indie (Psychological)";
-
-          if (newStyle !== currentProj.directorStyle) {
-            currentProj.directorStyle = newStyle;
-            modifiedFields.push(`Director Style: ${newStyle}`);
-            thought += `Updated director style to ${newStyle}.\n`;
-            replyText += `Switched cinematic camera blocking and director lens to **${newStyle}**. `;
-          }
-        }
-
-        // 4. Rewrite climax / scene
-        if (promptLower.includes("rewrite") && (promptLower.includes("climax") || promptLower.includes("ending"))) {
-          currentProj.sceneSummary = `${currentProj.sceneSummary} — Escalation: ${userPrompt.slice(0, 120)}`;
-          modifiedFields.push("Screenplay Climax Realigned");
-          thought += `Realigned narrative stakes: "${userPrompt.slice(0, 80)}".\n`;
-          replyText += `Screenplay climax and scene narrative stakes have been realigned with this dramatic escalation. `;
-        }
-
-        if (modifiedFields.length > 0) {
-          currentProj.updatedAt = Date.now();
-          saveProject(currentProj);
-          onRefreshProjects();
-
-          const assistantReply: DashboardChatMessage = {
-            id: `asst-${Date.now()}`,
-            role: "assistant",
-            content:
-              replyText ||
-              `I have executed your requested modifications on **"${currentProj.title}"**. The visual backlot nodes and ClickHouse timeline reflect these live changes.`,
-            thought,
-            timestamp: Date.now(),
-            updatedProject: currentProj,
-            modifiedFields,
-            suggestedPrompts: [
-              `Open Studio & Backlot for "${currentProj.title}"`,
-              `Crank scene tension to 95%`,
-              `Brainstorm another dramatic complication`,
-            ],
-          };
-
-          setMessages((prev) => [...prev, assistantReply]);
-          setIsThinking(false);
-          return;
+        } catch (execErr) {
+          console.warn("Showrunner directive execution failed, falling back to chat:", execErr);
         }
       }
 

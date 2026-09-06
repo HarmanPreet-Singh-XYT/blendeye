@@ -8,15 +8,21 @@ export async function POST(req: NextRequest) {
     const genre = body.genre || "Heist Thriller";
     const logline = body.logline || "Vault heist breach";
     const targetTerritories = Array.isArray(body.target_territories) ? body.target_territories : [];
+    const activeLevers = Array.isArray(body.active_levers)
+      ? body.active_levers
+      : Array.isArray(body.levers)
+      ? body.levers
+      : [];
 
-    const cached = await getCachedGeneration<any>("market", { genre, logline, targetTerritories });
+    const cachePayload = { genre, logline, targetTerritories, activeLevers };
+    const cached = await getCachedGeneration<any>("market", cachePayload);
     if (cached && cached.territories) {
       return NextResponse.json({ ...cached, _cached: true });
     }
 
-    const result = await predictMarket(genre, logline, targetTerritories);
+    const result = await predictMarket(genre, logline, targetTerritories, activeLevers);
     if (result && result.territories) {
-      await setCachedGeneration("market", { genre, logline, targetTerritories }, result);
+      await setCachedGeneration("market", cachePayload, result);
     }
     return NextResponse.json(result);
   } catch (err: unknown) {

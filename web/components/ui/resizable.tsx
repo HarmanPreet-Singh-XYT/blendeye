@@ -6,11 +6,13 @@ import { cn } from "@/lib/utils";
 
 function ResizablePanelGroup({
   className,
+  resizeTargetMinimumSize = { coarse: 28, fine: 16 },
   ...props
 }: ResizablePrimitive.GroupProps) {
   return (
     <ResizablePrimitive.Group
       data-slot="resizable-panel-group"
+      resizeTargetMinimumSize={resizeTargetMinimumSize}
       className={cn(
         "flex h-full w-full aria-[orientation=vertical]:flex-col",
         className
@@ -52,16 +54,44 @@ function ResizablePanel({
 function ResizableHandle({
   withHandle = true,
   className,
+  onPointerDown,
   ...props
 }: ResizablePrimitive.SeparatorProps & {
   withHandle?: boolean;
 }) {
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    // Acquire pointer capture immediately to prevent dragging events from being lost or hijacked by canvas / nodes
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
+
+    // Disable text selection and prevent dragging side-effects on window
+    const originalUserSelect = document.body.style.userSelect;
+    const originalWebkitUserSelect = document.body.style.webkitUserSelect;
+    document.body.style.userSelect = "none";
+    document.body.style.webkitUserSelect = "none";
+
+    const cleanUp = () => {
+      document.body.style.userSelect = originalUserSelect;
+      document.body.style.webkitUserSelect = originalWebkitUserSelect;
+      window.removeEventListener("pointerup", cleanUp);
+      window.removeEventListener("pointercancel", cleanUp);
+    };
+    window.addEventListener("pointerup", cleanUp);
+    window.addEventListener("pointercancel", cleanUp);
+
+    onPointerDown?.(e);
+  };
+
   return (
     <ResizablePrimitive.Separator
       data-slot="resizable-handle"
+      onPointerDown={handlePointerDown}
       className={cn(
-        "group relative flex items-center justify-center bg-border/80 transition-colors z-20 select-none",
-        "hover:bg-accent/80 active:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent",
+        "group relative flex items-center justify-center bg-border/80 transition-colors z-20 select-none touch-none",
+        "hover:bg-accent/80 active:bg-accent data-[separator=active]:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent",
         // Horizontal divider (separates top rows from bottom dock)
         "[&[aria-orientation=horizontal]]:h-2 [&[aria-orientation=horizontal]]:w-full [&[aria-orientation=horizontal]]:cursor-row-resize",
         "[&[aria-orientation=horizontal]]:before:absolute [&[aria-orientation=horizontal]]:before:-top-2 [&[aria-orientation=horizontal]]:before:-bottom-2 [&[aria-orientation=horizontal]]:before:inset-x-0 [&[aria-orientation=horizontal]]:before:z-10",

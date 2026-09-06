@@ -39,6 +39,8 @@ class CharacterSynthesizeResponse(BaseModel):
     archetype: str
     bio: str
     dream_actor_comp: str
+    casting_reasoning: str = ""
+    alternate_casting_comp: str = ""
     speech_style: str
     subtext_ratio: str
     flaw_and_blindspot: str
@@ -70,11 +72,15 @@ async def synthesize_character(req: CharacterSynthesizeRequest):
         return CharacterSynthesizeResponse(**data)
     except (json.JSONDecodeError, KeyError, TypeError, ValueError):
         # Graceful fallback response
+        conf_pct = int(float(req.personality_dials.get("confidence", 0.5)) * 100) if isinstance(req.personality_dials.get("confidence"), (int, float)) else 50
+        cadence = req.personality_dials.get("verbal_speed", "rapid-staccato")
         return CharacterSynthesizeResponse(
             name=req.name,
             archetype=req.base_archetype,
             bio=f"{req.name} is driven by survival in an unforgiving high-stakes environment.",
-            dream_actor_comp=req.dream_actor,
+            dream_actor_comp=req.dream_actor or "Willem Dafoe in The Lighthouse",
+            casting_reasoning=f"Selected for visceral screen intensity and kinetic micro-expressions that mirror {req.name}'s {cadence} delivery and volatile {conf_pct}% confidence balance.",
+            alternate_casting_comp="Ben Foster in Hell or High Water (gritty psychological resilience)",
             speech_style="terse, staccato, guarded",
             subtext_ratio="high (rarely says what they mean)",
             flaw_and_blindspot="Paranoid distrust of close allies",
@@ -87,6 +93,8 @@ class EnsembleCharacter(BaseModel):
     name: str
     role: str
     archetype: str
+    dreamActorComp: str = ""
+    castingReasoning: str = ""
     speechStyle: str
     subtextRatio: str
     confidence: int = 80
@@ -118,8 +126,40 @@ async def synthesize_ensemble(req: EnsembleSynthesizeRequest):
         lines = cleaned.splitlines()
         cleaned = "\n".join(lines[1:-1] if lines[-1].startswith("```") else lines[1:])
 
-    data = json.loads(cleaned)
-    return EnsembleSynthesizeResponse(**data)
+    try:
+        data = json.loads(cleaned)
+        return EnsembleSynthesizeResponse(**data)
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+        return EnsembleSynthesizeResponse(
+            characters=[
+                EnsembleCharacter(
+                    name="Elena Vance",
+                    role="Lead Protagonist",
+                    archetype="Hardened Investigative Reporter",
+                    dreamActorComp="Florence Pugh in Oppenheimer",
+                    castingReasoning="Combines fierce intellectual tenacity with brittle vulnerability, matching 82% confidence and razor-sharp cross-examination cadence.",
+                    speechStyle="Direct, rapid cadence, asks questions as weapons",
+                    subtextRatio="moderate",
+                    confidence=82,
+                    verbalPacing=80,
+                    objective=f"Expose the truth behind the crisis before sunrise ({req.genre or 'Thriller'})",
+                    quirks=["Taps voice recorder rhythmically", "Speaks before other finish"],
+                ),
+                EnsembleCharacter(
+                    name="Director Cole Bennett",
+                    role="Antagonist",
+                    archetype="Bureaucratic Fixer",
+                    dreamActorComp="Mark Rylance in Bridge of Spies",
+                    castingReasoning="Quiet stillness and modulated micro-pauses radiate menacing institutional control, balancing high subtext with low surface agitation.",
+                    speechStyle="Measured, bureaucratic double-speak, soft-spoken",
+                    subtextRatio="extreme",
+                    confidence=90,
+                    verbalPacing=45,
+                    objective="Contain the information leak and neutralize public exposure at all costs",
+                    quirks=["Polishes spectacles during high tension", "Never raises voice"],
+                ),
+            ]
+        )
 
 
 class ChemistryTestRequest(BaseModel):

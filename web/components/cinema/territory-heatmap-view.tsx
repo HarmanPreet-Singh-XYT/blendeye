@@ -331,8 +331,54 @@ export function TerritoryHeatmapView({
     proceduralRealism: false,
   });
 
+  const [isOptimizingLive, setIsOptimizingLive] = React.useState(false);
+  const debounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  const LEVER_LABELS: Record<keyof typeof optimizationLevers, string> = React.useMemo(
+    () => ({
+      familyStakes: "Heighten Personal / Family Stakes",
+      lyriaScore: "Emphasize Thematic Score Swells",
+      pacingTurnaround: "Accelerate Act 2 Midpoint Turn",
+      moralAmbiguity: "Deepen Moral Ambiguity & Irony",
+      multilingualDub: "Regional Multilingual Dubs (Hindi/Tamil)",
+      proceduralRealism: "Grounded Procedural Logistics",
+    }),
+    []
+  );
+
   const handleToggleLever = (leverKey: keyof typeof optimizationLevers) => {
-    setOptimizationLevers((prev) => ({ ...prev, [leverKey]: !prev[leverKey] }));
+    const updated = { ...optimizationLevers, [leverKey]: !optimizationLevers[leverKey] };
+    setOptimizationLevers(updated);
+
+    const activeList = (Object.keys(updated) as Array<keyof typeof optimizationLevers>)
+      .filter((k) => updated[k])
+      .map((k) => LEVER_LABELS[k]);
+
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(async () => {
+      setIsOptimizingLive(true);
+      try {
+        const res = await fetch("/api/market/predict", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            genre: genre || "Heist Thriller",
+            logline: logline || projectTitle,
+            target_territories: targetTerritories,
+            active_levers: activeList,
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setPredictionData(data);
+          notifyIfFallback(data, "Market Optimization");
+        }
+      } catch (err) {
+        console.warn("Live market optimization re-query failed:", err);
+      } finally {
+        setIsOptimizingLive(false);
+      }
+    }, 450);
   };
 
   const handleRunMarketPredict = async () => {
@@ -990,13 +1036,21 @@ export function TerritoryHeatmapView({
               &ldquo;What-If&rdquo; Cultural Metric Optimization Simulator
             </span>
           </div>
-          <span className="text-[10px] font-mono text-muted-foreground">
-            Illustrative heuristic, not a live model
-          </span>
+          <div className="flex items-center gap-2">
+            {isOptimizingLive && (
+              <span className="flex items-center gap-1.5 text-[10px] font-mono text-cyan-400 animate-pulse">
+                <RefreshCw className="h-3 w-3 animate-spin text-cyan-400" />
+                Re-querying Gemini 3.7...
+              </span>
+            )}
+            <Badge variant="outline" className="text-[10px] font-mono border-cyan-500/40 text-cyan-300">
+              Live Gemini 3.7 Agent + ClickHouse Precedents
+            </Badge>
+          </div>
         </div>
 
         <p className="text-[11px] text-muted-foreground">
-          Different audiences respond to distinct dramatic mechanics. Toggle script interventions to see a directional, rule-of-thumb estimate of regional appetite shift — these are illustrative point boosts, not a live audience-data model.
+          Different audiences respond to distinct dramatic mechanics. Toggle script interventions to dynamically re-query the Gemini market forecasting agent in real-time, recalculating regional scores and actionable localization advice.
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 pt-1">

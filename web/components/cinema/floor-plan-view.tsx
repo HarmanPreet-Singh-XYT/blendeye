@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { notifyIfFallback } from "@/lib/fallback-notice";
+import type { ShotItem, ShotlistResponse } from "@/lib/agent-service";
 
 /* -------------------------------------------------------------------------
    Data Structures & Types
@@ -91,6 +92,8 @@ export interface FloorPlanViewProps {
   sceneTitle: string;
   characters?: Array<{ name: string; archetype?: string }>;
   primaryLocation?: string;
+  screenplayText?: string;
+  directorStyle?: string;
   className?: string;
   onSendToVeo?: (camData: {
     camName: string;
@@ -591,6 +594,8 @@ export function FloorPlanView({
   sceneTitle,
   characters = [],
   primaryLocation,
+  screenplayText = "",
+  directorStyle = "David Fincher / Neo-Noir Precision",
   className,
   onSendToVeo,
 }: FloorPlanViewProps) {
@@ -605,7 +610,79 @@ export function FloorPlanView({
   } | null>({ type: "cam", id: "cam-a" });
 
   const [show180Axis, setShow180Axis] = React.useState(true);
-  const [activeTab, setActiveTab] = React.useState<"viewfinder" | "inspector" | "precedents">("viewfinder");
+  const [activeTab, setActiveTab] = React.useState<"viewfinder" | "inspector" | "precedents" | "shotlist">("viewfinder");
+
+  // Autonomous Shot List State
+  const [shotlistData, setShotlistData] = React.useState<ShotlistResponse | null>(null);
+  const [isGeneratingShotlist, setIsGeneratingShotlist] = React.useState(false);
+
+  const handleGenerateShotlist = async () => {
+    setIsGeneratingShotlist(true);
+    try {
+      const res = await fetch("/api/shotlist/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scene_text: screenplayText.trim() || `${sceneTitle}\n\nMarcus and Elena confront each other in the locked vault.`,
+          scene_title: sceneTitle,
+          director_style: directorStyle,
+          characters: characters.map((c) => c.name),
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setShotlistData(data);
+        notifyIfFallback(data, "Autonomous Shot List");
+        toast.add({
+          title: "AI Shot List Generated",
+          description: `Architected ${data.shots?.length || 4} camera setups grounded in ${directorStyle}.`,
+          type: "success",
+        });
+      }
+    } catch (err) {
+      toast.add({
+        title: "Shot List Generation Failed",
+        description: err instanceof Error ? err.message : "Could not reach the generation backend.",
+        type: "error",
+      });
+    } finally {
+      setIsGeneratingShotlist(false);
+    }
+  };
+
+  const handleStageShot = (shot: ShotItem) => {
+    const focal = shot.lens.includes("18mm")
+      ? 18
+      : shot.lens.includes("24mm")
+      ? 24
+      : shot.lens.includes("35mm")
+      ? 35
+      : shot.lens.includes("50mm")
+      ? 50
+      : 85;
+
+    setStageCameras((prev) =>
+      prev.map((cam, idx) => {
+        if (idx === 0 || cam.id === selectedCam) {
+          return {
+            ...cam,
+            lensName: shot.lens,
+            focalLength: focal,
+            fov: focalToFov(focal),
+            motion: shot.camera_movement,
+            name: `Shot ${shot.shot_number} · ${shot.shot_type}`,
+          };
+        }
+        return cam;
+      })
+    );
+
+    toast.add({
+      title: `Shot ${shot.shot_number} Staged on Floor Plan`,
+      description: `Configured active camera with ${shot.lens} · ${shot.camera_movement}.`,
+      type: "success",
+    });
+  };
 
   // AI Location Scout State
   const [isScouting, setIsScouting] = React.useState(false);
@@ -975,11 +1052,11 @@ export function FloorPlanView({
     });
   };
 
-  const handleGenerateShotFrame = async () => {
+  const handleGenerateShotFrame = async (customPrompt?: unknown) => {
     if (isRenderingShot) return;
     setIsRenderingShot(true);
     try {
-      const prompt = buildLiveVeoPrompt();
+      const prompt = typeof customPrompt === "string" ? customPrompt : buildLiveVeoPrompt();
       const res = await fetch("/api/media/image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1710,6 +1787,17 @@ export function FloorPlanView({
               >
                 Comps ({scoutedData?.film_precedents?.length || 2})
               </button>
+              <button
+                onClick={() => setActiveTab("shotlist")}
+                className={`px-2.5 py-1 rounded font-medium transition-colors cursor-pointer flex items-center gap-1 ${
+                  activeTab === "shotlist"
+                    ? "bg-accent/15 text-accent font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Film className="h-3 w-3" />
+                <span>Shot List ({shotlistData?.shots?.length || "Auto"})</span>
+              </button>
             </div>
             <Badge variant="outline" className="text-[9px] font-mono text-muted-foreground">
               2.39:1 Scope
@@ -1980,6 +2068,133 @@ export function FloorPlanView({
                       Technique: 24mm anamorphic wide master framing human vulnerability against reinforced concrete.
                     </div>
                   </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === "shotlist" && (
+            <div className="space-y-3 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-foreground">
+                  Autonomous Camera Shot List
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleGenerateShotlist}
+                  disabled={isGeneratingShotlist}
+                  className="h-6 text-[10px] px-2 gap-1 border-accent/40 text-accent hover:bg-accent/10 cursor-pointer"
+                >
+                  {isGeneratingShotlist ? (
+                    <RefreshCw className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-3 w-3" />
+                  )}
+                  <span>{isGeneratingShotlist ? "Architecting..." : "Generate AI Shot List"}</span>
+                </Button>
+              </div>
+
+              {shotlistData && (
+                <div className="rounded border border-border/70 bg-secondary/30 p-2 text-[10px] font-mono space-y-0.5">
+                  <div className="text-foreground font-semibold">{shotlistData.visual_rhythm}</div>
+                  <div className="text-muted-foreground">{shotlistData.aspect_ratio} • {shotlistData.color_temperature}</div>
+                </div>
+              )}
+
+              {isGeneratingShotlist && (
+                <div className="h-32 flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                  <RefreshCw className="h-5 w-5 animate-spin text-accent" />
+                  <span className="text-[11px] font-mono">Gemini DP is translating screenplay to shot list…</span>
+                </div>
+              )}
+
+              {!isGeneratingShotlist && shotlistData?.shots && shotlistData.shots.length > 0 ? (
+                <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
+                  {shotlistData.shots.map((shot) => (
+                    <div key={shot.shot_number} className="p-2.5 rounded-lg border border-border/80 bg-secondary/20 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <Badge variant="outline" className="text-[9px] font-mono border-accent/40 text-accent">
+                            Shot {shot.shot_number}
+                          </Badge>
+                          <span className="font-bold text-[11px] text-foreground">{shot.shot_type}</span>
+                        </div>
+                        <span className="text-[10px] font-mono text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded">
+                          {shot.lens}
+                        </span>
+                      </div>
+
+                      <div className="text-[10px] font-mono text-muted-foreground flex items-center justify-between">
+                        <span>Angle: {shot.angle}</span>
+                        <span>{shot.estimated_duration_sec}s</span>
+                      </div>
+
+                      <div className="text-[11px] text-muted-foreground leading-relaxed">
+                        <span className="font-semibold text-foreground block text-[10px]">Blocking:</span>
+                        {shot.blocking_notes}
+                      </div>
+
+                      <div className="text-[10px] text-muted-foreground leading-snug">
+                        <span className="font-semibold text-foreground block text-[10px]">Movement &amp; Lighting:</span>
+                        {shot.camera_movement} • {shot.lighting_setup}
+                      </div>
+
+                      <div className="pt-1.5 border-t border-border/40 flex items-center justify-between gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleStageShot(shot)}
+                          className="px-2 py-1 rounded text-[10px] font-mono bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/30 transition-colors cursor-pointer"
+                        >
+                          Stage on 2D Plan
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShotImageUrl(null);
+                            handleGenerateShotFrame(shot.imagen_prompt);
+                            setActiveTab("viewfinder");
+                          }}
+                          className="px-2 py-1 rounded text-[10px] font-mono bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/30 transition-colors cursor-pointer"
+                        >
+                          Render Frame
+                        </button>
+                        {onSendToVeo && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onSendToVeo({
+                                camName: `Shot ${shot.shot_number} (${shot.shot_type})`,
+                                lens: shot.lens,
+                                motion: shot.camera_movement,
+                                promptNote: shot.imagen_prompt,
+                              })
+                            }
+                            className="px-2 py-1 rounded text-[10px] font-mono bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 transition-colors cursor-pointer"
+                          >
+                            Send Veo ↗
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+
+              {!isGeneratingShotlist && (!shotlistData || !shotlistData.shots || shotlistData.shots.length === 0) && (
+                <div className="p-4 rounded border border-dashed border-border/80 text-center space-y-2">
+                  <Film className="h-6 w-6 text-muted-foreground mx-auto" />
+                  <p className="text-[11px] text-muted-foreground">
+                    Click &ldquo;Generate AI Shot List&rdquo; to translate this scene&apos;s screenplay text into 4-6 camera angles, lenses, and blocking notes.
+                  </p>
+                  <Button
+                    size="sm"
+                    onClick={handleGenerateShotlist}
+                    className="text-xs gap-1.5 bg-accent text-accent-foreground cursor-pointer"
+                  >
+                    <Sparkles className="h-3 w-3" />
+                    Generate Scene Shot List
+                  </Button>
                 </div>
               )}
             </div>

@@ -20,6 +20,11 @@ AVAILABLE ACTIONS YOU CAN EMIT IN "actions":
 10. {"type": "update_scene_meta", "title": "...", "stakes": "..."}
 11. {"type": "auto_tidy_backlot"}
 12. {"type": "create_take_milestone", "title": "Milestone Title", "description": "..."}
+13. {"type": "create_scene", "title": "Scene Title", "slugline": "INT/EXT. LOCATION - DAY/NIGHT", "summary": "Dramatic stakes & narrative progression", "location": "Location Name", "castPresent": ["Character 1", "Character 2"], "durationSeconds": 180, "position": "end"|"start"|number, "screenplayText": "Screenplay content..."}
+14. {"type": "delete_scene", "sceneIdentifier": 2 (sceneNumber) | "scene-id" | "Scene Title"}
+15. {"type": "reorder_scenes", "sceneOrder": [2, 1, 3] (new chronological order of scene numbers, IDs, or titles)}
+16. {"type": "move_scene", "sceneIdentifier": 2, "targetIndex": 0, "direction": "up"|"down"}
+17. {"type": "update_scene", "sceneIdentifier": 2, "patch": {"title": "...", "slugline": "...", "summary": "...", "location": "...", "durationSeconds": 180, "castPresent": ["..."], "screenplayText": "..."}}
 
 OUTPUT FORMAT:
 You MUST respond with a single, valid, raw JSON object matching:

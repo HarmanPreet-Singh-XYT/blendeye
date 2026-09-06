@@ -3,8 +3,12 @@
 import * as React from "react";
 import { SlateLabel } from "@/components/cinema/slate-label";
 import { Badge } from "@/components/ui/badge";
-import { DollarSign, Calendar, Layers } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { DollarSign, Calendar, Layers, Sparkles, RefreshCw, Flame } from "lucide-react";
+import { toast } from "@/components/ui/toast";
+import { notifyIfFallback } from "@/lib/fallback-notice";
 import type { FilmScene } from "@/lib/project-store";
+import type { SceneProductionBreakdown, StripboardBreakdownResponse } from "@/lib/agent-service";
 
 interface StripboardScene {
   sceneNumber: string;
@@ -16,6 +20,8 @@ interface StripboardScene {
   stuntsOrFX: string;
   shootDay: number;
   isBridge?: boolean;
+  summary?: string;
+  screenplayText?: string;
 }
 
 interface StripboardViewProps {
@@ -35,6 +41,10 @@ export function StripboardView({
   className,
   projectId = "vault-heist-demo",
 }: StripboardViewProps) {
+  const [aiBreakdown, setAiBreakdown] = React.useState<Record<string, SceneProductionBreakdown>>({});
+  const [productionSummary, setProductionSummary] = React.useState<string>("");
+  const [isAuditing, setIsAuditing] = React.useState(false);
+
   const strips: StripboardScene[] = React.useMemo(() => {
     // 1. If multi-scene reel exists, map directly from scenes
     if (scenes && scenes.length > 0) {
@@ -55,9 +65,6 @@ export function StripboardView({
         });
         if (activeCast.length === 0) activeCast.push(1);
 
-        // Standard screenplay convention: ~1 page per minute of runtime.
-        // Derive whole pages + eighths directly from durationSeconds instead
-        // of a page count paired with an arbitrary index-based eighths value.
         const totalEighths = Math.max(1, Math.round(((sc.durationSeconds || 180) / 60) * 8));
         const pageWhole = Math.floor(totalEighths / 8);
         const pageEighths = totalEighths % 8;
@@ -67,8 +74,6 @@ export function StripboardView({
           sc.title?.toLowerCase().includes("bridge")
         );
 
-        // Detect FX/stunt/lighting cues from the actual scene text/summary
-        // rather than alternating a fixed pair of labels by index.
         const sceneText = `${sc.summary || ""} ${sc.screenplayText || ""}`.toLowerCase();
         const cueTags: string[] = [];
         if (/\b(explo|blast|gunfire|gunshot|crash|collision|fight|brawl|chase)\b/.test(sceneText)) {
@@ -91,6 +96,8 @@ export function StripboardView({
           stuntsOrFX: cueTags.length > 0 ? cueTags.join(", ") : "—",
           shootDay: Math.floor(idx / 2) + 1,
           isBridge,
+          summary: sc.summary || "",
+          screenplayText: sc.screenplayText || "",
         };
       });
     }
@@ -112,14 +119,11 @@ export function StripboardView({
           const timeRaw = match[3]?.trim().toUpperCase() || "NIGHT";
           const timeOfDay: "DAY" | "NIGHT" = timeRaw.includes("DAY") ? "DAY" : "NIGHT";
 
-          // Slice the raw text between this slugline and the next so page
-          // length and FX/stunt cues are derived from actual scene content.
           const blockStart = match.index + match[0].length;
           const blockEnd = idx + 1 < matches.length ? matches[idx + 1].index : screenplayText.length;
           const block = screenplayText.slice(blockStart, blockEnd);
           const blockLower = block.toLowerCase();
 
-          // Check which characters are active in this scene block
           const activeCast: number[] = [];
           characters.forEach((char, cIdx) => {
             if (block.toUpperCase().includes(char.name.toUpperCase())) {
@@ -128,7 +132,6 @@ export function StripboardView({
           });
           if (activeCast.length === 0) activeCast.push(1);
 
-          // ~1 page per 55 lines of screenplay text (standard estimate)
           const lineCount = Math.max(1, block.split("\n").filter((l) => l.trim()).length);
           const totalEighths = Math.max(1, Math.round((lineCount / 55) * 8));
           const pageWhole = Math.floor(totalEighths / 8);
@@ -154,12 +157,14 @@ export function StripboardView({
             castIds: activeCast,
             stuntsOrFX: cueTags.length > 0 ? cueTags.join(", ") : "—",
             shootDay: Math.floor(idx / 2) + 1,
+            summary: block.slice(0, 150),
+            screenplayText: block,
           };
         });
       }
     }
 
-    // 2. Project-specific fallbacks
+    // 3. Project-specific fallbacks
     if (projectId === "space-airlock-demo" || projectTitle.toLowerCase().includes("space")) {
       return [
         {
@@ -171,6 +176,7 @@ export function StripboardView({
           castIds: [1],
           stuntsOrFX: "Zero-G Wire Rig, Amber Strobe",
           shootDay: 1,
+          summary: "Astronaut scrambles through depressurizing tunnel as bulkheads seal.",
         },
         {
           sceneNumber: "02",
@@ -181,6 +187,7 @@ export function StripboardView({
           castIds: [1, 2],
           stuntsOrFX: "Depressurization Fog, Manual Purge Valve",
           shootDay: 1,
+          summary: "High-friction dispute over override sequence while pressure gauge drops.",
         },
         {
           sceneNumber: "03",
@@ -191,6 +198,7 @@ export function StripboardView({
           castIds: [2],
           stuntsOrFX: "Practical Specimen Pod, Shattered Acrylic",
           shootDay: 2,
+          summary: "Specimen containment breaches under emergency power fluctuation.",
         },
         {
           sceneNumber: "04",
@@ -201,6 +209,7 @@ export function StripboardView({
           castIds: [1, 2],
           stuntsOrFX: "Space Suit Rigging, Vacuum Purge Explosion",
           shootDay: 3,
+          summary: "Spacewalk tether severance under micrometeorite shower.",
         },
       ];
     }
@@ -216,6 +225,7 @@ export function StripboardView({
         castIds: characters.length > 0 ? [1] : [1, 2],
         stuntsOrFX: "Atmospheric Smoke, Getaway Staging",
         shootDay: 1,
+        summary: "Getaway van idles in rain slick alley as police sirens approach.",
       },
       {
         sceneNumber: "02",
@@ -226,6 +236,7 @@ export function StripboardView({
         castIds: characters.map((_, i) => i + 1),
         stuntsOrFX: "Sparks FX, Low-key Practical Key",
         shootDay: 1,
+        summary: "Thermal cutter breaches security grid as laser tripwires activate.",
       },
       {
         sceneNumber: "03",
@@ -236,6 +247,7 @@ export function StripboardView({
         castIds: characters.slice(0, 2).map((_, i) => i + 1),
         stuntsOrFX: "Electronic Timer Display, Hydraulic Locking Safe",
         shootDay: 2,
+        summary: "Double-cross revealed as vault timer counts down to nerve gas deployment.",
       },
       {
         sceneNumber: "04",
@@ -246,9 +258,78 @@ export function StripboardView({
         castIds: [1],
         stuntsOrFX: "Dawn Haze, Water Tank Footwork",
         shootDay: 3,
+        summary: "Lone survivor emerges into morning mist with the encrypted drive.",
       },
     ];
-  }, [projectId, projectTitle, screenplayText, characters]);
+  }, [projectId, projectTitle, screenplayText, characters, scenes]);
+
+  // Trigger Gemini production breakdown audit
+  const handleAuditProduction = React.useCallback(async () => {
+    if (isAuditing || strips.length === 0) return;
+    setIsAuditing(true);
+    try {
+      const payload = {
+        project_title: projectTitle,
+        genre: "Drama / Thriller",
+        scenes: strips.map((s) => ({
+          scene_number: s.sceneNumber,
+          setting: s.setting,
+          time_of_day: s.timeOfDay,
+          location: s.location,
+          summary: s.summary || "",
+          screenplay_text: s.screenplayText || "",
+        })),
+        raw_screenplay: screenplayText || "",
+      };
+
+      const res = await fetch("/api/production/stripboard-breakdown", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        const data: StripboardBreakdownResponse = await res.json();
+        const map: Record<string, SceneProductionBreakdown> = {};
+        if (Array.isArray(data.breakdown)) {
+          data.breakdown.forEach((b) => {
+            map[b.scene_number] = b;
+            const num = parseInt(b.scene_number, 10);
+            if (!isNaN(num)) {
+              map[String(num)] = b;
+              map[String(num).padStart(2, "0")] = b;
+            }
+          });
+        }
+        setAiBreakdown(map);
+        if (data.production_summary) {
+          setProductionSummary(data.production_summary);
+        }
+        notifyIfFallback(data, "Stripboard Logistics Breakdown");
+        toast.add({
+          title: "Shooting Logistics Audited",
+          description: `Analyzed stunts, atmospheric FX, and VFX tiers across ${strips.length} scenes.`,
+          type: "success",
+        });
+      }
+    } catch (err) {
+      console.error("Failed to audit production:", err);
+      toast.add({
+        title: "Production Audit Failed",
+        description: "Could not reach stripboard breakdown service.",
+        type: "error",
+      });
+    } finally {
+      setIsAuditing(false);
+    }
+  }, [isAuditing, strips, projectTitle, screenplayText]);
+
+  React.useEffect(() => {
+    if (strips.length > 0 && Object.keys(aiBreakdown).length === 0 && !isAuditing) {
+      handleAuditProduction();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [strips.length]);
 
   const castRoster = React.useMemo(() => {
     return characters.map((c, idx) => ({ id: idx + 1, name: c.name }));
@@ -263,17 +344,13 @@ export function StripboardView({
 
   const totalDays = Math.max(...strips.map((s) => s.shootDay), 1);
 
-  // Derived from the actual parsed strips rather than fixed literals: total
-  // page count (sum of eighths from each strip's slugline), and a
-  // transparent budget-per-shoot-day heuristic that's labeled as an
-  // estimate formula rather than presented as a fixed dollar figure.
   const totalEighths = strips.reduce((sum, s) => {
     const match = s.pages.match(/^(\d+)\s+(\d+)\/8$/);
     if (!match) return sum;
     return sum + Number(match[1]) * 8 + Number(match[2]);
   }, 0);
   const totalPages = Math.round((totalEighths / 8) * 10) / 10;
-  const BUDGET_PER_SHOOT_DAY_USD = 85_000; // indie/mid-tier per-day rate of thumb
+  const BUDGET_PER_SHOOT_DAY_USD = 85_000;
   const estimatedBudget = totalDays * BUDGET_PER_SHOOT_DAY_USD;
   const formattedBudget =
     estimatedBudget >= 1_000_000
@@ -291,9 +368,25 @@ export function StripboardView({
           </div>
           <span className="text-xs text-muted-foreground">{projectTitle} · Daily Call &amp; Strip Schedule</span>
         </div>
-        <Badge variant="outline" className="border-accent/40 bg-accent/10 text-accent text-[10px]">
-          {totalDays} Shoot Days · {strips.length} Slates Loaded
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleAuditProduction}
+            disabled={isAuditing}
+            className="h-7 text-xs gap-1.5 border-accent/40 bg-accent/5 hover:bg-accent/15 text-accent font-medium"
+          >
+            {isAuditing ? (
+              <RefreshCw className="h-3 w-3 animate-spin" />
+            ) : (
+              <Sparkles className="h-3 w-3" />
+            )}
+            <span>{isAuditing ? "Auditing Rigging..." : "Audit Cues (Gemini 3.7)"}</span>
+          </Button>
+          <Badge variant="outline" className="border-accent/40 bg-accent/10 text-accent text-[10px]">
+            {totalDays} Shoot Days · {strips.length} Slates Loaded
+          </Badge>
+        </div>
       </div>
 
       {/* Production KPIs */}
@@ -335,9 +428,20 @@ export function StripboardView({
             <span className="text-[10px] uppercase font-semibold">Shooting Strip Count</span>
           </div>
           <div className="text-base font-bold font-mono text-foreground">{strips.length} Strips</div>
-          <span className="text-[10px] text-muted-foreground block">Dynamic breakdown</span>
+          <span className="text-[10px] text-muted-foreground block">Dynamic 1st AD breakdown</span>
         </div>
       </div>
+
+      {/* 1st AD Summary Banner */}
+      {productionSummary && (
+        <div className="rounded-lg border border-accent/30 bg-accent/5 p-3 text-xs text-foreground/90 flex items-start gap-2.5">
+          <Sparkles className="h-4 w-4 text-accent shrink-0 mt-0.5" />
+          <div>
+            <span className="font-semibold text-accent block mb-0.5">1st AD Shooting Logistics &amp; Rigging Plan (Gemini 3.7)</span>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">{productionSummary}</p>
+          </div>
+        </div>
+      )}
 
       {/* Cast Numbers Reference Strip */}
       <div className="flex flex-wrap items-center gap-2 rounded-md bg-secondary/30 p-2 text-xs border border-border/50">
@@ -364,18 +468,21 @@ export function StripboardView({
               <th className="p-2.5 w-16">Time</th>
               <th className="p-2.5">Location Description</th>
               <th className="p-2.5 w-16 text-right">Pages</th>
-              <th className="p-2.5 w-24 text-center">Cast</th>
-              <th className="p-2.5">Stunts &amp; Special Effects</th>
+              <th className="p-2.5 w-20 text-center">Cast</th>
+              <th className="p-2.5 min-w-[200px]">Stunts &amp; Practical FX (Gemini 3.7)</th>
+              <th className="p-2.5 min-w-[220px]">VFX Tier &amp; Special Gear</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border/60 font-mono">
             {strips.map((strip, idx) => {
               const isNewDay = idx === 0 || strips[idx - 1].shootDay !== strip.shootDay;
+              const ai = aiBreakdown[strip.sceneNumber] || aiBreakdown[String(parseInt(strip.sceneNumber, 10))];
+
               return (
                 <React.Fragment key={strip.sceneNumber + idx}>
                   {isNewDay && (
                     <tr className="bg-accent/10 font-bold border-y border-accent/30 text-accent text-[10px]">
-                      <td colSpan={8} className="p-1.5 px-3">
+                      <td colSpan={9} className="p-1.5 px-3">
                         --- SHOOT DAY #{strip.shootDay} ---
                       </td>
                     </tr>
@@ -420,7 +527,79 @@ export function StripboardView({
                         ))}
                       </div>
                     </td>
-                    <td className="p-2.5 font-sans text-muted-foreground text-[11px]">{strip.stuntsOrFX}</td>
+                    <td className="p-2.5 font-sans text-xs">
+                      {ai ? (
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <Badge
+                              variant="outline"
+                              className={`text-[9px] py-0 px-1 font-mono uppercase ${
+                                ai.stunt_tier === "High"
+                                  ? "border-rose-500/50 bg-rose-500/15 text-rose-300"
+                                  : ai.stunt_tier === "Moderate"
+                                  ? "border-amber-500/50 bg-amber-500/15 text-amber-300"
+                                  : "border-border text-muted-foreground"
+                              }`}
+                            >
+                              {ai.stunt_tier !== "None" ? `Stunts: ${ai.stunt_tier}` : "No Stunts"}
+                            </Badge>
+                            {ai.practical_fx && ai.practical_fx !== "None" && (
+                              <span className="text-[10px] text-amber-300 font-mono flex items-center gap-1">
+                                <Flame className="h-2.5 w-2.5 shrink-0" />
+                                {ai.practical_fx}
+                              </span>
+                            )}
+                          </div>
+                          {ai.stunts && ai.stunts !== "None" && (
+                            <p className="text-[11px] text-muted-foreground line-clamp-2">{ai.stunts}</p>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground text-[11px]">{strip.stuntsOrFX}</span>
+                      )}
+                    </td>
+                    <td className="p-2.5 font-sans text-xs">
+                      {ai ? (
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <Badge
+                              variant="outline"
+                              className={`text-[9px] py-0 px-1 font-mono uppercase ${
+                                ai.vfx_tier === "Class A"
+                                  ? "border-purple-500/50 bg-purple-500/20 text-purple-300 font-bold"
+                                  : ai.vfx_tier === "Class B"
+                                  ? "border-cyan-500/50 bg-cyan-500/15 text-cyan-300"
+                                  : "border-border text-muted-foreground"
+                              }`}
+                            >
+                              {ai.vfx_tier !== "None" ? `VFX: ${ai.vfx_tier}` : "Zero VFX"}
+                            </Badge>
+                            {ai.complexity_rating > 2 && (
+                              <span className="text-[9px] font-mono text-muted-foreground">
+                                Risk Lvl {ai.complexity_rating}/5
+                              </span>
+                            )}
+                          </div>
+                          {ai.special_equipment && ai.special_equipment !== "Standard Package" && (
+                            <div className="text-[10px] text-cyan-300 font-mono truncate" title={ai.special_equipment}>
+                              Gear: {ai.special_equipment}
+                            </div>
+                          )}
+                          {ai.permits_and_hazards && (
+                            <div className="text-[10px] text-rose-300/90 font-mono truncate" title={ai.permits_and_hazards}>
+                              Permit: {ai.permits_and_hazards}
+                            </div>
+                          )}
+                          {ai.production_notes && (
+                            <p className="text-[10px] text-muted-foreground italic line-clamp-1" title={ai.production_notes}>
+                              AD: {ai.production_notes}
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground text-[11px] font-mono">Standard Package</span>
+                      )}
+                    </td>
                   </tr>
                 </React.Fragment>
               );
