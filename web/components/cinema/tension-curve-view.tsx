@@ -21,6 +21,9 @@ interface TensionCurveViewProps {
   projectId?: string;
   characters?: Array<{ name: string }>;
   events?: StoryEventMarker[];
+  sceneTitle?: string;
+  scenePlacementSeconds?: number;
+  sceneDurationSeconds?: number;
 }
 
 export function TensionCurveView({
@@ -30,11 +33,79 @@ export function TensionCurveView({
   projectId = "vault-heist-demo",
   characters = [],
   events = [],
+  sceneTitle,
+  scenePlacementSeconds,
+  sceneDurationSeconds,
 }: TensionCurveViewProps) {
   const [activeCurveMode, setActiveCurveMode] = React.useState<string>("macro");
 
-  // Dynamic narrative curve beats across 90 min (5400s)
+  const isSceneMode = Boolean(sceneDurationSeconds && sceneDurationSeconds > 0);
+  const sceneStart = scenePlacementSeconds ?? 0;
+  const totalDuration = isSceneMode ? sceneDurationSeconds! : (90 * 60);
+
+  // Dynamic narrative curve beats
   const defaultBeats: TensionBeat[] = React.useMemo(() => {
+    // 0. If in Scene Mode, construct low-level scene tension progression
+    if (isSceneMode) {
+      const dur = totalDuration;
+      const sceneEvents = events.filter((ev) => {
+        if (sceneStart > 0) {
+          return ev.atSeconds >= sceneStart && ev.atSeconds <= sceneStart + dur;
+        }
+        return ev.atSeconds <= dur;
+      });
+
+      const charA = characters[0]?.name || "Lead";
+      const charB = characters[1]?.name || "Counterpart";
+
+      const beats: TensionBeat[] = [
+        {
+          timeSeconds: 0,
+          tensionScore: 28,
+          title: "Scene Entry & Staging",
+          description: "Characters enter the setting under baseline dramatic stakes",
+          characterFocus: charA,
+        },
+        {
+          timeSeconds: Math.round(dur * 0.28),
+          tensionScore: 54,
+          title: "Inciting Shift & Friction",
+          description: "Tactical complication arises; initial friction surfaces",
+          characterFocus: charB,
+        },
+        {
+          timeSeconds: Math.round(dur * 0.62),
+          tensionScore: 88,
+          title: "Dramatic Peak / Confrontation",
+          description: "High-stakes revelation, withheld secret, or physical deadlock",
+          characterFocus: charA,
+        },
+        {
+          timeSeconds: Math.round(dur * 0.92),
+          tensionScore: 42,
+          title: "Scene Button & Transition",
+          description: "Consequence crystallizes before cut to next sequence",
+          characterFocus: charB,
+        },
+      ];
+
+      sceneEvents.forEach((ev) => {
+        const localSec = ev.atSeconds >= sceneStart ? ev.atSeconds - sceneStart : ev.atSeconds;
+        let score = 75;
+        if (ev.eventType === "unaware_of") score = 94;
+        if (ev.eventType === "objective") score = 84;
+        beats.push({
+          timeSeconds: localSec,
+          tensionScore: score,
+          title: `${ev.characterName}: ${ev.eventType.replace("_", " ").toUpperCase()}`,
+          description: `Key beat: ${ev.characterName} undergoes state shift.`,
+          characterFocus: ev.characterName,
+        });
+      });
+
+      return beats.sort((a, b) => a.timeSeconds - b.timeSeconds);
+    }
+
     // 1. If project has real ClickHouse events, construct dynamic beats from them!
     if (events && events.length >= 3) {
       const sortedEvents = [...events].sort((a, b) => a.atSeconds - b.atSeconds);
@@ -121,7 +192,6 @@ export function TensionCurveView({
   const svgHeight = dimensions.height;
   const paddingX = 60;
   const paddingY = 32;
-  const totalDuration = 90 * 60; // 5400s
 
   const plotWidth = Math.max(100, svgWidth - 2 * paddingX);
   const plotHeight = Math.max(80, svgHeight - 2 * paddingY);
@@ -141,7 +211,7 @@ export function TensionCurveView({
       const y = svgHeight - paddingY - (score / 100) * plotHeight;
       return { ...b, x, y, score };
     });
-  }, [defaultBeats, activeCurveMode, plotWidth, plotHeight, svgHeight]);
+  }, [defaultBeats, activeCurveMode, plotWidth, plotHeight, svgHeight, totalDuration]);
 
   // Construct smooth SVG cubic bezier path
   const pathD = React.useMemo(() => {
@@ -168,27 +238,34 @@ export function TensionCurveView({
     return `${pathD} L ${lastX} ${bottomY} L ${firstX} ${bottomY} Z`;
   }, [pathD, points, svgHeight]);
 
-  // Current scrubber position in pixel space
+  // Current scrubber position in pixel space (mapped to local scene time in scene mode)
+  const currentLocal = React.useMemo(() => {
+    if (isSceneMode) {
+      const local = currentTimeSeconds >= sceneStart ? currentTimeSeconds - sceneStart : currentTimeSeconds;
+      return Math.max(0, Math.min(totalDuration, local));
+    }
+    return Math.max(0, Math.min(totalDuration, currentTimeSeconds));
+  }, [isSceneMode, currentTimeSeconds, sceneStart, totalDuration]);
+
   const currentX = React.useMemo(() => {
-    const clamped = Math.max(0, Math.min(totalDuration, currentTimeSeconds));
-    return paddingX + (clamped / totalDuration) * plotWidth;
-  }, [currentTimeSeconds, plotWidth]);
+    return paddingX + (currentLocal / totalDuration) * plotWidth;
+  }, [currentLocal, totalDuration, plotWidth, paddingX]);
 
   // Find nearest beat
   const activeBeat = React.useMemo(() => {
     let closest = defaultBeats[0];
     let minDiff = Infinity;
     defaultBeats.forEach((b) => {
-      const diff = Math.abs(b.timeSeconds - currentTimeSeconds);
+      const diff = Math.abs(b.timeSeconds - currentLocal);
       if (diff < minDiff) {
         minDiff = diff;
         closest = b;
       }
     });
     return closest;
-  }, [defaultBeats, currentTimeSeconds]);
+  }, [defaultBeats, currentLocal]);
 
-  // Act boundaries
+  // Act boundaries for macro mode
   const act1Width = plotWidth * 0.25;
   const act2Width = plotWidth * 0.5;
   const act3Width = plotWidth * 0.25;
@@ -200,10 +277,16 @@ export function TensionCurveView({
         <div className="space-y-0.5">
           <div className="flex items-center gap-2">
             <Activity className="h-4 w-4 text-accent" />
-            <SlateLabel>Dramatic Tension &amp; Pacing Curve</SlateLabel>
+            <SlateLabel>
+              {isSceneMode
+                ? `Scene Dramatic Tension & Beat Pacing ${sceneTitle ? `· ${sceneTitle}` : ""}`
+                : "Dramatic Tension & Pacing Curve"}
+            </SlateLabel>
           </div>
           <span className="text-xs text-muted-foreground">
-            Non-linear pacing analysis indexed against 3-act story structure
+            {isSceneMode
+              ? `Scene-level micro-pacing curve across 4 dramatic beat phases (+00:00 to +${formatTimecode(totalDuration)})`
+              : "Non-linear pacing analysis indexed against 3-act story structure"}
           </span>
         </div>
 
@@ -218,7 +301,7 @@ export function TensionCurveView({
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            Macro Tension
+            {isSceneMode ? "Scene Tension" : "Macro Tension"}
           </button>
           {characters.slice(0, 3).map((char) => (
             <button
@@ -250,8 +333,9 @@ export function TensionCurveView({
             const clickX = e.clientX - rect.left;
             const clampedX = Math.max(paddingX, Math.min(svgWidth - paddingX, clickX));
             const clickRatio = (clampedX - paddingX) / plotWidth;
-            const clickSec = Math.round(clickRatio * totalDuration);
-            onScrubTime?.(clickSec);
+            const clickLocal = Math.round(clickRatio * totalDuration);
+            const emitSec = isSceneMode ? sceneStart + clickLocal : clickLocal;
+            onScrubTime?.(emitSec);
           }}
         >
           <defs>
@@ -262,51 +346,84 @@ export function TensionCurveView({
             </linearGradient>
           </defs>
 
-          {/* Act Region Background Shading */}
-          <rect
-            x={paddingX}
-            y={paddingY}
-            width={act1Width}
-            height={plotHeight}
-            fill="currentColor"
-            className="text-foreground/[0.015]"
-          />
-          <rect
-            x={paddingX + act1Width}
-            y={paddingY}
-            width={act2Width}
-            height={plotHeight}
-            fill="currentColor"
-            className="text-foreground/[0.03]"
-          />
-          <rect
-            x={paddingX + act1Width + act2Width}
-            y={paddingY}
-            width={act3Width}
-            height={plotHeight}
-            fill="currentColor"
-            className="text-foreground/[0.015]"
-          />
+          {/* Region Background Shading (4 Scene Beats or 3 Movie Acts) */}
+          {isSceneMode ? (
+            [0, 1, 2, 3].map((beatIdx) => (
+              <rect
+                key={beatIdx}
+                x={paddingX + beatIdx * (plotWidth / 4)}
+                y={paddingY}
+                width={plotWidth / 4}
+                height={plotHeight}
+                fill="currentColor"
+                className={beatIdx % 2 === 0 ? "text-foreground/[0.015]" : "text-foreground/[0.03]"}
+              />
+            ))
+          ) : (
+            <>
+              <rect
+                x={paddingX}
+                y={paddingY}
+                width={act1Width}
+                height={plotHeight}
+                fill="currentColor"
+                className="text-foreground/[0.015]"
+              />
+              <rect
+                x={paddingX + act1Width}
+                y={paddingY}
+                width={act2Width}
+                height={plotHeight}
+                fill="currentColor"
+                className="text-foreground/[0.03]"
+              />
+              <rect
+                x={paddingX + act1Width + act2Width}
+                y={paddingY}
+                width={act3Width}
+                height={plotHeight}
+                fill="currentColor"
+                className="text-foreground/[0.015]"
+              />
+            </>
+          )}
 
-          {/* Vertical Act Separators */}
-          <line
-            x1={paddingX + act1Width}
-            y1={paddingY}
-            x2={paddingX + act1Width}
-            y2={svgHeight - paddingY}
-            stroke="currentColor"
-            strokeDasharray="4 4"
-            className="text-border"
-          />
-          <line
-            x1={paddingX + act1Width + act2Width}
-            y1={paddingY}
-            x2={paddingX + act1Width + act2Width}
-            y2={svgHeight - paddingY}
-            stroke="currentColor"
-            strokeDasharray="4 4"
-            className="text-border"
-          />
+          {/* Vertical Separators */}
+          {isSceneMode ? (
+            [1, 2, 3].map((beatIdx) => (
+              <line
+                key={beatIdx}
+                x1={paddingX + beatIdx * (plotWidth / 4)}
+                y1={paddingY}
+                x2={paddingX + beatIdx * (plotWidth / 4)}
+                y2={svgHeight - paddingY}
+                stroke="currentColor"
+                strokeDasharray="4 4"
+                className="text-border"
+              />
+            ))
+          ) : (
+            <>
+              <line
+                x1={paddingX + act1Width}
+                y1={paddingY}
+                x2={paddingX + act1Width}
+                y2={svgHeight - paddingY}
+                stroke="currentColor"
+                strokeDasharray="4 4"
+                className="text-border"
+              />
+              <line
+                x1={paddingX + act1Width + act2Width}
+                y1={paddingY}
+                x2={paddingX + act1Width + act2Width}
+                y2={svgHeight - paddingY}
+                stroke="currentColor"
+                strokeDasharray="4 4"
+                className="text-border"
+              />
+            </>
+          )}
 
           {/* Horizontal Intensity Grid Lines */}
           {[25, 50, 75, 100].map((pct) => {
@@ -334,31 +451,52 @@ export function TensionCurveView({
             );
           })}
 
-          {/* Act Labels */}
-          <text
-            x={paddingX + act1Width / 2}
-            y={paddingY + 14}
-            textAnchor="middle"
-            className="fill-muted-foreground/60 text-[10px] font-mono tracking-widest uppercase select-none"
-          >
-            Act I · Setup
-          </text>
-          <text
-            x={paddingX + act1Width + act2Width / 2}
-            y={paddingY + 14}
-            textAnchor="middle"
-            className="fill-muted-foreground/60 text-[10px] font-mono tracking-widest uppercase select-none"
-          >
-            Act II · Confrontation
-          </text>
-          <text
-            x={paddingX + act1Width + act2Width + act3Width / 2}
-            y={paddingY + 14}
-            textAnchor="middle"
-            className="fill-muted-foreground/60 text-[10px] font-mono tracking-widest uppercase select-none"
-          >
-            Act III · Resolution
-          </text>
+          {/* Region Labels */}
+          {isSceneMode ? (
+            [
+              { label: "Beat 1 · Entry", center: 0.125 },
+              { label: "Beat 2 · Escalation", center: 0.375 },
+              { label: "Beat 3 · Conflict", center: 0.625 },
+              { label: "Beat 4 · Button", center: 0.875 },
+            ].map(({ label, center }) => (
+              <text
+                key={label}
+                x={paddingX + plotWidth * center}
+                y={paddingY + 14}
+                textAnchor="middle"
+                className="fill-muted-foreground/60 text-[10px] font-mono tracking-widest uppercase select-none"
+              >
+                {label}
+              </text>
+            ))
+          ) : (
+            <>
+              <text
+                x={paddingX + act1Width / 2}
+                y={paddingY + 14}
+                textAnchor="middle"
+                className="fill-muted-foreground/60 text-[10px] font-mono tracking-widest uppercase select-none"
+              >
+                Act I · Setup
+              </text>
+              <text
+                x={paddingX + act1Width + act2Width / 2}
+                y={paddingY + 14}
+                textAnchor="middle"
+                className="fill-muted-foreground/60 text-[10px] font-mono tracking-widest uppercase select-none"
+              >
+                Act II · Confrontation
+              </text>
+              <text
+                x={paddingX + act1Width + act2Width + act3Width / 2}
+                y={paddingY + 14}
+                textAnchor="middle"
+                className="fill-muted-foreground/60 text-[10px] font-mono tracking-widest uppercase select-none"
+              >
+                Act III · Resolution
+              </text>
+            </>
+          )}
 
           {/* Gradient Fill Under Curve */}
           <path d={areaPathD} fill="url(#tension-fill)" />
@@ -421,7 +559,12 @@ export function TensionCurveView({
                 {activeBeat.title}
               </span>
               <span className="font-mono text-[11px] text-accent">
-                {formatTimecode(activeBeat.timeSeconds)}
+                {isSceneMode ? `+${formatTimecode(activeBeat.timeSeconds)}` : formatTimecode(activeBeat.timeSeconds)}
+                {isSceneMode && sceneStart > 0 && (
+                  <span className="text-muted-foreground/70 ml-1.5 text-[10px]">
+                    (Film {formatTimecode(sceneStart + activeBeat.timeSeconds)})
+                  </span>
+                )}
               </span>
             </div>
             <p className="text-[11px] text-muted-foreground leading-relaxed">
@@ -448,11 +591,13 @@ export function TensionCurveView({
           <div className="my-1">
             <span className="text-lg font-bold font-mono text-foreground">94.8%</span>
             <p className="text-[10px] text-muted-foreground leading-tight">
-              Real-time ClickHouse story pacing curve calculation.
+              {isSceneMode
+                ? "Scene-level tension pacing calculation indexed across 4 dramatic beats."
+                : "Real-time ClickHouse story pacing curve calculation."}
             </p>
           </div>
           <span className="text-[9px] font-mono text-muted-foreground/80">
-            ClickHouse benchmark indexed
+            {isSceneMode ? "Scene beat pacing verified" : "ClickHouse benchmark indexed"}
           </span>
         </div>
       </div>

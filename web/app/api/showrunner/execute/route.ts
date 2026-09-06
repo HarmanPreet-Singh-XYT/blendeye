@@ -54,6 +54,8 @@ export async function POST(req: NextRequest) {
         nodes: project.nodes,
         edges: project.edges,
         history,
+        scenes: project.scenes,
+        activeSceneId: project.activeSceneId,
       });
 
       if (pythonRes && (pythonRes.actions || pythonRes.assistant_message)) {
@@ -92,18 +94,30 @@ export async function POST(req: NextRequest) {
           .join("\n")
       : "- No ClickHouse precedent rows available for this genre.";
 
+    const scenesList = Array.isArray(project.scenes) ? project.scenes : [];
+    const scenesContext = scenesList.length > 0
+      ? scenesList
+          .map(
+            (s: any, idx: number) =>
+              `  - Scene ${s.sceneNumber || idx + 1}: "${s.title || "Scene"}" (${s.slugline || ""}) | Duration: ${s.durationSeconds || 120}s | Cast: ${(s.castPresent || []).join(", ") || "None"} | Stakes: ${s.summary || "N/A"}${s.id === project.activeSceneId ? " [CURRENT ACTIVE SCENE]" : ""}`
+          )
+          .join("\n")
+      : "  - Single scene project";
+
     // Build comprehensive project context for Gemini
     const projectContext = `
 CURRENT PROJECT CONTEXT:
 - Title: ${project.title || "Untitled"}
 - Genre: ${project.genre || "Drama"}
 - Premise: ${project.premise || "N/A"}
-- Scene Title: ${project.sceneTitle || "Scene 01"}
-- Scene Stakes: ${project.sceneSummary || "N/A"}
+- Active Scene Title: ${project.sceneTitle || "Scene 01"}
+- Active Scene Stakes: ${project.sceneSummary || "N/A"}
 - Characters: ${(project.characters || []).map((c: any) => `${c.name} (${c.archetype}, ${c.role})`).join(", ") || "None"}
+- Multi-Scene Sequence Reel:
+${scenesContext}
 - Existing Nodes: ${(project.nodes || []).map((n: any) => `${n.id} (${n.type})`).join(", ")}
 - Existing Wires: ${(project.edges || []).map((e: any) => `${e.source} -> ${e.target} [${e.data?.relationship || "wire"}]`).join(", ")}
-- Screenplay Excerpt:
+- Active Scene Screenplay Excerpt:
 ${(project.screenplayText || "").slice(0, 1500) || "(No script drafted yet)"}
 
 CLICKHOUSE GROUNDING (real cinematic precedent benchmarks for this genre):

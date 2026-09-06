@@ -1482,10 +1482,19 @@ export function NewProjectDialog({
                 size="sm"
                 onClick={handleFinalSubmit}
                 disabled={isSubmitting || !title.trim() || !logline.trim()}
-                className="text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-md px-5 h-9"
+                className="text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-md px-5 h-9 cursor-pointer"
               >
-                <Zap className="h-4 w-4" />
-                Greenlight Production Slate
+                {isSubmitting ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    <span>Showrunner Agent Architecting Sequence...</span>
+                  </>
+                ) : (
+                  <>
+                    <Zap className="h-4 w-4" />
+                    <span>Greenlight Production Slate</span>
+                  </>
+                )}
               </Button>
             )}
           </div>

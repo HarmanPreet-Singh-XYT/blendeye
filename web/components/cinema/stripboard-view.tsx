@@ -4,6 +4,7 @@ import * as React from "react";
 import { SlateLabel } from "@/components/cinema/slate-label";
 import { Badge } from "@/components/ui/badge";
 import { DollarSign, Calendar, Layers } from "lucide-react";
+import type { FilmScene } from "@/lib/project-store";
 
 interface StripboardScene {
   sceneNumber: string;
@@ -14,12 +15,14 @@ interface StripboardScene {
   castIds: number[];
   stuntsOrFX: string;
   shootDay: number;
+  isBridge?: boolean;
 }
 
 interface StripboardViewProps {
   projectTitle: string;
   characters?: Array<{ name: string }>;
   screenplayText?: string;
+  scenes?: FilmScene[];
   className?: string;
   projectId?: string;
 }
@@ -28,11 +31,55 @@ export function StripboardView({
   projectTitle,
   characters = [],
   screenplayText = "",
+  scenes = [],
   className,
   projectId = "vault-heist-demo",
 }: StripboardViewProps) {
   const strips: StripboardScene[] = React.useMemo(() => {
-    // 1. Try parsing scenes directly from screenplay text
+    // 1. If multi-scene reel exists, map directly from scenes
+    if (scenes && scenes.length > 0) {
+      return scenes.map((sc, idx) => {
+        const slug = sc.slugline?.toUpperCase() || "INT. LOCATION - NIGHT";
+        const setting: "INT" | "EXT" = slug.includes("EXT") ? "EXT" : "INT";
+        const timeOfDay: "DAY" | "NIGHT" = slug.includes("DAY") ? "DAY" : "NIGHT";
+        const loc = sc.location?.toUpperCase() || sc.title.toUpperCase();
+
+        const activeCast: number[] = [];
+        characters.forEach((char, cIdx) => {
+          if (
+            (sc.castPresent && sc.castPresent.includes(char.name)) ||
+            (sc.screenplayText && sc.screenplayText.includes(char.name.toUpperCase()))
+          ) {
+            activeCast.push(cIdx + 1);
+          }
+        });
+        if (activeCast.length === 0) activeCast.push(1);
+
+        const pageEst = Math.max(1, Math.round((sc.durationSeconds || 180) / 60));
+        const isBridge = Boolean(
+          sc.isBridge ||
+          sc.id?.startsWith("bridge") ||
+          sc.title?.toLowerCase().includes("bridge")
+        );
+
+        return {
+          sceneNumber: String(sc.sceneNumber || idx + 1).padStart(2, "0"),
+          setting,
+          timeOfDay,
+          location: loc,
+          pages: `${pageEst} ${((idx * 3 + 2) % 8)}/8`,
+          castIds: activeCast,
+          stuntsOrFX:
+            idx % 2 === 0
+              ? "Practical Atmospheric FX, Stunt Rigging"
+              : "Chiaroscuro Practical Lighting",
+          shootDay: Math.floor(idx / 2) + 1,
+          isBridge,
+        };
+      });
+    }
+
+    // 2. Fallback to parsing scenes directly from screenplay text
     if (screenplayText && screenplayText.trim()) {
       const sluglineRegex = /(?:^|\n)(INT\.|EXT\.|INT\.\/EXT\.)\s+([^\n\-–]+)(?:[\-–]\s*([^\n]+))?/gi;
       const matches: RegExpExecArray[] = [];
@@ -295,14 +342,30 @@ export function StripboardView({
                   )}
                   <tr className={`hover:bg-secondary/20 transition-colors ${getStripColor(strip.setting, strip.timeOfDay)}`}>
                     <td className="p-2.5 font-bold text-muted-foreground">#{strip.shootDay}</td>
-                    <td className="p-2.5 font-bold text-foreground">{strip.sceneNumber}</td>
+                    <td className="p-2.5 font-bold text-foreground">
+                      <div className="flex items-center gap-1.5">
+                        <span>{strip.sceneNumber}</span>
+                        {strip.isBridge && (
+                          <span className="text-[9px] px-1 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40 font-mono font-normal">
+                            BRIDGE
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="p-2.5">
                       <span className="rounded px-1.5 py-0.5 text-[10px] font-bold border border-current/30">
                         {strip.setting}
                       </span>
                     </td>
                     <td className="p-2.5">{strip.timeOfDay}</td>
-                    <td className="p-2.5 font-sans font-medium text-foreground">{strip.location}</td>
+                    <td className="p-2.5 font-sans font-medium text-foreground">
+                      <span>{strip.location}</span>
+                      {strip.isBridge && (
+                        <span className="ml-2 text-[10px] text-purple-400 font-mono font-normal">
+                          · AI Connective Beat
+                        </span>
+                      )}
+                    </td>
                     <td className="p-2.5 text-right font-bold text-foreground">{strip.pages}</td>
                     <td className="p-2.5 text-center">
                       <div className="flex justify-center gap-1">

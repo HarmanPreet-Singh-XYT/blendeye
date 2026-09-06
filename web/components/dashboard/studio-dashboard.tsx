@@ -113,6 +113,7 @@ export function StudioDashboard() {
 
   // Dialog states
   const [newProjectOpen, setNewProjectOpen] = React.useState(false);
+  const [isGeneratingProject, setIsGeneratingProject] = React.useState(false);
   const [fusionOpen, setFusionOpen] = React.useState(false);
   const [toolboxOpen, setToolboxOpen] = React.useState(false);
   const [characterLabOpen, setCharacterLabOpen] = React.useState(false);
@@ -170,27 +171,77 @@ export function StudioDashboard() {
     return () => window.removeEventListener("agentic_cinema_auth_changed", handleAuthChange);
   }, [refreshProjects, user]);
 
-  // Handle New Project from dialog
-  const handleCreateNewProject = (data: NewProjectFormData) => {
-    const project = createNewProjectEntry({
-      userId: user?.id || undefined,
-      title: data.title,
-      logline: data.logline,
-      genre: data.genre,
-      characters: data.characters,
-      directorStyle: data.directorStyle,
-      coreSecret: data.coreSecret,
-      primaryLocation: data.primaryLocation,
-      targetTerritories: data.targetTerritories,
-      customCharacters: data.customCharacters,
-      narrativeFormat: data.narrativeFormat,
-      targetRuntimeMinutes: data.targetRuntimeMinutes,
-      scenePlacementSeconds: data.scenePlacementSeconds,
-      sceneDurationSeconds: data.sceneDurationSeconds,
-      totalScenesEstimate: data.totalScenesEstimate,
-    });
-    refreshProjects();
-    router.push(`/studio/${project.id}?pipeline=1`);
+  // Handle New Project from dialog with Autonomous AI Showrunner Sequence Architect
+  const handleCreateNewProject = async (data: NewProjectFormData) => {
+    setIsGeneratingProject(true);
+    try {
+      let genData: any = null;
+      try {
+        const genRes = await fetch("/api/project/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: data.title,
+            logline: data.logline,
+            genre: data.genre,
+            characters: data.characters,
+            customCharacters: data.customCharacters,
+            directorStyle: data.directorStyle,
+            coreSecret: data.coreSecret,
+            primaryLocation: data.primaryLocation,
+            targetTerritories: data.targetTerritories,
+            narrativeFormat: data.narrativeFormat,
+            targetRuntimeMinutes: data.targetRuntimeMinutes,
+          }),
+        });
+        if (genRes.ok) {
+          genData = await genRes.json();
+        }
+      } catch (e) {
+        console.warn("Showrunner AI sequence generation error, falling back:", e);
+      }
+
+      const project = createNewProjectEntry({
+        userId: user?.id || undefined,
+        title: data.title,
+        logline: data.logline,
+        genre: data.genre,
+        characters: data.characters,
+        directorStyle: data.directorStyle,
+        coreSecret: data.coreSecret,
+        primaryLocation: data.primaryLocation,
+        targetTerritories: data.targetTerritories,
+        customCharacters: data.customCharacters,
+        narrativeFormat: data.narrativeFormat,
+        targetRuntimeMinutes: data.targetRuntimeMinutes,
+        scenePlacementSeconds: data.scenePlacementSeconds,
+        sceneDurationSeconds: data.sceneDurationSeconds,
+        totalScenesEstimate: data.totalScenesEstimate,
+      });
+
+      if (genData?.scenes && Array.isArray(genData.scenes) && genData.scenes.length > 0) {
+        project.scenes = genData.scenes;
+        project.activeSceneId = genData.scenes[0].id;
+        project.sceneTitle = genData.scenes[0].title;
+        project.sceneSummary = genData.scenes[0].summary;
+        project.screenplayText = genData.scenes[0].screenplayText;
+        if (genData.scenes[0].location) {
+          project.primaryLocation = genData.scenes[0].location;
+        }
+      }
+      if (genData?.characters && Array.isArray(genData.characters) && genData.characters.length > 0) {
+        project.characters = genData.characters;
+      }
+
+      saveProject(project);
+      refreshProjects();
+      setNewProjectOpen(false);
+      router.push(`/studio/${project.id}`);
+    } catch (err) {
+      console.error("Failed to create project:", err);
+    } finally {
+      setIsGeneratingProject(false);
+    }
   };
 
   // Handle Starring
@@ -1012,6 +1063,7 @@ export function StudioDashboard() {
       <NewProjectDialog
         open={newProjectOpen}
         onOpenChange={setNewProjectOpen}
+        isSubmitting={isGeneratingProject}
         onSubmit={handleCreateNewProject}
       />
 

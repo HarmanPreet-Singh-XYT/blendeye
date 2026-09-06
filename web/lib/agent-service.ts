@@ -205,6 +205,8 @@ export interface ShowrunnerChatRequest {
   characters?: string[];
   message: string;
   history?: ShowrunnerMessage[];
+  scenes?: any[];
+  activeSceneId?: string;
 }
 
 export interface ShowrunnerChatResponse {
@@ -230,6 +232,8 @@ export function chatWithShowrunner(req: ShowrunnerChatRequest) {
     characters: req.characters ?? [],
     message: req.message,
     history: req.history ?? [],
+    scenes: req.scenes ?? [],
+    active_scene_id: req.activeSceneId ?? "",
   });
 }
 
@@ -243,6 +247,8 @@ export interface ExecuteDirectiveRequest {
   nodes?: any[];
   edges?: any[];
   history?: any[];
+  scenes?: any[];
+  activeSceneId?: string;
 }
 
 export function executeShowrunnerDirective(req: ExecuteDirectiveRequest) {
@@ -256,6 +262,8 @@ export function executeShowrunnerDirective(req: ExecuteDirectiveRequest) {
     nodes: req.nodes ?? [],
     edges: req.edges ?? [],
     history: req.history ?? [],
+    scenes: req.scenes ?? [],
+    active_scene_id: req.activeSceneId ?? "",
   });
 }
 

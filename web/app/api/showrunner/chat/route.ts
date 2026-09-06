@@ -60,6 +60,8 @@ export async function POST(req: NextRequest) {
       characters,
       message,
       history,
+      scenes: body.scenes || [],
+      activeSceneId: body.activeSceneId || "",
     });
 
     if (result && result.reply) {
@@ -89,12 +91,23 @@ export async function POST(req: NextRequest) {
         // Precedents optional
       }
 
+      const scenesList = Array.isArray(body.scenes) ? body.scenes : [];
+      const scenesContext = scenesList.length > 0
+        ? scenesList
+            .map(
+              (s: any, idx: number) =>
+                `- Scene ${s.sceneNumber || idx + 1}: "${s.title || "Scene"}" (${s.slugline || ""}) | Cast: ${(s.castPresent || []).join(", ") || "None"} | Stakes: ${s.summary || "N/A"}${s.id === body.activeSceneId ? " [CURRENT ACTIVE SCENE]" : ""}`
+            )
+            .join("\n")
+        : "";
+
       const contextHeader = `
 ACTIVE PRODUCTION SLATE:
 Title: ${body.projectTitle || "Untitled Project"}
 Premise / Logline: ${body.logline || "In ideation"}
 Genre: ${body.genre || "Drama / Thriller"}
 Characters: ${characters.length > 0 ? characters.join(", ") : "Ensemble"}
+${scenesContext ? `\nMULTI-SCENE SEQUENCE REEL:\n${scenesContext}\n` : ""}
 ${precedentsContext ? `\nGROUNDING BENCHMARKS:\n${precedentsContext}\n` : ""}
 ${body.screenplayText ? `\nCURRENT SCRIPT EXCERPT:\n${body.screenplayText.slice(0, 1000)}\n` : ""}
 `;

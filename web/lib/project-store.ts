@@ -360,6 +360,27 @@ export const GENRE_OPTIONS: GenreOption[] = [
   },
 ];
 
+export interface FilmScene {
+  id: string;
+  sceneNumber: number;
+  title: string;
+  slugline: string;
+  summary: string;
+  startSeconds: number;
+  durationSeconds: number;
+  location: string;
+  castPresent: string[]; // character names present in scene
+  castRoles?: Record<string, string>; // specific role/objective for each character in THIS scene (e.g. { "Elena": "Mastermind detailing infiltration", "Marcus": "Anxious driver questioning bypass" })
+  screenplayText: string;
+  directorStyle?: string;
+  coreSecret?: string;
+  floorPlanPreset?: string;
+  isBridge?: boolean;
+  nodes?: Node[];
+  edges?: Edge[];
+  events?: StoryEventMarker[];
+}
+
 export interface ProjectData {
   id: string;
   userId?: string;
@@ -371,6 +392,8 @@ export interface ProjectData {
   screenplayText: string;
   characters: ProjectCharacter[];
   initialEvents: StoryEventMarker[];
+  scenes?: FilmScene[];
+  activeSceneId?: string;
   nodes?: Node[];
   edges?: Edge[];
   createdAt: number;
@@ -517,6 +540,182 @@ Exactly where they need to be.`,
     coreSecret: "Elena swapped the physical security keys 10 minutes ago and is executing an unsanctioned secondary syndicate extraction.",
     primaryLocation: "Underground reinforced bank vault sub-level under emergency lighting",
     targetTerritories: ["US", "DE", "JP"],
+    scenes: [
+      {
+        id: "vault-sc-01",
+        sceneNumber: 1,
+        title: "The Roadside Briefing",
+        slugline: "INT. ROADSIDE DINER - RAINY NIGHT",
+        summary:
+          "Elena passes the vault blueprints to Marcus, assuring him the bypass keys are verified. Outside, Teo watches the street from the van.",
+        startSeconds: 12 * 60,
+        durationSeconds: 4 * 60,
+        location: "Roadside Diner Booth",
+        castPresent: ["Marcus", "Elena"],
+        castRoles: {
+          Marcus: "Anxious driver questioning security bypass and timetable",
+          Elena: "Mastermind detailing the sub-level entry route",
+        },
+        screenplayText: `INT. ROADSIDE DINER - RAINY NIGHT
+ 
+Rain lashes against greasy plate glass. Fluorescent tubes flicker with low electrical hums.
+ 
+ELENA slides a folded blueprint across the laminate table, tapping a gloved finger against a red grease-pencil circle.
+ 
+ELENA
+Sub-level four. The pneumatic locks disengage at midnight sharp. You grab the security bypass key from the staging locker.
+ 
+MARCUS
+(wiping condensation off his coffee cup)
+And what about the automated tripwires? If the mainframe detects resistance, those blast doors slam shut in twenty seconds.
+ 
+ELENA
+(voice calm, icy)
+There are no tripwires on the eastern duct, Marcus. Stick to the timetable, grab the lockboxes, and we walk out clean.
+ 
+MARCUS
+We trust Teo on perimeter?
+ 
+ELENA
+Teo knows his lane. Do you know yours?`,
+        events: [
+          { atSeconds: 12 * 60 + 30, characterName: "Marcus", eventType: "known_fact" },
+          { atSeconds: 13 * 60, characterName: "Elena", eventType: "known_fact" },
+          { atSeconds: 14 * 60, characterName: "Teo", eventType: "unaware_of" },
+        ],
+      },
+      {
+        id: "vault-sc-02",
+        sceneNumber: 2,
+        title: "The Getaway Prep",
+        slugline: "INT. TECH SURVEILLANCE VAN - NIGHT",
+        summary:
+          "Marcus preps the drills while Teo monitors transit radio chatter. Elena steps into the alley to take a mysterious encrypted call.",
+        startSeconds: 26 * 60,
+        durationSeconds: 5 * 60,
+        location: "Tech Surveillance Van",
+        castPresent: ["Marcus", "Teo"],
+        castRoles: {
+          Marcus: "Calibrating mag-drills with growing suspicion",
+          Teo: "Monitoring transit police scanner frequencies",
+        },
+        screenplayText: `INT. TECH SURVEILLANCE VAN - NIGHT
+ 
+Monitors glow green and monochrome. Radio static hiss fills the cramped cabin.
+ 
+TEO taps a bent matchstick against his teeth, his eyes scanning the transit band waveform.
+ 
+TEO
+Scanner is quiet. Transit patrol just passed Eighth Avenue. You've got an eighteen-minute window before shift change.
+ 
+MARCUS zips his olive canvas vest, checking the mag-drills with nervous hands.
+ 
+MARCUS
+Where's Elena?
+ 
+TEO
+Stepped down the alley. On the satellite phone.
+ 
+MARCUS
+(frowning)
+Who is she calling thirty minutes before a breach?
+ 
+TEO
+She didn't tell me, driver. And you know better than to ask Elena about her friends.`,
+        events: [
+          { atSeconds: 26 * 60 + 30, characterName: "Marcus", eventType: "known_fact" },
+          { atSeconds: 28 * 60, characterName: "Teo", eventType: "known_fact" },
+          { atSeconds: 29 * 60, characterName: "Marcus", eventType: "unaware_of" },
+        ],
+      },
+      {
+        id: "vault-sc-03",
+        sceneNumber: 3,
+        title: "The Vault Breach",
+        slugline: "INT. UNDERGROUND VAULT - NIGHT",
+        summary:
+          "Marcus searches his vest for the sub-level keys. Elena refuses to make eye contact while Teo watches the perimeter corridor.",
+        startSeconds: 34 * 60,
+        durationSeconds: 6 * 60,
+        location: "Underground reinforced bank vault sub-level under emergency lighting",
+        castPresent: ["Marcus", "Elena"],
+        castRoles: {
+          Marcus: "Frantically tearing through bags for missing bypass keys",
+          Elena: "Holding Marcus in place until syndicate extraction window arrives",
+        },
+        screenplayText: `INT. UNDERGROUND VAULT - NIGHT
+ 
+Thick reinforced steel. Blue auxiliary emergency lights hum.
+ 
+MARCUS (30s, nervous sweat soaking his collar) kneels before the primary lockboxes, hands frantically tearing through an olive canvas gear bag.
+ 
+MARCUS
+They're not here. Elena. The bypass keys. They're not in the bag.
+ 
+ELENA (40s, tailored dark coat, chillingly calm) stands over the electronic vault timer display. She doesn't turn around.
+ 
+ELENA
+Check the side pouch, Marcus.
+ 
+MARCUS
+I checked the pouch! I checked it twice! You were the last one at the service tunnel staging locker. Tell me you didn't leave them.
+ 
+ELENA
+(turning slowly, stone-faced)
+We have six minutes until the atmospheric vents cycle. Panic won't unlock that steel door.
+ 
+MARCUS
+(standing up, voice cracking)
+You're not answering me. Where are the keys, Elena?!
+ 
+ELENA
+Exactly where they need to be.`,
+        events: [
+          { atSeconds: 34 * 60, characterName: "Marcus", eventType: "unaware_of" },
+          { atSeconds: 34 * 60, characterName: "Elena", eventType: "known_fact" },
+          { atSeconds: 52 * 60, characterName: "Marcus", eventType: "known_fact" },
+        ],
+      },
+      {
+        id: "vault-sc-04",
+        sceneNumber: 4,
+        title: "The Police Interrogation",
+        slugline: "INT. PRECINCT INTERROGATION ROOM - DAWN",
+        summary:
+          "Detective interrogates Teo after intercepting the getaway perimeter. Teo realizes Elena sacrificed Marcus.",
+        startSeconds: 68 * 60,
+        durationSeconds: 5 * 60,
+        location: "Precinct Interrogation Room B",
+        castPresent: ["Teo"],
+        castRoles: {
+          Teo: "Detained perimeter driver realizing Elena's double-cross",
+        },
+        screenplayText: `INT. PRECINCT INTERROGATION ROOM - DAWN
+
+Cigarette smoke curls under harsh fluorescent strip light. Steel table scratched with old initials.
+
+TEO sits handcuffed to the chair loop, staring at two lukewarm cups of vending machine coffee.
+
+DETECTIVE (O.S.)
+Your driver Marcus is locked in a sub-basement vault twenty feet below ground. The oxygen scrubbers cut off four hours ago.
+
+TEO
+(jaw twitching)
+I was driving the perimeter route. You caught me on transit avenue. I never touched a lockbox.
+
+DETECTIVE (O.S.)
+Where did the woman go, Teo? Elena. Where is the syndicate extraction point?
+
+TEO
+(cold silence, eyes widening)
+She was on the phone... in the alley. She never planned to pick him up. She let you find me to give herself an exit.`,
+        events: [
+          { atSeconds: 68 * 60, characterName: "Teo", eventType: "location" },
+          { atSeconds: 70 * 60, characterName: "Teo", eventType: "known_fact" },
+        ],
+      },
+    ],
+    activeSceneId: "vault-sc-03",
     createdAt: 1725400000000,
     updatedAt: 1725400000000,
     isCustom: false,
@@ -603,6 +802,70 @@ Commander... what came through the vents wasn't air.`,
     coreSecret: "Ray manually bypassed the quarantine protocol to conceal a classified bio-specimen extraction.",
     primaryLocation: "Orbital research module airlock corridor under zero gravity",
     targetTerritories: ["US", "KR", "DE"],
+    scenes: [
+      {
+        id: "space-sc-01",
+        sceneNumber: 1,
+        title: "Telemetry Drop",
+        slugline: "INT. COMMAND BRIDGE - ZERO GRAVITY",
+        summary: "Vance detects sudden atmospheric decompression in Module 4 on main station sensors.",
+        startSeconds: 4 * 60,
+        durationSeconds: 3 * 60,
+        location: "Station Command Bridge",
+        castPresent: ["Vance"],
+        screenplayText: `INT. COMMAND BRIDGE - ZERO GRAVITY
+
+Red ambient alert banners scroll across the command canopy.
+
+VANCE floats before the master environmental matrix, tapping through telemetry channels.
+
+VANCE
+Computer. Verify seal status on research bay four.
+
+AUTOMATED VOICE (V.O.)
+Decompression cycle active. Oxygen depletion at forty-two percent. Station manual override initiated from within module.
+
+VANCE
+(unclipping safety tether)
+Who is logged in that section?
+
+AUTOMATED VOICE (V.O.)
+Senior Engineer Ray. Access granted two minutes prior.`,
+      },
+      {
+        id: "space-sc-02",
+        sceneNumber: 2,
+        title: "Module 4 Airlock Confrontation",
+        slugline: "INT. ORBITAL RESEARCH MODULE - ZERO GRAVITY",
+        summary:
+          "Vance interrogates Engineer Ray as pressure drops. Ray insists he was in hydroponics, but the access log says otherwise.",
+        startSeconds: 12 * 60,
+        durationSeconds: 4 * 60,
+        location: "Orbital research module airlock corridor under zero gravity",
+        castPresent: ["Vance", "Ray"],
+        screenplayText: `INT. ORBITAL RESEARCH MODULE - ZERO GRAVITY
+
+Emergency amber sirens pulse in vacuum silence. Debris drifts through the corridor.
+
+COMMANDER VANCE (50s, battle-hardened, tethered to the guide rail) pulls himself towards the airlock manual override console.
+
+VANCE
+Airlock Three seal integrity compromised. Manual override switch flipped from the inside. Ray, report your station!
+
+ENGINEER RAY (30s, frantic breathing into comms headset) clings to the environmental monitoring terminal.
+
+RAY
+I'm at hydroponics, Commander! The readouts are glitching out. It wasn't me!
+
+VANCE
+(checking the digital biometric console)
+Biometric signature at zero-two-hundred: Ray, David J. Don't lie to me while oxygen is dropping. What did you open?!
+
+RAY
+Commander... what came through the vents wasn't air.`,
+      },
+    ],
+    activeSceneId: "space-sc-02",
     createdAt: 1725400100000,
     updatedAt: 1725400100000,
     isCustom: false,
@@ -696,27 +959,71 @@ export function getScratchpadStorageKey(userId?: string | null): string {
 }
 
 /**
+ * Ensures a project has its `scenes` array and `activeSceneId` set.
+ * If missing, falls back to seed preset or wraps single scene.
+ */
+export function ensureProjectScenes(project: ProjectData): ProjectData {
+  if (project.scenes && project.scenes.length > 0) {
+    if (!project.activeSceneId || !project.scenes.some((s) => s.id === project.activeSceneId)) {
+      project.activeSceneId = project.scenes[0].id;
+    }
+    return project;
+  }
+
+  // Check if seed project has rich multi-scenes
+  const seed = SEED_PROJECTS.find((p) => p.id === project.id);
+  if (seed?.scenes && seed.scenes.length > 0) {
+    project.scenes = seed.scenes;
+    project.activeSceneId = seed.activeSceneId || seed.scenes[0].id;
+    return project;
+  }
+
+  // Auto-wrap legacy single-scene into an array
+  const defaultScene: FilmScene = {
+    id: `${project.id}-sc-01`,
+    sceneNumber: 1,
+    title: project.sceneTitle || "Scene 01",
+    slugline: project.primaryLocation || "INT. PRIMARY LOCATION - DAY",
+    summary: project.sceneSummary || "",
+    startSeconds: project.scenePlacementSeconds ?? 1800,
+    durationSeconds: project.sceneDurationSeconds ?? 180,
+    location: project.primaryLocation || "Primary Stage",
+    castPresent: project.characters.map((c) => c.name),
+    screenplayText: project.screenplayText || "",
+    directorStyle: project.directorStyle,
+    coreSecret: project.coreSecret,
+    nodes: project.nodes,
+    edges: project.edges,
+    events: project.initialEvents,
+  };
+
+  project.scenes = [defaultScene];
+  project.activeSceneId = defaultScene.id;
+  return project;
+}
+
+/**
  * Loads all projects from localStorage for the active account (merging with seed presets if blank).
  */
 export function getAllProjects(): ProjectData[] {
-  if (typeof window === "undefined") return SEED_PROJECTS;
+  if (typeof window === "undefined") return SEED_PROJECTS.map(ensureProjectScenes);
   try {
     const key = getProjectsStorageKey();
     const raw = localStorage.getItem(key);
     if (!raw) {
       localStorage.setItem(key, JSON.stringify(SEED_PROJECTS));
-      return SEED_PROJECTS;
+      return SEED_PROJECTS.map(ensureProjectScenes);
     }
     const parsed = JSON.parse(raw) as ProjectData[];
     // Ensure seed projects are accessible for exploration if list is completely empty
     if (parsed.length === 0) {
       localStorage.setItem(key, JSON.stringify(SEED_PROJECTS));
-      return SEED_PROJECTS;
+      return SEED_PROJECTS.map(ensureProjectScenes);
     }
-    return parsed;
+    return parsed.map(ensureProjectScenes);
   } catch (err) {
     console.error("Failed to load projects from localStorage:", err);
-    return SEED_PROJECTS;
+    return SEED_PROJECTS.map(ensureProjectScenes);
   }
 }
 
@@ -726,9 +1033,9 @@ export function getAllProjects(): ProjectData[] {
 export function getProjectById(id: string): ProjectData | null {
   const all = getAllProjects();
   const found = all.find((p) => p.id === id);
-  if (found) return found;
+  if (found) return ensureProjectScenes(found);
   const seed = SEED_PROJECTS.find((p) => p.id === id);
-  return seed || null;
+  return seed ? ensureProjectScenes(seed) : null;
 }
 
 /**
@@ -1152,15 +1459,89 @@ export function createNewProjectEntry(data: CreateProjectOptions): ProjectData {
   const placementSecs = data.scenePlacementSeconds ?? 0;
   const totalScenes = data.totalScenesEstimate || Math.round(runtimeMins / 3);
 
+  const loc = data.primaryLocation ? data.primaryLocation.trim() : "Operational Hub";
+  const locUpper = loc.toUpperCase();
+  const c1 = initialChars[0]?.name || "Lead";
+  const c2 = initialChars[1]?.name || "Counterpart";
+  const totalRuntimeSec = runtimeMins * 60;
+
+  const defaultScenes: FilmScene[] = [
+    {
+      id: `${newPid}-sc-01`,
+      sceneNumber: 1,
+      title: `Rendezvous at ${loc}`,
+      slugline: `INT. ${locUpper} - NIGHT`,
+      summary: `${c1} initiates the operation. High stakes unfold as ${data.logline.trim()}`,
+      location: loc,
+      startSeconds: Math.round(totalRuntimeSec * 0.08),
+      durationSeconds: 240,
+      castPresent: initialChars.slice(0, 2).map((c) => c.name),
+      castRoles: {
+        [c1]: `Drive the objective: ${data.logline.trim().slice(0, 80)}`,
+        [c2]: "Establish operational perimeter and verify the timeline",
+      },
+      screenplayText: `INT. ${locUpper} - NIGHT\n\nRain washes down the reinforced glass panes. The room sits under cool amber shadows.\n\n${c1.toUpperCase()}\nWe stick to the timetable. No variations.\n\n${c2.toUpperCase()}\nAnd if the security relay doesn't cycle on mark?\n\n${c1.toUpperCase()}\nIt will. As long as you hold your position.`,
+    },
+    {
+      id: `${newPid}-sc-02`,
+      sceneNumber: 2,
+      title: "The Covert Breach & Asymmetric Shift",
+      slugline: `INT. ${locUpper} RESTRICTED ACCESS - NIGHT`,
+      summary: `Midpoint tension escalates. ${data.coreSecret ? `The hidden secret (${data.coreSecret}) creates friction.` : "Discrepancies in the intel threaten to compromise the entire mission."}`,
+      location: `${loc} - Restricted Sector`,
+      startSeconds: Math.round(totalRuntimeSec * 0.42),
+      durationSeconds: 300,
+      castPresent: initialChars.map((c) => c.name),
+      castRoles: {
+        [c1]: "Bypassing the primary security barrier under escalating clock pressure",
+        [c2]: data.coreSecret ? `Guarding the truth regarding: ${data.coreSecret}` : "Monitoring external security feeds and raising alarm",
+      },
+      screenplayText: `INT. ${locUpper} RESTRICTED ACCESS - NIGHT\n\nRed emergency strobes illuminate polished metal corridors.\n\n${c2.toUpperCase()}\n(low, urgent whisper)\nThe telemetry is wrong. Someone altered the cipher before we touched the terminal.\n\n${c1.toUpperCase()}\nKeep moving. We don't turn back now.`,
+    },
+    {
+      id: `${newPid}-sc-03`,
+      sceneNumber: 3,
+      title: "Point of No Return: Central Confrontation",
+      slugline: `INT. ${locUpper} INNER SANCTUM - NIGHT`,
+      summary: "The mission reaches crisis. The team confronts the ultimate consequence of their choices.",
+      location: `${loc} - Inner Sanctum`,
+      startSeconds: Math.round(totalRuntimeSec * 0.72),
+      durationSeconds: 360,
+      castPresent: initialChars.slice(0, 2).map((c) => c.name),
+      castRoles: {
+        [c1]: "Executing the decisive maneuver to secure the asset",
+        [c2]: "Forcing a confrontation over the concealed motive",
+      },
+      screenplayText: `INT. ${locUpper} INNER SANCTUM - NIGHT\n\nHydraulic blast doors slam shut, sealing the perimeter. Klaxons howl.\n\n${c2.toUpperCase()}\nYou knew this was a one-way trip.\n\n${c1.toUpperCase()}\n(eyes steady, weapon drawn)\nI knew what the objective required. Step aside.`,
+    },
+    {
+      id: `${newPid}-sc-04`,
+      sceneNumber: 4,
+      title: "Extraction & Reckoning",
+      slugline: "EXT. PERIMETER EXTRACTION POINT - DAWN",
+      summary: "Dawn breaks over the aftermath. The truth is revealed and the cost of the operation is tallied.",
+      location: "Perimeter Extraction Point",
+      startSeconds: Math.round(totalRuntimeSec * 0.88),
+      durationSeconds: 240,
+      castPresent: [c1],
+      castRoles: {
+        [c1]: "Securing extraction transport while absorbing the moral gravity of what took place",
+      },
+      screenplayText: `EXT. PERIMETER EXTRACTION POINT - DAWN\n\nMorning fog rolls across the gray tarmac. Sirens echo in the far distance.\n\nAn unmarked transport idles at the boundary line. ${c1.toUpperCase()} steps forward, holding the hard drive case. Pauses. Glances back at the skyline one last time before stepping into the shadows.`,
+    },
+  ];
+
   const newProject: ProjectData = {
     id: newPid,
     userId: activeUid || undefined,
     title: data.title.trim(),
     genre: data.genre || "Drama / Thriller",
     premise: data.logline.trim(),
-    sceneTitle: `${data.title.trim()} — Opening Scene`,
-    sceneSummary: data.logline.trim(),
-    screenplayText: "",
+    scenes: defaultScenes,
+    activeSceneId: defaultScenes[0].id,
+    sceneTitle: defaultScenes[0].title,
+    sceneSummary: defaultScenes[0].summary,
+    screenplayText: defaultScenes[0].screenplayText,
     characters: initialChars,
     initialEvents: [],
     createdAt: Date.now(),

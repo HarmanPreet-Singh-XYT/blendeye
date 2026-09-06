@@ -24,6 +24,8 @@ class ShowrunnerChatRequest(BaseModel):
     characters: list[dict | str | Any] = Field(default_factory=list)
     message: str
     history: list[dict | ShowrunnerMessage | Any] = Field(default_factory=list)
+    scenes: list[dict | Any] = Field(default_factory=list)
+    active_scene_id: str = ""
 
 
 class PrecedentItem(BaseModel):
@@ -79,11 +81,19 @@ async def chat_with_showrunner(body: ShowrunnerChatRequest) -> ShowrunnerChatRes
 
     has_project = bool(body.project_title and body.project_title != "Untitled Feature")
 
+    scenes_summary = ""
+    if body.scenes:
+        scenes_summary = "MULTI-SCENE SEQUENCE REEL:\n" + "\n".join(
+            f"- Scene {s.get('sceneNumber', i+1)}: \"{s.get('title', 'Scene')}\" ({s.get('slugline', '')}) | Cast: {', '.join(s.get('castPresent', [])) or 'None'} | Stakes: {s.get('summary', 'N/A')}{' [CURRENT ACTIVE SCENE]' if s.get('id') == body.active_scene_id else ''}"
+            for i, s in enumerate(body.scenes)
+        )
+
     context_header = f"""
 PROJECT CONTEXT:
 Title: {body.project_title if has_project else "(No project initialized yet - in ideation / brainstorming)"}
 Logline: {body.logline if body.logline else "In open creative ideation"}
 Characters: {", ".join(character_names) if character_names else "To be discovered in conversation"}
+{scenes_summary}
 {f"CLICKHOUSE GROUNDING TELEMETRY:\n{precedent_context}" if has_project and precedent_context else ""}
 {f"CURRENT SCRIPT EXCERPT:\n{body.screenplay_text}" if body.screenplay_text else ""}
 ---
@@ -148,6 +158,8 @@ class ExecuteDirectiveRequest(BaseModel):
     nodes: list[dict] = Field(default_factory=list)
     edges: list[dict] = Field(default_factory=list)
     history: list[dict] = Field(default_factory=list)
+    scenes: list[dict | Any] = Field(default_factory=list)
+    active_scene_id: str = ""
 
 
 class ExecuteDirectiveResponse(BaseModel):
@@ -177,6 +189,13 @@ async def execute_showrunner_directive(body: ExecuteDirectiveRequest) -> Execute
         for p in precedents
     ) if precedents else "- No ClickHouse precedent rows available for this genre."
 
+    scenes_summary = ""
+    if body.scenes:
+        scenes_summary = "Sequence Reel:\n" + "\n".join(
+            f"  - Scene {s.get('sceneNumber', i+1)}: \"{s.get('title', 'Scene')}\" ({s.get('slugline', '')}) | Cast: {', '.join(s.get('castPresent', [])) or 'None'} | Stakes: {s.get('summary', 'N/A')}{' [CURRENT ACTIVE SCENE]' if s.get('id') == body.active_scene_id else ''}"
+            for i, s in enumerate(body.scenes)
+        )
+
     prompt = f"""
 You are the Omniscient Studio Executive AI & Lead Showrunner for an elite Hollywood production studio.
 You have FULL CREATIVE AND EXECUTIVE AUTHORITY over the entire film project.
@@ -201,9 +220,10 @@ Title: {body.project_title or "Untitled"}
 Genre: {body.genre or "Drama"}
 Logline: {body.logline or "Unspecified"}
 Characters: {[c.get('name') for c in body.characters]}
+{scenes_summary}
 Nodes: {[n.get('id') for n in body.nodes]}
 Edges: {[f"{e.get('source')}->{e.get('target')}" for e in body.edges]}
-Script Excerpt: {body.screenplay_text[:1200] if body.screenplay_text else "(No script drafted yet)"}
+Active Scene Script Excerpt: {body.screenplay_text[:1200] if body.screenplay_text else "(No script drafted yet)"}
 
 CLICKHOUSE GROUNDING TELEMETRY (REAL CINEMATIC PRECEDENTS & RETENTION BENCHMARKS):
 {precedent_context}

@@ -53,6 +53,8 @@ function HotSeatChat({
   isAsking = false,
   suggestedQuestions = [],
   className,
+  activeSceneTitle,
+  isCastPresentInScene,
 }: {
   characterName: string;
   characterArchetype?: string;
@@ -64,6 +66,8 @@ function HotSeatChat({
   isAsking?: boolean;
   suggestedQuestions?: string[];
   className?: string;
+  activeSceneTitle?: string;
+  isCastPresentInScene?: boolean;
 }) {
   const [draft, setDraft] = React.useState("");
   const [insertedIndex, setInsertedIndex] = React.useState<number | null>(null);
@@ -98,6 +102,29 @@ function HotSeatChat({
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-foreground">{characterName}</span>
             <SlateLabel>Hot seat</SlateLabel>
+            {activeSceneTitle && (
+              <span
+                className={cn(
+                  "rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors flex items-center gap-1.5",
+                  isCastPresentInScene === false
+                    ? "border-amber-500/40 bg-amber-500/10 text-amber-400"
+                    : "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
+                )}
+                title={
+                  isCastPresentInScene === false
+                    ? `${characterName} is NOT present in "${activeSceneTitle}". Knowledge is bounded by the asymmetric firewall.`
+                    : `${characterName} is actively present in "${activeSceneTitle}".`
+                }
+              >
+                <span
+                  className={cn(
+                    "h-1.5 w-1.5 rounded-full",
+                    isCastPresentInScene === false ? "bg-amber-400" : "bg-emerald-400 animate-pulse"
+                  )}
+                />
+                {isCastPresentInScene === false ? `Off-Stage (${activeSceneTitle})` : `In Scene: ${activeSceneTitle}`}
+              </span>
+            )}
           </div>
           {characterArchetype && (
             <span className="text-xs text-muted-foreground line-clamp-1">{characterArchetype}</span>

@@ -18,31 +18,82 @@ import {
   type NewProjectFormData,
 } from "@/components/cinema/new-project-dialog";
 import { FilmFusionDialog } from "@/components/cinema/film-fusion-dialog";
-import { createNewProjectEntry } from "@/lib/project-store";
+import { createNewProjectEntry, saveProject } from "@/lib/project-store";
 
 export default function FilmHubLandingPage() {
   const router = useRouter();
   const [newProjectOpen, setNewProjectOpen] = React.useState(false);
+  const [isGeneratingProject, setIsGeneratingProject] = React.useState(false);
   const [fusionOpen, setFusionOpen] = React.useState(false);
 
-  const handleCreateProject = (data: NewProjectFormData) => {
-    const project = createNewProjectEntry({
-      title: data.title,
-      logline: data.logline,
-      genre: data.genre,
-      characters: data.characters,
-      directorStyle: data.directorStyle,
-      coreSecret: data.coreSecret,
-      primaryLocation: data.primaryLocation,
-      targetTerritories: data.targetTerritories,
-      customCharacters: data.customCharacters,
-      narrativeFormat: data.narrativeFormat,
-      targetRuntimeMinutes: data.targetRuntimeMinutes,
-      scenePlacementSeconds: data.scenePlacementSeconds,
-      sceneDurationSeconds: data.sceneDurationSeconds,
-      totalScenesEstimate: data.totalScenesEstimate,
-    });
-    router.push(`/studio/${project.id}?pipeline=1`);
+  const handleCreateProject = async (data: NewProjectFormData) => {
+    setIsGeneratingProject(true);
+    try {
+      let genData: any = null;
+      try {
+        const genRes = await fetch("/api/project/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: data.title,
+            logline: data.logline,
+            genre: data.genre,
+            characters: data.characters,
+            customCharacters: data.customCharacters,
+            directorStyle: data.directorStyle,
+            coreSecret: data.coreSecret,
+            primaryLocation: data.primaryLocation,
+            targetTerritories: data.targetTerritories,
+            narrativeFormat: data.narrativeFormat,
+            targetRuntimeMinutes: data.targetRuntimeMinutes,
+          }),
+        });
+        if (genRes.ok) {
+          genData = await genRes.json();
+        }
+      } catch (e) {
+        console.warn("Showrunner AI sequence generation error, falling back:", e);
+      }
+
+      const project = createNewProjectEntry({
+        title: data.title,
+        logline: data.logline,
+        genre: data.genre,
+        characters: data.characters,
+        directorStyle: data.directorStyle,
+        coreSecret: data.coreSecret,
+        primaryLocation: data.primaryLocation,
+        targetTerritories: data.targetTerritories,
+        customCharacters: data.customCharacters,
+        narrativeFormat: data.narrativeFormat,
+        targetRuntimeMinutes: data.targetRuntimeMinutes,
+        scenePlacementSeconds: data.scenePlacementSeconds,
+        sceneDurationSeconds: data.sceneDurationSeconds,
+        totalScenesEstimate: data.totalScenesEstimate,
+      });
+
+      if (genData?.scenes && Array.isArray(genData.scenes) && genData.scenes.length > 0) {
+        project.scenes = genData.scenes;
+        project.activeSceneId = genData.scenes[0].id;
+        project.sceneTitle = genData.scenes[0].title;
+        project.sceneSummary = genData.scenes[0].summary;
+        project.screenplayText = genData.scenes[0].screenplayText;
+        if (genData.scenes[0].location) {
+          project.primaryLocation = genData.scenes[0].location;
+        }
+      }
+      if (genData?.characters && Array.isArray(genData.characters) && genData.characters.length > 0) {
+        project.characters = genData.characters;
+      }
+
+      saveProject(project);
+      setNewProjectOpen(false);
+      router.push(`/studio/${project.id}`);
+    } catch (err) {
+      console.error("Failed to create project:", err);
+    } finally {
+      setIsGeneratingProject(false);
+    }
   };
 
   return (
@@ -93,6 +144,7 @@ export default function FilmHubLandingPage() {
       <NewProjectDialog
         open={newProjectOpen}
         onOpenChange={setNewProjectOpen}
+        isSubmitting={isGeneratingProject}
         onSubmit={handleCreateProject}
       />
 
