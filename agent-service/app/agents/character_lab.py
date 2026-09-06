@@ -51,6 +51,41 @@ without changing the underlying plot intention.
 Output ONLY the revised dialogue lines with parentheticals if needed.
 """
 
+ENSEMBLE_SYNTHESIS_INSTRUCTION = """
+You are an elite Hollywood casting director building a two-character ensemble
+for a new film project. Given a genre and a premise/logline, invent two
+distinct, three-dimensional characters whose objectives and psychologies
+create dramatic friction with each other.
+
+Output ONLY valid JSON matching this exact schema (no markdown, no preamble):
+{
+  "characters": [
+    {
+      "name": "Character Name",
+      "role": "Dramatic role, e.g. Lead Protagonist",
+      "archetype": "Concise archetype description",
+      "speechStyle": "Cadence, sentence length, vocabulary rules",
+      "subtextRatio": "low | moderate | high | extreme",
+      "confidence": 0-100,
+      "verbalPacing": 0-100,
+      "objective": "Central dramatic desire, specific to the premise",
+      "quirks": ["Behavioral tic 1", "Behavioral tic 2"]
+    }
+  ]
+}
+Exactly two characters. Ground both characters and their objectives in the
+specific genre and premise given — do not use generic filler.
+"""
+
+
+def build_ensemble_synthesizer_agent() -> Agent:
+    settings = get_settings()
+    return Agent(
+        name="ensemble_character_synthesizer",
+        model=settings.gemini_model,
+        instruction=ENSEMBLE_SYNTHESIS_INSTRUCTION,
+    )
+
 
 def build_character_synthesizer_agent() -> Agent:
     settings = get_settings()

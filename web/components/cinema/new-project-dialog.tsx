@@ -44,6 +44,8 @@ import {
   NARRATIVE_FORMATS,
 } from "@/lib/project-store";
 import { useAuth } from "@/lib/auth-context";
+import { toast } from "@/components/ui/toast";
+import { notifyIfFallback } from "@/lib/fallback-notice";
 
 export interface NewProjectFormData {
   title: string;
@@ -314,6 +316,7 @@ export function NewProjectDialog({
   };
 
   const [isGeneratingVisual, setIsGeneratingVisual] = React.useState(false);
+  const [isMatchingGenre, setIsMatchingGenre] = React.useState(false);
 
   const handleGenerateCharacterVisual = async () => {
     if (!activeChar || isGeneratingVisual) return;
@@ -902,18 +905,55 @@ export function NewProjectDialog({
                       type="button"
                       size="sm"
                       variant="ghost"
-                      onClick={() => {
-                        const dynamicChars = synthesizeDynamicCharacters(effectiveGenre, logline);
-                        if (dynamicChars.length > 0) {
-                          setCharactersList(dynamicChars);
-                          setSelectedCharIdx(0);
+                      disabled={isMatchingGenre}
+                      onClick={async () => {
+                        setIsMatchingGenre(true);
+                        try {
+                          const res = await fetch("/api/character/synthesize-ensemble", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ genre: effectiveGenre, premise: logline }),
+                          });
+                          const data = await res.json();
+                          const isFallback = notifyIfFallback(data, "Match Genre");
+                          if (Array.isArray(data.characters) && data.characters.length > 0 && !isFallback) {
+                            setCharactersList(data.characters);
+                            setSelectedCharIdx(0);
+                          } else {
+                            const dynamicChars = synthesizeDynamicCharacters(effectiveGenre, logline);
+                            if (dynamicChars.length > 0) {
+                              if (!isFallback) {
+                                toast.add({
+                                  title: "Match Genre: showing template cast",
+                                  description: "The AI casting service returned no characters, so this ensemble is a curated template, not live AI output.",
+                                  type: "warning",
+                                });
+                              }
+                              setCharactersList(dynamicChars);
+                              setSelectedCharIdx(0);
+                            }
+                          }
+                        } catch (err) {
+                          console.error("Ensemble synthesis error:", err);
+                          toast.add({
+                            title: "Match Genre: showing template cast",
+                            description: "Could not reach the AI casting service, so this ensemble is a curated template, not live AI output.",
+                            type: "warning",
+                          });
+                          const dynamicChars = synthesizeDynamicCharacters(effectiveGenre, logline);
+                          if (dynamicChars.length > 0) {
+                            setCharactersList(dynamicChars);
+                            setSelectedCharIdx(0);
+                          }
+                        } finally {
+                          setIsMatchingGenre(false);
                         }
                       }}
                       className="text-xs h-7 gap-1 text-muted-foreground hover:text-accent border border-border/50 hover:border-accent/40"
-                      title="Synthesize cast ensemble matching the selected genre and premise"
+                      title="Synthesize cast ensemble matching the selected genre and premise via AI"
                     >
-                      <RefreshCw className="h-3 w-3" />
-                      Match Genre
+                      <RefreshCw className={`h-3 w-3 ${isMatchingGenre ? "animate-spin" : ""}`} />
+                      {isMatchingGenre ? "Synthesizing..." : "Match Genre"}
                     </Button>
                     <Button
                       type="button"

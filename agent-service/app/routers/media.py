@@ -78,7 +78,6 @@ async def generate_image(req: GenerateImageRequest):
     )
 
     models_to_try = [
-        "models/gemini-2.5-flash-image",
         "models/gemini-3.1-flash-image",
         "models/gemini-3-pro-image",
     ]
@@ -109,7 +108,7 @@ async def generate_image(req: GenerateImageRequest):
 
 @router.post("/tts", response_model=GenerateTTSResponse)
 async def generate_tts(req: GenerateTTSRequest):
-    """Synthesize expressive character speech using Gemini 3.1 / 2.5 Flash TTS with multi-speaker voice mapping."""
+    """Synthesize expressive character speech using Gemini 3.1 Flash TTS with multi-speaker voice mapping."""
     settings = get_settings()
     api_key = settings.google_api_key
     if not api_key:
@@ -123,7 +122,6 @@ async def generate_tts(req: GenerateTTSRequest):
         voice_selected = VOICE_MAP.get(speaker_clean, VOICE_MAP["DEFAULT"])
 
     tts_models = [
-        "models/gemini-2.5-flash-preview-tts",
         "models/gemini-3.1-flash-tts-preview",
     ]
 

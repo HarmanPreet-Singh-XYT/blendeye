@@ -37,6 +37,7 @@ import {
   synthesizeDynamicCharacters,
 } from "@/lib/project-store";
 import { MarkdownRenderer } from "@/components/cinema/markdown-renderer";
+import { toast } from "@/components/ui/toast";
 
 export interface DashboardChatMessage {
   id: string;
@@ -207,8 +208,10 @@ export function StudioChatWorkspace({
     textareaRef.current?.focus();
   };
 
-  // Helper to extract or generate title from discussion
-  const extractOrGenerateTitle = (recentContext: string, genre: string): string => {
+  // Helper to extract a title the director already stated in conversation.
+  // Returns null if no explicit title was found in the text (caller then
+  // asks the Showrunner AI to generate one, rather than picking a canned name).
+  const extractStatedTitle = (recentContext: string): string | null => {
     const quoteMatch = recentContext.match(/["']([^"']{3,40})["']/);
     if (quoteMatch) {
       const q = quoteMatch[1].trim();
@@ -220,36 +223,60 @@ export function StudioChatWorkspace({
     if (titleMatch) {
       return titleMatch[1].trim();
     }
-    const g = genre.toLowerCase();
-    if (g.includes("sci-fi") || g.includes("space") || g.includes("cyber")) {
-      const titles = ["The Orbital Horizon", "Chrono Null", "Silicon Horizon", "Station 9 Drift", "Solaris Echo"];
-      return titles[Math.floor(Math.random() * titles.length)];
-    }
-    if (g.includes("heist") || g.includes("crime")) {
-      const titles = ["The Velvet Lock", "Monaco Breach", "Zero Sum Protocol", "The Geneva Exchange"];
-      return titles[Math.floor(Math.random() * titles.length)];
-    }
-    if (g.includes("noir") || g.includes("detective")) {
-      const titles = ["Neon Protocol", "The Pale Rain", "Midnight Meridian", "Shadows of Cobalt"];
-      return titles[Math.floor(Math.random() * titles.length)];
-    }
-    if (g.includes("psych") || g.includes("thriller") || g.includes("mystery")) {
-      const titles = ["Fractured Reflection", "The Solitary Echo", "Perception Glass", "Blind Angle"];
-      return titles[Math.floor(Math.random() * titles.length)];
-    }
-    if (g.includes("horror") || g.includes("gothic")) {
-      const titles = ["The Blackwood Vigil", "Hollow Pines", "Whispers of the Deep"];
-      return titles[Math.floor(Math.random() * titles.length)];
-    }
-    if (g.includes("drama") || g.includes("historical")) {
-      const titles = ["The Winter Concord", "Iron & Glass", "The Last Commission"];
-      return titles[Math.floor(Math.random() * titles.length)];
-    }
-    return "Aethelgard Protocol";
+    return null;
   };
 
-  // Helper to dynamically synthesize genre- and context-aware characters
-  const extractCharactersFromContext = (recentContext: string, genre: string): ProjectCharacter[] => {
+  // Static templates used ONLY when the AI casting/title service is
+  // unreachable — always paired with a toast disclosure so this never
+  // masquerades as live AI output.
+  const FALLBACK_TITLES: Record<string, string[]> = {
+    "sci-fi": ["The Orbital Horizon", "Chrono Null", "Silicon Horizon", "Station 9 Drift", "Solaris Echo"],
+    heist: ["The Velvet Lock", "Monaco Breach", "Zero Sum Protocol", "The Geneva Exchange"],
+    noir: ["Neon Protocol", "The Pale Rain", "Midnight Meridian", "Shadows of Cobalt"],
+    thriller: ["Fractured Reflection", "The Solitary Echo", "Perception Glass", "Blind Angle"],
+    horror: ["The Blackwood Vigil", "Hollow Pines", "Whispers of the Deep"],
+    drama: ["The Winter Concord", "Iron & Glass", "The Last Commission"],
+  };
+
+  const fallbackTitleFor = (genre: string): string => {
+    const g = genre.toLowerCase();
+    const bucket =
+      (g.includes("sci-fi") || g.includes("space") || g.includes("cyber")) ? FALLBACK_TITLES["sci-fi"] :
+      (g.includes("heist") || g.includes("crime")) ? FALLBACK_TITLES.heist :
+      (g.includes("noir") || g.includes("detective")) ? FALLBACK_TITLES.noir :
+      (g.includes("psych") || g.includes("thriller") || g.includes("mystery")) ? FALLBACK_TITLES.thriller :
+      (g.includes("horror") || g.includes("gothic")) ? FALLBACK_TITLES.horror :
+      (g.includes("drama") || g.includes("historical")) ? FALLBACK_TITLES.drama :
+      null;
+    if (!bucket) return "Aethelgard Protocol";
+    return bucket[Math.floor(Math.random() * bucket.length)];
+  };
+
+  // Calls the real AI ensemble-casting endpoint (Gemini via agent-service).
+  // Falls back to curated genre templates ONLY on network/backend failure,
+  // and always discloses that fallback to the director via toast.
+  const synthesizeCastForContext = async (
+    recentContext: string,
+    genre: string
+  ): Promise<ProjectCharacter[]> => {
+    try {
+      const res = await fetch("/api/character/synthesize-ensemble", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ genre, premise: recentContext.slice(-1500) }),
+      });
+      const data = await res.json();
+      if (Array.isArray(data.characters) && data.characters.length > 0 && !data._fallback) {
+        return data.characters;
+      }
+    } catch (err) {
+      console.warn("Ensemble synthesis request failed:", err);
+    }
+    toast.add({
+      title: "Casting: showing template ensemble",
+      description: "The AI casting service is unreachable, so this cast is a curated template, not live AI output.",
+      type: "warning",
+    });
     return synthesizeDynamicCharacters(genre, recentContext);
   };
 
@@ -327,9 +354,6 @@ export function StudioChatWorkspace({
           .map((m) => m.content)
           .join("\n");
 
-        const title = extractOrGenerateTitle(conversationContext, selectedGenre);
-        const characters = extractCharactersFromContext(conversationContext, selectedGenre);
-
         // Extract a strong logline from the conversation
         let logline = userPrompt;
         if (logline.length < 25) {
@@ -337,7 +361,47 @@ export function StudioChatWorkspace({
             .slice(0, -1)
             .reverse()
             .find((m) => m.role === "user");
-          logline = prevUserMsg?.content || `${title}: A high-tension ${selectedGenre} narrative directed in the style of ${selectedDirectorStyle}.`;
+          logline = prevUserMsg?.content || `A high-tension ${selectedGenre} narrative directed in the style of ${selectedDirectorStyle}.`;
+        }
+
+        const statedTitle = extractStatedTitle(conversationContext);
+        const characters = await synthesizeCastForContext(conversationContext, selectedGenre);
+
+        let title = statedTitle || "";
+        if (!title) {
+          try {
+            const genRes = await fetch("/api/project/generate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                logline,
+                genre: selectedGenre,
+                directorStyle: selectedDirectorStyle,
+                customCharacters: characters,
+              }),
+            });
+            const genData = await genRes.json();
+            if (genData._fallback || genData._generatedBy === "semantic-showrunner-fallback") {
+              toast.add({
+                title: "Title: showing template name",
+                description: "The AI title service is unreachable, so this title is a curated template, not live AI output.",
+                type: "warning",
+              });
+            }
+            if (typeof genData.title === "string" && genData.title.trim()) {
+              title = genData.title.trim();
+            }
+          } catch (err) {
+            console.warn("Title generation request failed:", err);
+          }
+        }
+        if (!title) {
+          toast.add({
+            title: "Title: showing template name",
+            description: "The AI title service is unreachable, so this title is a curated template, not live AI output.",
+            type: "warning",
+          });
+          title = fallbackTitleFor(selectedGenre);
         }
 
         const newProject = createNewProjectEntry({

@@ -291,11 +291,19 @@ export function ProjectScenesPage({
       });
 
       saveScenes(reindexed, bridgeScene.id);
-      toast.add({
-        title: "AI Bridge Scene Generated",
-        description: `Inserted "${bridgeScene.title}" between Scene ${index + 1} and Scene ${index + 2}.`,
-        type: "success",
-      });
+      if (data && typeof data === "object" && (data as Record<string, unknown>)._fallback) {
+        toast.add({
+          title: "Template Bridge Scene Inserted",
+          description: `Inserted "${bridgeScene.title}" as a placeholder between Scene ${index + 1} and Scene ${index + 2} while the AI service is unreachable.`,
+          type: "warning",
+        });
+      } else {
+        toast.add({
+          title: "AI Bridge Scene Generated",
+          description: `Inserted "${bridgeScene.title}" between Scene ${index + 1} and Scene ${index + 2}.`,
+          type: "success",
+        });
+      }
     } catch (err) {
       console.error("Bridge generation error:", err);
       toast.add({

@@ -929,7 +929,7 @@ export default function StudioPage() {
         );
 
       if (needsFullSequenceGen) {
-        setGenerationStage("Architecting Complete Sequence Breakdown (Gemini 2.5 Flash)...");
+        setGenerationStage("Architecting Complete Sequence Breakdown (Gemini 3.7 Flash)...");
         try {
           const genRes = await fetch("/api/project/generate", {
             method: "POST",
@@ -949,6 +949,13 @@ export default function StudioPage() {
           });
           if (genRes.ok) {
             const genData = await genRes.json();
+            if (genData._generatedBy === "semantic-showrunner-fallback") {
+              toast.add({
+                title: "Sequence Breakdown: showing template scenes",
+                description: "Gemini was unreachable, so this sequence is a curated template, not live AI output.",
+                type: "warning",
+              });
+            }
             if (Array.isArray(genData.scenes) && genData.scenes.length > 0) {
               currentScenes = genData.scenes;
               setScenes(genData.scenes);
@@ -3072,6 +3079,14 @@ export default function StudioPage() {
             }
             if (genData?.characters && Array.isArray(genData.characters) && genData.characters.length > 0) {
               newProject.characters = genData.characters;
+            }
+
+            if (genData?._generatedBy === "semantic-showrunner-fallback") {
+              toast.add({
+                title: "Sequence Breakdown: showing template scenes",
+                description: "Gemini was unreachable, so this sequence is a curated template, not live AI output.",
+                type: "warning",
+              });
             }
 
             saveProject(newProject);

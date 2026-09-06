@@ -118,7 +118,7 @@ Return strictly valid JSON matching this schema:
 }
 `;
 
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent?key=${apiKey}`;
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -159,7 +159,7 @@ Return strictly valid JSON matching this schema:
               genre: parsed.genre || genre,
               characters: parsed.characters || inputCharacters,
               scenes: validatedScenes,
-              _generatedBy: "gemini-2.5-flash",
+              _generatedBy: "gemini-3.7-flash",
             });
           }
         }

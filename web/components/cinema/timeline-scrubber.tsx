@@ -78,17 +78,23 @@ export interface TimelineScrubberProps {
   narrativeFormat?: string;
 }
 
+// Mechanical quarter-split of the scene runtime for scrubbing orientation —
+// NOT a dramatic/story-beat analysis of the actual scene content. Labels are
+// kept generic (quarters) rather than claiming specific narrative functions
+// like "Turning Point" or "Climax", which would misrepresent this as AI-derived
+// story structure.
 const SCENE_BEATS = [
-  { label: "Beat 1: Entry", fullLabel: "Beat 1: Establishing & Scene Entry", color: "text-sky-400" },
-  { label: "Beat 2: Escalation", fullLabel: "Beat 2: Inciting Shift & Escalation", color: "text-amber-400" },
-  { label: "Beat 3: Turning Point", fullLabel: "Beat 3: Conflict & Turning Point", color: "text-rose-400" },
-  { label: "Beat 4: Button", fullLabel: "Beat 4: Scene Climax & Button", color: "text-emerald-400" },
+  { label: "Q1", fullLabel: "First Quarter (0–25% of runtime)", color: "text-sky-400" },
+  { label: "Q2", fullLabel: "Second Quarter (25–50% of runtime)", color: "text-amber-400" },
+  { label: "Q3", fullLabel: "Third Quarter (50–75% of runtime)", color: "text-rose-400" },
+  { label: "Q4", fullLabel: "Fourth Quarter (75–100% of runtime)", color: "text-emerald-400" },
 ];
 
 /**
  * TimelineScrubber — Low-Level Scene Story Timeline.
  * Dedicated strictly to scrubbing and analyzing a single particular scene.
- * Provides second-by-second micro-control, scene beat phases, and ClickHouse event pins.
+ * Provides second-by-second micro-control, mechanical runtime-quarter zones
+ * (for scrubbing orientation only, not a story-beat analysis), and ClickHouse event pins.
  */
 function TimelineScrubber({
   durationSeconds,
@@ -208,7 +214,7 @@ function TimelineScrubber({
     <div className={cn("flex flex-col gap-1.5 select-none", className)}>
       {/* Top Header: Low-Level Scene Identity & Playhead Readouts */}
       <div className="flex items-center justify-between gap-3 text-xs">
-        {/* Left: Scene Identity Badge & Current Beat Indicator */}
+        {/* Left: Scene Identity Badge & Current Runtime-Quarter Indicator */}
         <div className="flex items-center gap-2 min-w-0">
           <div className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-accent/40 bg-accent/15 text-[11px] font-semibold text-accent shrink-0">
             <Film className="h-3 w-3" />
@@ -231,7 +237,10 @@ function TimelineScrubber({
             )}
           </div>
 
-          <div className="hidden sm:flex items-center gap-1 px-1.5 py-0.5 rounded bg-secondary/40 border border-border/60 text-[10px] font-mono">
+          <div
+            className="hidden sm:flex items-center gap-1 px-1.5 py-0.5 rounded bg-secondary/40 border border-border/60 text-[10px] font-mono"
+            title={currentBeat.fullLabel}
+          >
             <span className={cn("font-medium", currentBeat.color)}>
               {currentBeat.label}
             </span>
@@ -342,11 +351,12 @@ function TimelineScrubber({
         {/* Top sprocket rhythm */}
         <div className="sprocket-strip absolute top-0 left-0 right-0 h-1.5 opacity-60 pointer-events-none" />
 
-        {/* 4 Dramatic Phase Background Zones */}
+        {/* 4 mechanical runtime-quarter zones (scrubbing orientation only, not a story-beat analysis) */}
         <div className="absolute inset-x-0 top-1.5 bottom-1.5 grid grid-cols-4 pointer-events-none divide-x divide-white/5">
           {SCENE_BEATS.map((beat, i) => (
             <div
               key={i}
+              title={beat.fullLabel}
               className={cn(
                 "relative flex items-end p-1 transition-colors",
                 activeBeatIndex === i ? "bg-accent/5" : "bg-transparent"

@@ -507,12 +507,12 @@ export default function DesignSystemPage() {
                 <SelectItem value="teo">Teo</SelectItem>
               </SelectContent>
             </Select>
-            <NativeSelect defaultValue="gemini-2.5-flash" className="w-52">
-              <NativeSelectOption value="gemini-2.5-flash">
-                gemini-2.5-flash
+            <NativeSelect defaultValue="gemini-3.7-flash" className="w-52">
+              <NativeSelectOption value="gemini-3.7-flash">
+                gemini-3.7-flash
               </NativeSelectOption>
-              <NativeSelectOption value="gemini-2.5-pro">
-                gemini-2.5-pro
+              <NativeSelectOption value="gemini-3.8-flash">
+                gemini-3.8-flash
               </NativeSelectOption>
             </NativeSelect>
           </Demo>

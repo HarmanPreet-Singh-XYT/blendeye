@@ -55,24 +55,40 @@ export function StripboardView({
         });
         if (activeCast.length === 0) activeCast.push(1);
 
-        const pageEst = Math.max(1, Math.round((sc.durationSeconds || 180) / 60));
+        // Standard screenplay convention: ~1 page per minute of runtime.
+        // Derive whole pages + eighths directly from durationSeconds instead
+        // of a page count paired with an arbitrary index-based eighths value.
+        const totalEighths = Math.max(1, Math.round(((sc.durationSeconds || 180) / 60) * 8));
+        const pageWhole = Math.floor(totalEighths / 8);
+        const pageEighths = totalEighths % 8;
         const isBridge = Boolean(
           sc.isBridge ||
           sc.id?.startsWith("bridge") ||
           sc.title?.toLowerCase().includes("bridge")
         );
 
+        // Detect FX/stunt/lighting cues from the actual scene text/summary
+        // rather than alternating a fixed pair of labels by index.
+        const sceneText = `${sc.summary || ""} ${sc.screenplayText || ""}`.toLowerCase();
+        const cueTags: string[] = [];
+        if (/\b(explo|blast|gunfire|gunshot|crash|collision|fight|brawl|chase)\b/.test(sceneText)) {
+          cueTags.push("Stunt Rigging / SFX");
+        }
+        if (/\b(fire|flame|smoke|fog|rain|steam|strobe)\b/.test(sceneText)) {
+          cueTags.push("Practical Atmospheric FX");
+        }
+        if (/\b(dark|shadow|dim|flicker|amber|strobe|low-key)\b/.test(sceneText)) {
+          cueTags.push("Low-Key / Chiaroscuro Lighting");
+        }
+
         return {
           sceneNumber: String(sc.sceneNumber || idx + 1).padStart(2, "0"),
           setting,
           timeOfDay,
           location: loc,
-          pages: `${pageEst} ${((idx * 3 + 2) % 8)}/8`,
+          pages: `${pageWhole} ${pageEighths}/8`,
           castIds: activeCast,
-          stuntsOrFX:
-            idx % 2 === 0
-              ? "Practical Atmospheric FX, Stunt Rigging"
-              : "Chiaroscuro Practical Lighting",
+          stuntsOrFX: cueTags.length > 0 ? cueTags.join(", ") : "—",
           shootDay: Math.floor(idx / 2) + 1,
           isBridge,
         };
@@ -96,23 +112,47 @@ export function StripboardView({
           const timeRaw = match[3]?.trim().toUpperCase() || "NIGHT";
           const timeOfDay: "DAY" | "NIGHT" = timeRaw.includes("DAY") ? "DAY" : "NIGHT";
 
+          // Slice the raw text between this slugline and the next so page
+          // length and FX/stunt cues are derived from actual scene content.
+          const blockStart = match.index + match[0].length;
+          const blockEnd = idx + 1 < matches.length ? matches[idx + 1].index : screenplayText.length;
+          const block = screenplayText.slice(blockStart, blockEnd);
+          const blockLower = block.toLowerCase();
+
           // Check which characters are active in this scene block
           const activeCast: number[] = [];
           characters.forEach((char, cIdx) => {
-            if (screenplayText.includes(char.name.toUpperCase())) {
+            if (block.toUpperCase().includes(char.name.toUpperCase())) {
               activeCast.push(cIdx + 1);
             }
           });
           if (activeCast.length === 0) activeCast.push(1);
+
+          // ~1 page per 55 lines of screenplay text (standard estimate)
+          const lineCount = Math.max(1, block.split("\n").filter((l) => l.trim()).length);
+          const totalEighths = Math.max(1, Math.round((lineCount / 55) * 8));
+          const pageWhole = Math.floor(totalEighths / 8);
+          const pageEighths = totalEighths % 8;
+
+          const cueTags: string[] = [];
+          if (/\b(explo|blast|gunfire|gunshot|crash|collision|fight|brawl|chase)\b/.test(blockLower)) {
+            cueTags.push("Stunt Rigging / SFX");
+          }
+          if (/\b(fire|flame|smoke|fog|rain|steam|strobe)\b/.test(blockLower)) {
+            cueTags.push("Practical Atmospheric FX");
+          }
+          if (/\b(dark|shadow|dim|flicker|amber|strobe|low-key)\b/.test(blockLower)) {
+            cueTags.push("Low-Key / Chiaroscuro Lighting");
+          }
 
           return {
             sceneNumber: String(idx + 1).padStart(2, "0"),
             setting,
             timeOfDay,
             location,
-            pages: `${idx + 1} ${((idx * 3 + 2) % 8)}/8`,
+            pages: `${pageWhole} ${pageEighths}/8`,
             castIds: activeCast,
-            stuntsOrFX: idx % 2 === 0 ? "Practical Atmospheric FX, Stunt Rigging" : "Chiaroscuro Practical Lighting",
+            stuntsOrFX: cueTags.length > 0 ? cueTags.join(", ") : "—",
             shootDay: Math.floor(idx / 2) + 1,
           };
         });

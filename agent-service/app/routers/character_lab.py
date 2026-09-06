@@ -10,6 +10,7 @@ from app.agents.character_lab import (
     build_character_synthesizer_agent,
     build_chemistry_bench_agent,
     build_dialogue_tuner_agent,
+    build_ensemble_synthesizer_agent,
 )
 from app.agents.runner import run_agent_once
 
@@ -80,6 +81,45 @@ async def synthesize_character(req: CharacterSynthesizeRequest):
             behavioral_tics=req.behavioral_tics or ["Fidgets with lighter"],
             suggested_tts_voice="Fenrir",
         )
+
+
+class EnsembleCharacter(BaseModel):
+    name: str
+    role: str
+    archetype: str
+    speechStyle: str
+    subtextRatio: str
+    confidence: int = 80
+    verbalPacing: int = 75
+    objective: str
+    quirks: list[str] = Field(default_factory=list)
+
+
+class EnsembleSynthesizeRequest(BaseModel):
+    genre: str = ""
+    premise: str = ""
+
+
+class EnsembleSynthesizeResponse(BaseModel):
+    characters: list[EnsembleCharacter]
+
+
+@router.post("/synthesize_ensemble", response_model=EnsembleSynthesizeResponse)
+async def synthesize_ensemble(req: EnsembleSynthesizeRequest):
+    agent = build_ensemble_synthesizer_agent()
+    prompt = (
+        f"Genre: {req.genre or 'Drama / Thriller'}\n"
+        f"Premise / Logline: {req.premise or 'A high-stakes confrontation between two people with conflicting objectives.'}\n"
+    )
+
+    raw_output = await run_agent_once(agent, prompt, app_name="ensemble-synthesizer")
+    cleaned = raw_output.strip()
+    if cleaned.startswith("```"):
+        lines = cleaned.splitlines()
+        cleaned = "\n".join(lines[1:-1] if lines[-1].startswith("```") else lines[1:])
+
+    data = json.loads(cleaned)
+    return EnsembleSynthesizeResponse(**data)
 
 
 class ChemistryTestRequest(BaseModel):

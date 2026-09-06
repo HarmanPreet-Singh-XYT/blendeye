@@ -71,7 +71,7 @@ Return pure valid JSON with this exact schema:
   "screenplayText": "Formatted screenplay with slugline, action lines, and dialogue"
 }`;
 
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent?key=${apiKey}`;
         const res = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -107,6 +107,7 @@ Return pure valid JSON with this exact schema:
 
     // Smart Fallback when offline or no API key
     return NextResponse.json({
+      _fallback: true,
       title: "Transitional Escalation",
       slugline: "INT. SERVICE ACCESS CORRIDOR - NIGHT",
       location: "Service Access Corridor",
@@ -131,6 +132,7 @@ Two minutes to checkpoint. Move.`,
     console.error("[BridgeSceneAPI] Error generating bridge:", err);
     return NextResponse.json(
       {
+        _fallback: true,
         title: "Transitional Passage",
         slugline: "INT. CONNECTING CORRIDOR - NIGHT",
         location: "Connecting Corridor",

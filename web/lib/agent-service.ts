@@ -355,6 +355,31 @@ export function synthesizeCharacter(req: CharacterSynthesizeRequest) {
   return postJson<CharacterSynthesizeResponse>("/character/synthesize", req);
 }
 
+export interface EnsembleCharacter {
+  name: string;
+  role: string;
+  archetype: string;
+  speechStyle: string;
+  subtextRatio: string;
+  confidence: number;
+  verbalPacing: number;
+  objective: string;
+  quirks: string[];
+}
+
+export interface EnsembleSynthesizeRequest {
+  genre?: string;
+  premise?: string;
+}
+
+export interface EnsembleSynthesizeResponse {
+  characters: EnsembleCharacter[];
+}
+
+export function synthesizeEnsemble(req: EnsembleSynthesizeRequest) {
+  return postJson<EnsembleSynthesizeResponse>("/character/synthesize_ensemble", req);
+}
+
 export interface ChemistryTestRequest {
   char_a_name: string;
   char_a_dna: string;
