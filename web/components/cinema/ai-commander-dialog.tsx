@@ -191,36 +191,37 @@ export function AICommanderDialog({
                 </div>
               )}
 
-              {/* Action Badges */}
-              {lastResult.actions && lastResult.actions.length > 0 && (
+              {/* Action Badges — rendered from actual execution results, not intended actions */}
+              {lastResult.execution_summary && lastResult.execution_summary.length > 0 && (
                 <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 space-y-1.5">
                   <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider text-emerald-400 font-bold">
                     <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-                    <span>Mutations Executed on Backlot Canvas ({lastResult.actions.length})</span>
+                    <span>Mutations Executed on Backlot Canvas ({lastResult.execution_summary.length})</span>
                   </div>
                   <div className="space-y-1">
-                    {lastResult.actions.map((act, aIdx) => (
-                      <div key={aIdx} className="text-xs font-mono text-foreground flex items-center gap-2">
+                    {lastResult.execution_summary.map((summary, sIdx) => (
+                      <div key={sIdx} className="text-xs font-mono text-foreground flex items-center gap-2">
                         <span className="text-emerald-400 font-bold">✓</span>
-                        <span>
-                          {act.type === "create_character" && `Created Character "${act.name}" (${act.archetype})`}
-                          {act.type === "update_character" && `Updated Character "${act.name}" parameters`}
-                          {act.type === "delete_character" && `Deleted Character "${act.name}"`}
-                          {act.type === "connect_nodes" && `Wired "${act.source}" → "${act.target}" (${act.relationship || "Connection"})`}
-                          {act.type === "sever_wire" && `Severed wire between "${act.source || act.edgeId}" and "${act.target || ""}"`}
-                          {act.type === "create_node" && `Spawned "${act.nodeType}" node`}
-                          {act.type === "delete_node" && `Deleted node "${act.nodeId}"`}
-                          {act.type === "update_node_data" && `Modified node "${act.nodeId}" parameters`}
-                          {act.type === "auto_tidy_backlot" && "Auto-aligned entire backlot production layout"}
-                          {act.type === "update_screenplay" && `Updated screenplay draft: ${act.summary || "Full rewrite"}`}
-                          {act.type === "update_scene_meta" && `Updated scene metadata`}
-                          {act.type === "create_take_milestone" && `Created milestone take "${act.title}"`}
-                        </span>
+                        <span>{summary}</span>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
+
+              {/* Directive parsed but nothing actually changed (no-op targets, duplicates, etc.) */}
+              {lastResult.actions &&
+                lastResult.actions.length > 0 &&
+                (!lastResult.execution_summary || lastResult.execution_summary.length === 0) && (
+                  <div className="flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] font-mono text-amber-400">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                    <span>
+                      The Executive AI proposed {lastResult.actions.length} action
+                      {lastResult.actions.length > 1 ? "s" : ""}, but none applied — likely because the
+                      target character/node didn&apos;t match anything on the current backlot canvas.
+                    </span>
+                  </div>
+                )}
 
               {/* Executive Response Message */}
               <div className="text-xs text-foreground/90 leading-relaxed pt-1">

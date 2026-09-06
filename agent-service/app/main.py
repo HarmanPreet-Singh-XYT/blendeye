@@ -20,6 +20,7 @@ from app.routers import (
     location_scout,
     market_viability,
     media,
+    scene_rewrite,
     script,
     sharding,
     showrunner,
@@ -61,6 +62,7 @@ app.add_middleware(
 )
 
 app.include_router(script.router)
+app.include_router(scene_rewrite.router)
 app.include_router(sharding.router)
 app.include_router(hot_seat.router)
 app.include_router(showrunner.router)

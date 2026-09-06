@@ -25,11 +25,16 @@ import {
   Zap,
   X,
   FileText,
+  LogOut,
+  LogIn,
+  ShieldCheck,
 } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   getAllProjects,
+  syncProjectsWithSupabase,
   saveProject,
   toggleStarProject,
   deleteProject,
@@ -44,6 +49,7 @@ import { FilmFusionDialog } from "@/components/cinema/film-fusion-dialog";
 import { ClickHouseToolboxDialog } from "@/components/cinema/clickhouse-toolbox-dialog";
 import { CharacterLabDialog } from "@/components/cinema/character-lab-dialog";
 import { ScratchpadDialog } from "@/components/cinema/scratchpad-dialog";
+import { AuthUserButton } from "@/components/cinema/auth-user-button";
 import { StudioChatWorkspace } from "./studio-chat-workspace";
 
 type DashboardTab = "home" | "projects" | "starred" | "recent" | "fusion";
@@ -93,6 +99,7 @@ function getGenreStyle(genre: string) {
 
 export function StudioDashboard() {
   const router = useRouter();
+  const { user, signOut } = useAuth();
 
   // Navigation & View state
   const [activeTab, setActiveTab] = React.useState<DashboardTab>("home");
@@ -111,18 +118,62 @@ export function StudioDashboard() {
   const [characterLabOpen, setCharacterLabOpen] = React.useState(false);
   const [scratchpadOpen, setScratchpadOpen] = React.useState(false);
 
-  // Load projects from localStorage
+  // ClickHouse connection status for the header badge — actually probed, not hardcoded
+  const [clickhouseLive, setClickhouseLive] = React.useState<boolean | null>(null);
+  const [clickhousePingMs, setClickhousePingMs] = React.useState<number | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch("/api/metrics")
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return;
+        setClickhouseLive(!data._fallback && data.mcp_servers?.clickhouse_mcp === "online");
+        setClickhousePingMs(data.telemetry?.clickhouse_ping_ms ?? null);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setClickhouseLive(false);
+        setClickhousePingMs(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Most recently edited project — used as the implicit target for global
+  // (not per-card) actions like the header Character Lab button, since those
+  // have no project context of their own.
+  const mostRecentProject = React.useMemo(() => {
+    if (projects.length === 0) return null;
+    return [...projects].sort(
+      (a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0)
+    )[0];
+  }, [projects]);
+
+  // Load projects from local storage and sync with Supabase
   const refreshProjects = React.useCallback(() => {
     setProjects(getAllProjects());
+    syncProjectsWithSupabase().then((synced) => {
+      if (synced && synced.length > 0) {
+        setProjects(synced);
+      }
+    });
   }, []);
 
   React.useEffect(() => {
     refreshProjects();
-  }, [refreshProjects]);
+    const handleAuthChange = () => {
+      refreshProjects();
+    };
+    window.addEventListener("agentic_cinema_auth_changed", handleAuthChange);
+    return () => window.removeEventListener("agentic_cinema_auth_changed", handleAuthChange);
+  }, [refreshProjects, user]);
 
   // Handle New Project from dialog
   const handleCreateNewProject = (data: NewProjectFormData) => {
     const project = createNewProjectEntry({
+      userId: user?.id || undefined,
       title: data.title,
       logline: data.logline,
       genre: data.genre,
@@ -320,22 +371,48 @@ export function StudioDashboard() {
 
         {/* User / Director Profile Card */}
         <div className="px-3 py-2 border-b border-border/60 shrink-0">
-          <div className="flex items-center gap-2.5 rounded-lg border border-border/40 bg-secondary/20 p-2">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr from-amber-500/30 to-amber-300/30 border border-amber-500/40 text-amber-300 font-heading text-xs font-bold shadow-inner">
-              HS
+          {user ? (
+            <div className="flex items-center gap-2.5 rounded-lg border border-border/40 bg-secondary/20 p-2">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground font-heading text-xs font-bold shadow-inner">
+                {(user.email || "D").slice(0, 2).toUpperCase()}
+              </div>
+              <div className="flex flex-col min-w-0 flex-1">
+                <span className="truncate text-xs font-medium text-foreground">
+                  {user.user_metadata?.full_name || user.email?.split("@")[0] || "Director"}
+                </span>
+                <span className="text-[10px] font-mono text-muted-foreground flex items-center gap-1 truncate">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 inline-block animate-pulse shrink-0" />
+                  {user.email}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => signOut()}
+                className="h-6 w-6 rounded flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0"
+                title="Log Out of Account"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+              </button>
             </div>
-            <div className="flex flex-col min-w-0 flex-1">
-              <span className="truncate text-xs font-medium text-foreground">Harmanpreet Singh</span>
-              <span className="text-[10px] font-mono text-muted-foreground flex items-center gap-1">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 inline-block animate-pulse" />
-                Lead Showrunner
-              </span>
+          ) : (
+            <div className="flex items-center justify-between rounded-lg border border-border/40 bg-secondary/15 p-2 gap-2">
+              <div className="flex flex-col min-w-0">
+                <span className="text-xs font-medium text-foreground">Guest Sandbox</span>
+                <span className="text-[10px] font-mono text-muted-foreground">Unsynced session</span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.push("/auth?mode=signin")}
+                className="h-6 text-[11px] px-2 border-accent/40 text-accent hover:bg-accent/15 gap-1 font-mono cursor-pointer"
+              >
+                <LogIn className="h-3 w-3" />
+                <span>Sign In</span>
+              </Button>
             </div>
-            <Badge variant="outline" className="text-[9px] px-1 py-0 border-accent/30 text-accent shrink-0">
-              Suite
-            </Badge>
-          </div>
+          )}
         </div>
+
 
         {/* Primary Navigation Links */}
         <div className="flex-1 overflow-y-auto px-2 py-3 space-y-1">
@@ -487,11 +564,34 @@ export function StudioDashboard() {
               variant="default"
               size="sm"
               onClick={() => setNewProjectOpen(true)}
-              className="w-full justify-center gap-1.5 bg-foreground text-background hover:bg-foreground/90 font-medium text-xs shadow-sm"
+              className="w-full justify-center gap-1.5 bg-foreground text-background hover:bg-foreground/90 font-medium text-xs shadow-sm cursor-pointer"
             >
               <Plus className="h-3.5 w-3.5" />
               New Production
             </Button>
+
+            {user ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => signOut()}
+                className="w-full justify-start gap-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive font-mono h-8 px-2 cursor-pointer"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                <span>Log Out</span>
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.push("/auth?mode=signin")}
+                className="w-full justify-start gap-2 text-xs border-border/80 hover:border-accent/40 font-mono h-8 px-2 cursor-pointer text-muted-foreground hover:text-foreground"
+              >
+                <LogIn className="h-3.5 w-3.5 text-accent" />
+                <span>Sign In / Register</span>
+              </Button>
+            )}
+
             <div className="flex items-center justify-between text-[10px] font-mono text-muted-foreground pt-1">
               <span className="flex items-center gap-1">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> ClickHouse Cloud
@@ -500,6 +600,7 @@ export function StudioDashboard() {
             </div>
           </div>
         </div>
+
       </aside>
 
       {/* ──────────────────────────────────────────────────────────
@@ -550,10 +651,22 @@ export function StudioDashboard() {
 
             <button
               onClick={() => setToolboxOpen(true)}
-              className="hidden lg:flex items-center gap-2 rounded-full border border-border/80 bg-secondary/30 px-3 py-1 text-xs font-mono text-muted-foreground hover:border-accent/40 hover:text-foreground transition-colors"
+              className={`hidden lg:flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-mono transition-colors ${
+                clickhouseLive
+                  ? "border-border/80 bg-secondary/30 text-muted-foreground hover:border-accent/40 hover:text-foreground"
+                  : "border-amber-500/40 bg-amber-500/10 text-amber-400"
+              }`}
             >
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              ClickHouse Live · 0.4ms
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  clickhouseLive ? "bg-emerald-400 animate-pulse" : "bg-amber-500"
+                }`}
+              />
+              {clickhouseLive === null
+                ? "ClickHouse Checking…"
+                : clickhouseLive
+                ? `ClickHouse Live${clickhousePingMs != null ? ` · ${clickhousePingMs.toFixed(1)}ms` : ""}`
+                : "ClickHouse Unreachable"}
             </button>
 
             <Button
@@ -595,6 +708,10 @@ export function StudioDashboard() {
               <Plus className="h-3.5 w-3.5" />
               Create Project
             </Button>
+
+            <div className="h-4 w-px bg-border/60 mx-0.5 hidden sm:block" />
+
+            <AuthUserButton />
           </div>
         </header>
 
@@ -916,9 +1033,10 @@ export function StudioDashboard() {
       <CharacterLabDialog
         open={characterLabOpen}
         onOpenChange={setCharacterLabOpen}
+        projectTitle={mostRecentProject?.title}
         characters={
-          projects[0]?.characters && projects[0].characters.length > 0
-            ? projects[0].characters
+          mostRecentProject?.characters && mostRecentProject.characters.length > 0
+            ? mostRecentProject.characters
             : [
                 {
                   name: "Marcus",
@@ -943,16 +1061,16 @@ export function StudioDashboard() {
               ]
         }
         onUpdateCharacters={(newChars) => {
-          if (projects[0]) {
-            const updated = { ...projects[0], characters: newChars };
+          if (mostRecentProject) {
+            const updated = { ...mostRecentProject, characters: newChars };
             saveProject(updated);
             refreshProjects();
           }
         }}
         onOpenHotSeat={(name) => {
           setCharacterLabOpen(false);
-          if (projects[0]) {
-            router.push(`/studio/${projects[0].id}`);
+          if (mostRecentProject) {
+            router.push(`/studio/${mostRecentProject.id}?hotSeat=${encodeURIComponent(name)}`);
           }
         }}
       />
@@ -1075,7 +1193,7 @@ function ProjectCard({ project, onOpen, onToggleStar, onDelete }: ProjectCardPro
               <span>•</span>
             </>
           ) : null}
-          <span>{project.nodes ? `${project.nodes.length} Nodes` : "14 Nodes"}</span>
+          <span>{project.nodes?.length ?? 0} Nodes</span>
           <span>•</span>
           <span>{formattedDate}</span>
         </div>

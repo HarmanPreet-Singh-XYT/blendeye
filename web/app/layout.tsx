@@ -19,6 +19,9 @@ export const metadata: Metadata = {
   description: "A writers' room where you scrub the timeline and interrogate characters bound to what they'd actually know.",
 };
 
+import { AuthProvider } from "@/lib/auth-context";
+import { AuthDialog } from "@/components/cinema/auth-dialog";
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
@@ -27,7 +30,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col">
         <TooltipProvider delay={200}>
-          <Toaster>{children}</Toaster>
+          <AuthProvider>
+            <Toaster>{children}</Toaster>
+            <AuthDialog />
+          </AuthProvider>
         </TooltipProvider>
       </body>
     </html>

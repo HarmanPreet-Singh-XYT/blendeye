@@ -991,12 +991,12 @@ export function TerritoryHeatmapView({
             </span>
           </div>
           <span className="text-[10px] font-mono text-muted-foreground">
-            Toggle narrative levers to dynamically forecast box office lift
+            Illustrative heuristic, not a live model
           </span>
         </div>
 
         <p className="text-[11px] text-muted-foreground">
-          Different audiences respond to distinct dramatic mechanics. Experiment with script interventions to see how regional market fit adapts in real-time.
+          Different audiences respond to distinct dramatic mechanics. Toggle script interventions to see a directional, rule-of-thumb estimate of regional appetite shift — these are illustrative point boosts, not a live audience-data model.
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 pt-1">

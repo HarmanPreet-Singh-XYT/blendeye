@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Film, Plus, Database, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { AuthUserButton } from "@/components/cinema/auth-user-button";
 
 interface LandingNavbarProps {
   onOpenNewProject: () => void;
@@ -117,8 +118,11 @@ export function LandingNavbar({ onOpenNewProject }: LandingNavbarProps) {
             <Film className="h-3.5 w-3.5" />
             <span>Studio Dashboard</span>
           </Button>
+
+          <AuthUserButton />
         </div>
       </div>
     </header>
   );
 }
+

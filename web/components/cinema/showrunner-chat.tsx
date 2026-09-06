@@ -157,8 +157,10 @@ export function ShowrunnerChat({
                     </span>
                   </div>
                   <span className="text-[10px] text-muted-foreground font-mono">
-                    {msg.actions && msg.actions.length > 0
-                      ? `${msg.actions.length} Action${msg.actions.length > 1 ? "s" : ""} Dispatched`
+                    {msg.execution_summaries && msg.execution_summaries.length > 0
+                      ? `${msg.execution_summaries.length} Mutation${msg.execution_summaries.length > 1 ? "s" : ""} Executed`
+                      : msg.actions && msg.actions.length > 0
+                      ? "Proposed — Nothing Matched"
                       : "Analysis & Critique"}
                   </span>
                 </div>

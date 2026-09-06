@@ -35,6 +35,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
+import { notifyIfFallback } from "@/lib/fallback-notice";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -58,6 +59,8 @@ interface CharacterLabDialogProps {
   onUpdateCharacters: (characters: ProjectCharacter[]) => void;
   onOpenHotSeat?: (charName: string) => void;
   onSendToVeo?: (character: ProjectCharacter) => void;
+  /** Which project's roster is being edited — shown so it's never ambiguous which production this affects. */
+  projectTitle?: string;
 }
 
 const ARCHETYPE_PRESETS = [
@@ -75,6 +78,7 @@ export function CharacterLabDialog({
   onUpdateCharacters,
   onOpenHotSeat,
   onSendToVeo,
+  projectTitle,
 }: CharacterLabDialogProps) {
   const [selectedCharIndex, setSelectedCharIndex] = React.useState(0);
   const [activeTab, setActiveTab] = React.useState<"visual" | "dna" | "dials" | "actor" | "chemistry" | "vault">("visual");
@@ -238,6 +242,7 @@ export function CharacterLabDialog({
 
       if (res.ok) {
         const data = await res.json();
+        notifyIfFallback(data, "Chemistry Bench");
         setChemistrySceneResult(data.screenplay_snippet || data.dialogue || data.scene_text);
       } else {
         toast.add({
@@ -248,6 +253,11 @@ export function CharacterLabDialog({
       }
     } catch (err) {
       console.error("Chemistry bench error:", err);
+      toast.add({
+        title: "Chemistry Bench Failed",
+        description: "Could not reach the agent-service backend.",
+        type: "error",
+      });
     } finally {
       setIsSimulatingChemistry(false);
     }
@@ -279,10 +289,22 @@ export function CharacterLabDialog({
 
       if (res.ok) {
         const data = await res.json();
+        notifyIfFallback(data, "Dialogue Tuning");
         setTunedDialogueResult(data.tuned_dialogue || data.dialogue);
+      } else {
+        toast.add({
+          title: "Dialogue Tuning Failed",
+          description: "Could not tune the sample line.",
+          type: "error",
+        });
       }
     } catch (err) {
       console.error("Dialogue tune error:", err);
+      toast.add({
+        title: "Dialogue Tuning Failed",
+        description: "Could not reach the agent-service backend.",
+        type: "error",
+      });
     } finally {
       setIsTuningDialogue(false);
     }
@@ -402,6 +424,9 @@ export function CharacterLabDialog({
               Character DNA Studio &amp; Talent Vault
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
+              {projectTitle ? (
+                <>Editing roster for <span className="text-foreground/80 font-semibold">{projectTitle}</span>. </>
+              ) : null}
               Craft psychological profiles, test dream actor likenesses, simulate 2-character chemistry, and swap traits.
             </DialogDescription>
           </div>

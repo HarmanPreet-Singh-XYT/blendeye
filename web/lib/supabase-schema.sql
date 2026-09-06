@@ -1,0 +1,3 @@
+-- Reference copy of Supabase PostgreSQL schema for Agentic Cinema.
+-- The canonical migration file is at supabase/schema.sql in the repo root.
+-- See supabase/schema.sql for the full schema and RLS policies.

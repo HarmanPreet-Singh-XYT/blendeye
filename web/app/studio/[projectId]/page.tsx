@@ -47,6 +47,7 @@ import { GenerationStudioView } from "@/components/cinema/generation-studio-view
 import { DirectorLookbookDialog } from "@/components/cinema/director-lookbook-dialog";
 import { CharacterLabDialog } from "@/components/cinema/character-lab-dialog";
 import { ScratchpadDialog } from "@/components/cinema/scratchpad-dialog";
+import { AuthUserButton } from "@/components/cinema/auth-user-button";
 import { toast } from "@/components/ui/toast";
 import { notifyIfFallback } from "@/lib/fallback-notice";
 import {
@@ -313,6 +314,19 @@ export default function StudioPage() {
   const [mainTab, setMainTab] = React.useState<MainStudioTab>("planning");
   const [simulationTab, setSimulationTab] = React.useState<SimulationSubTab>("audio");
   const [deckSubTab, setDeckSubTab] = React.useState<DeckSubTab>("blocking");
+
+  // Deep link from elsewhere in the app (e.g. dashboard Character Lab "Talk to this
+  // character" action) straight into Hot Seat for a specific character.
+  React.useEffect(() => {
+    const requestedChar = searchParams.get("hotSeat");
+    if (requestedChar) {
+      setActiveCharacterName(requestedChar);
+      setMainTab("simulation");
+      setSimulationTab("hotseat");
+    }
+    // Only consult the deep-link param once on mount — later param changes aren't re-navigations.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Keyboard Shortcuts (Shift+1 for Planning, Shift+2 for Simulation, Shift+3 for Generation, Shift+C for ClickHouse)
   React.useEffect(() => {
@@ -800,7 +814,7 @@ export default function StudioPage() {
       const scriptRes = await fetch("/api/script/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ premise: enrichedPremise }),
+        body: JSON.stringify({ premise: enrichedPremise, projectId: pid }),
         signal: controller.signal,
       });
       if (!scriptRes.ok) {
@@ -1996,6 +2010,10 @@ export default function StudioPage() {
             <Zap className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">AI Commander</span>
           </Button>
+
+          <div className="h-4 w-px bg-border/60 mx-1 shrink-0" />
+
+          <AuthUserButton className="h-7 text-xs" />
         </div>
       </header>
 

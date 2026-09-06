@@ -43,6 +43,7 @@ import {
   synthesizeDynamicCharacters,
   NARRATIVE_FORMATS,
 } from "@/lib/project-store";
+import { useAuth } from "@/lib/auth-context";
 
 export interface NewProjectFormData {
   title: string;
@@ -204,6 +205,7 @@ export function NewProjectDialog({
   onSubmit,
   isSubmitting = false,
 }: NewProjectDialogProps) {
+  const { user } = useAuth();
   const [currentStep, setCurrentStep] = React.useState<1 | 2 | 3 | 4 | 5>(1);
 
   // Step 1: Foundation & Timeframe Scope
@@ -417,6 +419,16 @@ export function NewProjectDialog({
             </div>
 
             <div className="flex items-center gap-2">
+              {user ? (
+                <Badge variant="outline" className="font-mono text-[10px] text-emerald-400 border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 hidden sm:inline-flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                  {user.email}
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="font-mono text-[10px] text-amber-300 border-amber-500/30 bg-amber-500/10 px-2 py-0.5 hidden sm:inline-flex items-center gap-1">
+                  Guest Sandbox
+                </Badge>
+              )}
               <Badge variant="outline" className="font-mono text-[11px] text-accent border-accent/30 px-2 py-0.5">
                 {currentStep === 1 && "Phase 1: Concept & Tone"}
                 {currentStep === 2 && "Phase 2: Character Lab"}
@@ -425,6 +437,7 @@ export function NewProjectDialog({
                 {currentStep === 5 && "Phase 5: Production Brief"}
               </Badge>
             </div>
+
           </div>
 
           <DialogTitle className="text-xl lg:text-2xl font-heading tracking-tight text-foreground">

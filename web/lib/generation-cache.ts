@@ -1,16 +1,19 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import { getSupabaseAdminClient, getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase";
 
 /**
- * Persistent Server-Side Generation Cache for Agentic Cinema.
- * Prevents redundant API expenditure for Veo 3.1, Gemini TTS, Imagen 3,
- * and screenplay synthesis.
+ * Persistent Generation Cache for Agentic Cinema.
+ * Uses a tiered architecture:
+ * 1. In-memory fast RAM cache (LRU buffer, 30 min TTL)
+ * 2. Supabase Postgres `generation_cache` table (distributed, cloud persistent)
+ * 3. Local disk cache `.cache/agentic_cinema/` (ephemeral dev fallback)
  */
 
 const CACHE_DIR = path.join(process.cwd(), ".cache", "agentic_cinema");
 
-// In-memory LRU fast buffer to prevent disk I/O on rapid repeated hits
+// In-memory LRU fast buffer to prevent DB / disk I/O on rapid repeated hits
 const memoryCache = new Map<string, { data: any; expiresAt: number }>();
 const MEMORY_TTL_MS = 1000 * 60 * 30; // 30 minutes in RAM
 
@@ -46,7 +49,32 @@ export async function getCachedGeneration<T>(
     return inMem.data as T;
   }
 
-  // 2. Check persistent disk cache
+  // 2. Check Supabase cloud generation_cache table
+  if (isSupabaseConfigured()) {
+    try {
+      const client = typeof window === "undefined" ? getSupabaseAdminClient() || getSupabaseClient() : getSupabaseClient();
+      if (client) {
+        const { data, error } = await client
+          .from("generation_cache")
+          .select("result")
+          .eq("key", key)
+          .maybeSingle();
+
+        if (!error && data?.result) {
+          totalHits++;
+          memoryCache.set(key, {
+            data: data.result,
+            expiresAt: Date.now() + MEMORY_TTL_MS,
+          });
+          return data.result as T;
+        }
+      }
+    } catch (err) {
+      console.warn(`[GenerationCache] Supabase read error for ${namespace}/${key}:`, err);
+    }
+  }
+
+  // 3. Check persistent disk cache (local dev fallback)
   try {
     const dir = ensureCacheDir(namespace);
     const filePath = path.join(dir, `${key}.json`);
@@ -65,7 +93,7 @@ export async function getCachedGeneration<T>(
       return parsed.result as T;
     }
   } catch (err) {
-    console.warn(`[GenerationCache] Read error for ${namespace}/${key}:`, err);
+    console.warn(`[GenerationCache] Local disk read error for ${namespace}/${key}:`, err);
   }
 
   totalMisses++;
@@ -85,6 +113,25 @@ export async function setCachedGeneration<T>(
     expiresAt: Date.now() + MEMORY_TTL_MS,
   });
 
+  // Write to Supabase cloud generation_cache
+  if (isSupabaseConfigured()) {
+    try {
+      const client = typeof window === "undefined" ? getSupabaseAdminClient() || getSupabaseClient() : getSupabaseClient();
+      if (client) {
+        await client
+          .from("generation_cache")
+          .upsert({
+            key,
+            namespace,
+            payload: typeof payload === "object" ? payload : { raw: payload },
+            result,
+          }, { onConflict: "key" });
+      }
+    } catch (err) {
+      console.warn(`[GenerationCache] Supabase write error for ${namespace}/${key}:`, err);
+    }
+  }
+
   // Write to persistent disk
   try {
     const dir = ensureCacheDir(namespace);
@@ -100,7 +147,6 @@ export async function setCachedGeneration<T>(
 
     fs.writeFileSync(filePath, JSON.stringify(record, null, 2), "utf-8");
   } catch (err) {
-    console.warn(`[GenerationCache] Write error for ${namespace}/${key}:`, err);
+    console.warn(`[GenerationCache] Local disk write error for ${namespace}/${key}:`, err);
   }
 }
-

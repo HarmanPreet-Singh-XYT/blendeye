@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateScript } from "@/lib/agent-service";
 import { getCachedGeneration, setCachedGeneration } from "@/lib/generation-cache";
+import { getSupabaseAdminClient, getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase";
 
 export async function POST(req: NextRequest) {
   let body: any;
@@ -24,6 +25,24 @@ export async function POST(req: NextRequest) {
     const result = await generateScript(premise);
     if (result && result.screenplay_text) {
       await setCachedGeneration("script", { premise }, result);
+
+      const projectId = typeof body?.projectId === "string" ? body.projectId.trim() : "";
+      if (projectId && isSupabaseConfigured()) {
+        try {
+          const client = getSupabaseAdminClient() || getSupabaseClient();
+          if (client) {
+            await client
+              .from("projects")
+              .update({
+                screenplay_text: result.screenplay_text,
+                updated_at: Date.now(),
+              })
+              .eq("id", projectId);
+          }
+        } catch (dbErr) {
+          console.warn("[ScriptGenerate] Supabase screenplay persist warning:", dbErr);
+        }
+      }
     }
     return NextResponse.json(result);
   } catch (err) {

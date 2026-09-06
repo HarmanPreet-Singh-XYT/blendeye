@@ -78,6 +78,28 @@ export function generateScript(premise: string) {
   return postJson<GenerateScriptResponse>("/script/generate", { premise });
 }
 
+export interface RewriteSceneRequest {
+  sceneText: string;
+  directorStyle: string;
+  subtextRatio?: string;
+  pacingBpm?: number;
+  cameraMovement?: string;
+}
+
+export interface RewriteSceneResponse {
+  rewritten_scene: string;
+}
+
+export function rewriteScene(req: RewriteSceneRequest) {
+  return postJson<RewriteSceneResponse>("/script/rewrite", {
+    scene_text: req.sceneText,
+    director_style: req.directorStyle,
+    subtext_ratio: req.subtextRatio ?? "moderate",
+    pacing_bpm: req.pacingBpm ?? 80,
+    camera_movement: req.cameraMovement ?? "Standard coverage",
+  });
+}
+
 export interface StoryEvent {
   project_id: string;
   character_name: string;

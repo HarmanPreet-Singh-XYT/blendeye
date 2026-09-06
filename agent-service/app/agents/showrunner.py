@@ -27,10 +27,20 @@ HOW TO INTERACT (BE HUMAN & CONVERSATIONAL):
 """
 
 
-def build_showrunner_agent() -> Agent:
+def build_showrunner_agent(*, with_mcp: bool = False) -> Agent:
     settings = get_settings()
+    tools = []
+    if with_mcp:
+        try:
+            from app.services.clickhouse_mcp import build_clickhouse_toolset
+            tools.append(build_clickhouse_toolset())
+        except Exception:  # noqa: BLE001, S110
+            pass
+
     return Agent(
         name="writers_room_showrunner",
         model=settings.gemini_model,
         instruction=INSTRUCTION,
+        tools=tools,
     )
+

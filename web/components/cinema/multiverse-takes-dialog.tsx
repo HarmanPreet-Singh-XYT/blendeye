@@ -11,7 +11,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SlateLabel } from "@/components/cinema/slate-label";
-import { Clapperboard, Check, Sparkles } from "lucide-react";
+import { Clapperboard, Check, Sparkles, RefreshCw, AlertTriangle } from "lucide-react";
+import { toast } from "@/components/ui/toast";
+import { notifyIfFallback } from "@/lib/fallback-notice";
 
 export interface MultiverseTake {
   id: string;
@@ -24,6 +26,46 @@ export interface MultiverseTake {
   scriptSnippet: string;
 }
 
+interface TakeStyle {
+  id: string;
+  takeLabel: string;
+  directorStyle: string;
+  subtextRatio: string;
+  pacingBpm: number;
+  cameraMovement: string;
+  synopsis: string;
+}
+
+const TAKE_STYLES: TakeStyle[] = [
+  {
+    id: "take-psychological",
+    takeLabel: "Take A · Psychological Slow-Burn",
+    directorStyle: "A24 / Atmospheric Tension — lingering silences, restrained performances, dread communicated through lighting and stillness rather than dialogue",
+    subtextRatio: "92% Subtext",
+    pacingBpm: 60,
+    cameraMovement: "Lingering 50mm Prime · Shallow Depth of Field",
+    synopsis: "A slower, quieter cut where most of the conflict plays out beneath the surface.",
+  },
+  {
+    id: "take-neonoir",
+    takeLabel: "Take B · Neo-Noir Confrontation",
+    directorStyle: "Michael Mann / David Fincher Precision — hardboiled, razor-sharp dialogue, cold procedural confrontation",
+    subtextRatio: "78% Subtext",
+    pacingBpm: 88,
+    cameraMovement: "35mm Anamorphic Master · Razor Cuts · Cold Cyan Fill",
+    synopsis: "A harder-edged cut with direct accusations and physical evidence on the table.",
+  },
+  {
+    id: "take-action",
+    takeLabel: "Take C · Visceral Ticking Clock",
+    directorStyle: "Christopher Nolan / Denis Villeneuve Urgency — kinetic, high-velocity, physical pressure escalating in real time",
+    subtextRatio: "45% Subtext",
+    pacingBpm: 125,
+    cameraMovement: "Handheld Steadicam · Kinetic Dutch Angles · Warning Strobe",
+    synopsis: "A faster, more physical cut where the crisis is already actively unfolding.",
+  },
+];
+
 interface MultiverseTakesDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -33,6 +75,12 @@ interface MultiverseTakesDialogProps {
   characters?: Array<{ name: string }>;
   screenplayText?: string;
 }
+
+type TakeState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "ready"; scriptSnippet: string; isFallback: boolean }
+  | { status: "error"; message: string };
 
 export function MultiverseTakesDialog({
   open,
@@ -44,186 +92,96 @@ export function MultiverseTakesDialog({
   screenplayText = "",
 }: MultiverseTakesDialogProps) {
   const [selectedTakeId, setSelectedTakeId] = React.useState(currentTakeId);
+  const [takeResults, setTakeResults] = React.useState<Record<string, TakeState>>({});
 
   const charA = characters[0]?.name || "Marcus";
   const charB = characters[1]?.name || "Elena";
 
-  // Derive slugline from screenplay if available
-  const slugline = React.useMemo(() => {
-    if (screenplayText) {
-      const match = screenplayText.match(/(?:^|\n)(INT\.|EXT\.)[^\n]+/i);
-      if (match) return match[0].trim();
+  const fallbackSceneText = React.useMemo(() => {
+    if (screenplayText.trim()) return screenplayText;
+    const match = screenplayText.match(/(?:^|\n)(INT\.|EXT\.)[^\n]+/i);
+    const slugline = match ? match[0].trim() : "INT. CONFRONTATION CHAMBER - NIGHT";
+    return `${slugline}\n\n${charA} and ${charB} face off over an unresolved betrayal.`;
+  }, [screenplayText, charA, charB]);
+
+  const generateTake = React.useCallback(
+    async (style: TakeStyle) => {
+      setTakeResults((prev) => ({ ...prev, [style.id]: { status: "loading" } }));
+      try {
+        const res = await fetch("/api/script/rewrite", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            scene_text: fallbackSceneText,
+            director_style: style.directorStyle,
+            subtext_ratio: style.subtextRatio,
+            pacing_bpm: style.pacingBpm,
+            camera_movement: style.cameraMovement,
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const isFallback = notifyIfFallback(data, `Multiverse ${style.takeLabel.split("·")[0].trim()}`);
+          setTakeResults((prev) => ({
+            ...prev,
+            [style.id]: { status: "ready", scriptSnippet: data.rewritten_scene, isFallback },
+          }));
+        } else {
+          const detail = await res.text().catch(() => "");
+          setTakeResults((prev) => ({
+            ...prev,
+            [style.id]: { status: "error", message: detail || `Request failed (${res.status})` },
+          }));
+        }
+      } catch (err) {
+        setTakeResults((prev) => ({
+          ...prev,
+          [style.id]: {
+            status: "error",
+            message: err instanceof Error ? err.message : "Could not reach the rewrite backend.",
+          },
+        }));
+      }
+    },
+    [fallbackSceneText]
+  );
+
+  // Kick off generation for the initially-selected take as soon as the dialog opens.
+  React.useEffect(() => {
+    if (!open) {
+      setTakeResults({});
+      return;
     }
-    return "INT. CONFRONTATION CHAMBER - NIGHT";
-  }, [screenplayText]);
+    const initial = TAKE_STYLES.find((s) => s.id === currentTakeId) || TAKE_STYLES[0];
+    generateTake(initial);
+    // Only run once per dialog open — subsequent takes are generated on-demand when selected.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
-  const alternateTakes: MultiverseTake[] = React.useMemo(() => {
-    // If it's specifically the benchmark Vault Heist
-    if (charA === "Marcus" && charB === "Elena") {
-      return [
-        {
-          id: "take-psychological",
-          takeLabel: "Take A · Psychological Slow-Burn",
-          directorStyle: "A24 / Atmospheric Tension",
-          subtextRatio: "92% Subtext",
-          pacingBpm: 60,
-          cameraMovement: "Lingering 50mm Prime · Shallow Depth of Field",
-          synopsis:
-            "Elena maintains unbroken silence while Marcus dismantles his equipment in growing isolation. The threat of the ventilation vents is communicated entirely through lighting shifts.",
-          scriptSnippet: `INT. UNDERGROUND VAULT - NIGHT
-
-Auxiliary cyan strips buzz softly. A drop of condensation strikes the concrete floor.
-
-MARCUS
-(kneeling, hands trembling inside the gear bag)
-Elena. Look at me.
-
-ELENA doesn't move. Her reflection stares back from the polished vault steel.
-
-MARCUS (CONT'D)
-You knew the codes were cycled. You knew before we cut the perimeter cable.
-
-ELENA
-(after a ten-second pause)
-If you don't keep your hands inside that bag, Marcus, you won't live to see the cyan vents open.`,
-        },
-        {
-          id: "take-neonoir",
-          takeLabel: "Take B · Neo-Noir Confrontation",
-          directorStyle: "Michael Mann / David Fincher Precision",
-          subtextRatio: "78% Subtext",
-          pacingBpm: 88,
-          cameraMovement: "35mm Anamorphic Master · Razor Cuts · Cold Cyan Fill",
-          synopsis:
-            "Hardboiled rapid-fire accusations. Marcus presents physical evidence of Elena's syndicate burner phone.",
-          scriptSnippet: `INT. UNDERGROUND VAULT - NIGHT
-
-Strobe warning indicators flash against titanium deposit boxes.
-
-MARCUS
-(slamming a titanium bypass chip onto the counter)
-The serial number. 4-4-9-Juliet. That's not syndicate issue, Elena. That's Central Bureau.
-
-ELENA
-(spinning around, hand inches from her sidearm)
-You've got three minutes before the sweep team clears the tunnel, Marcus. You really want to audit receipts right now?
-
-MARCUS
-I want to know if I'm walking out of here or if you already sold my seat in the van.`,
-        },
-        {
-          id: "take-action",
-          takeLabel: "Take C · Visceral Ticking Clock",
-          directorStyle: "Christopher Nolan / Denis Villeneuve Urgency",
-          subtextRatio: "45% Subtext",
-          pacingBpm: 125,
-          cameraMovement: "Handheld Steadicam · Kinetic Dutch Angles · Siren Strobe",
-          synopsis:
-            "High-velocity panic. The ventilation purge has already begun cycling emergency gas. Every word is delivered under physical pressure.",
-          scriptSnippet: `INT. UNDERGROUND VAULT - NIGHT
-
-RED AND CYAN EMERGENCY ALARMS SCREAM. Pressurized mist hiss from overhead valves.
-
-MARCUS
-(coughing violently, hammering the electronic keypad)
-THE OVERRIDE FAILED! ELENA! THE VENTS ARE PURGING!
-
-ELENA
-(forcing Marcus against the bulkhead)
-GRAB THE HARD DRIVES! THE DOOR ONLY OPENS FROM OUTSIDE ONCE THE PRESSURE EQUALIZES!
-
-MARCUS
-YOU LOCKED US IN! YOU LOCKED US BOTH IN!
-
-ELENA
-JUST HOLD YOUR BREATH!`,
-        },
-      ];
+  const handleSelectTake = (style: TakeStyle) => {
+    setSelectedTakeId(style.id);
+    const existing = takeResults[style.id];
+    if (!existing || existing.status === "error") {
+      generateTake(style);
     }
+  };
 
-    // Dynamic generation for Space Airlock or any custom project
-    return [
-      {
-        id: "take-psychological",
-        takeLabel: "Take A · Psychological Slow-Burn",
-        directorStyle: "A24 / Atmospheric Tension",
-        subtextRatio: "92% Subtext",
-        pacingBpm: 58,
-        cameraMovement: "Lingering 50mm Prime · Clinical Negative Space",
-        synopsis: `${charB} maintains unblinking stillness while ${charA} searches for micro-expressions. Tension builds through prolonged ambient sound design and silence.`,
-        scriptSnippet: `${slugline}
-
-Ambient emergency hum reverberates through the structure. Shadows stretch across cold metallic bulkheads.
-
-${charA.toUpperCase()}
-(voice quiet, hands clenched at their side)
-${charB}. Turn around.
-
-${charB.toUpperCase()} does not move. Their gaze remains fixed on the status terminal.
-
-${charA.toUpperCase()} (CONT'D)
-You knew before the alarm triggered. You knew what was coming.
-
-${charB.toUpperCase()}
-(slowly exhaling)
-If you speak another word, neither of us makes it out of this room.`,
-      },
-      {
-        id: "take-neonoir",
-        takeLabel: "Take B · Neo-Noir Precision",
-        directorStyle: "Michael Mann / David Fincher Precision",
-        subtextRatio: "75% Subtext",
-        pacingBpm: 84,
-        cameraMovement: "35mm Anamorphic Master · Razor Sharp Edits",
-        synopsis: `Hardboiled interrogation. ${charA} directly confronts ${charB} with physical proof of tampered telemetry and hidden motives.`,
-        scriptSnippet: `${slugline}
-
-Cold sodium illumination reflects off high-polish surfaces.
-
-${charA.toUpperCase()}
-(dropping the data drive onto the console)
-The authorization code at zero-two-hundred. It bears your biometric tag, ${charB}.
-
-${charB.toUpperCase()}
-(stepping forward, tone razor sharp)
-You have less than three minutes before security locks down this sector. You really want to audit timestamps right now?
-
-${charA.toUpperCase()}
-I want to know who gave the command to override that seal.`,
-      },
-      {
-        id: "take-action",
-        takeLabel: "Take C · Visceral Ticking Clock",
-        directorStyle: "Christopher Nolan / Denis Villeneuve Urgency",
-        subtextRatio: "42% Subtext",
-        pacingBpm: 120,
-        cameraMovement: "Handheld Steadicam · Kinetic Dutch Angles · Warning Strobe",
-        synopsis: `High-velocity crisis. Critical system failure forces ${charA} and ${charB} into a frantic physical scramble as time expires.`,
-        scriptSnippet: `${slugline}
-
-PULSING EMERGENCY WARNING KLAXONS. Steam vents burst with deafening pressure.
-
-${charA.toUpperCase()}
-(straining against the emergency release mechanism)
-THE OVERRIDE FAILED! ${charB.toUpperCase()}! IT'S PURGING!
-
-${charB.toUpperCase()}
-(slamming their shoulder into the bulkhead latch)
-PULL THE PRIMARY LEVER! WE HAVE THIRTY SECONDS BEFORE THE SEAL DROPS!
-
-${charA.toUpperCase()}
-IT'S JAMMED! YOU LOCKED US IN HERE!
-
-${charB.toUpperCase()}
-BRACE YOURSELF!`,
-      },
-    ];
-  }, [charA, charB, slugline]);
-
-  const activeTake = alternateTakes.find((t) => t.id === selectedTakeId) || alternateTakes[0];
+  const activeStyle = TAKE_STYLES.find((s) => s.id === selectedTakeId) || TAKE_STYLES[0];
+  const activeResult: TakeState = takeResults[activeStyle.id] || { status: "idle" };
 
   const handleApply = () => {
-    onApplyTake(activeTake);
+    if (activeResult.status !== "ready") return;
+    onApplyTake({
+      id: activeStyle.id,
+      takeLabel: activeStyle.takeLabel,
+      directorStyle: activeStyle.directorStyle,
+      subtextRatio: activeStyle.subtextRatio,
+      pacingBpm: activeStyle.pacingBpm,
+      cameraMovement: activeStyle.cameraMovement,
+      synopsis: activeStyle.synopsis,
+      scriptSnippet: activeResult.scriptSnippet,
+    });
     onOpenChange(false);
   };
 
@@ -238,19 +196,20 @@ BRACE YOURSELF!`,
             </DialogTitle>
           </div>
           <DialogDescription className="text-xs text-muted-foreground">
-            Explore 3 diverging director cuts for {charA} and {charB}. Each take alters tone, subtext ratio, camera blocking, and dialogue rhythm.
+            Gemini rewrites your current scene for {charA} and {charB} under 3 diverging director styles. Each take alters tone, subtext ratio, camera blocking, and dialogue rhythm — generated live, not templated.
           </DialogDescription>
         </DialogHeader>
 
         {/* 3 Takes Selection Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-2">
-          {alternateTakes.map((take) => {
-            const isSelected = selectedTakeId === take.id;
+          {TAKE_STYLES.map((style) => {
+            const isSelected = selectedTakeId === style.id;
+            const result = takeResults[style.id];
             return (
               <button
-                key={take.id}
+                key={style.id}
                 type="button"
-                onClick={() => setSelectedTakeId(take.id)}
+                onClick={() => handleSelectTake(style)}
                 className={`flex flex-col text-left p-3 rounded-lg border transition-all ${
                   isSelected
                     ? "border-accent bg-accent/10 shadow-md ring-1 ring-accent"
@@ -259,22 +218,24 @@ BRACE YOURSELF!`,
               >
                 <div className="flex items-center justify-between mb-1.5">
                   <span className={`text-xs font-bold ${isSelected ? "text-accent" : "text-foreground"}`}>
-                    {take.takeLabel.split("·")[0]}
+                    {style.takeLabel.split("·")[0]}
                   </span>
-                  {isSelected && <Check className="h-3.5 w-3.5 text-accent" />}
+                  {result?.status === "loading" && <RefreshCw className="h-3.5 w-3.5 text-accent animate-spin" />}
+                  {result?.status === "ready" && isSelected && <Check className="h-3.5 w-3.5 text-accent" />}
+                  {result?.status === "error" && <AlertTriangle className="h-3.5 w-3.5 text-rose-400" />}
                 </div>
                 <span className="text-[11px] font-semibold text-foreground">
-                  {take.takeLabel.split("·")[1]}
+                  {style.takeLabel.split("·")[1]}
                 </span>
                 <span className="text-[10px] text-muted-foreground font-mono mt-1">
-                  {take.directorStyle}
+                  {style.directorStyle.split("—")[0].trim()}
                 </span>
 
                 <div className="mt-2.5 pt-2 border-t border-border/60 flex items-center justify-between text-[10px]">
                   <Badge variant="outline" className="text-[9px] py-0 px-1 border-accent/30 text-accent">
-                    {take.subtextRatio}
+                    {style.subtextRatio}
                   </Badge>
-                  <span className="font-mono text-muted-foreground">{take.pacingBpm} BPM</span>
+                  <span className="font-mono text-muted-foreground">{style.pacingBpm} BPM</span>
                 </div>
               </button>
             );
@@ -285,18 +246,45 @@ BRACE YOURSELF!`,
         <div className="flex-1 min-h-0 flex flex-col rounded-lg border border-border bg-background/80 p-4 space-y-3 mt-2 overflow-hidden">
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
-              <SlateLabel>{activeTake.takeLabel}</SlateLabel>
-              <p className="text-xs text-muted-foreground">{activeTake.synopsis}</p>
+              <SlateLabel>{activeStyle.takeLabel}</SlateLabel>
+              <p className="text-xs text-muted-foreground">{activeStyle.synopsis}</p>
             </div>
             <div className="flex items-center gap-2">
               <span className="font-mono text-[10px] text-accent bg-accent/10 px-2 py-0.5 rounded border border-accent/20">
-                {activeTake.cameraMovement}
+                {activeStyle.cameraMovement}
               </span>
             </div>
           </div>
 
+          {activeResult.status === "ready" && activeResult.isFallback && (
+            <div className="flex items-center gap-1.5 rounded border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] font-mono text-amber-400">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+              <span>Backend unreachable — showing your original scene unchanged, not a real rewrite.</span>
+            </div>
+          )}
+
           <div className="flex-1 overflow-y-auto rounded border border-border/70 bg-card/60 p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap selection:bg-accent/30">
-            {activeTake.scriptSnippet}
+            {activeResult.status === "loading" && (
+              <div className="h-full flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                <RefreshCw className="h-5 w-5 animate-spin text-accent" />
+                <span>Gemini is rewriting this scene in the selected style…</span>
+              </div>
+            )}
+            {activeResult.status === "error" && (
+              <div className="h-full flex flex-col items-center justify-center gap-2 text-rose-400">
+                <AlertTriangle className="h-5 w-5" />
+                <span>{activeResult.message}</span>
+                <Button size="sm" variant="outline" className="text-xs mt-1" onClick={() => generateTake(activeStyle)}>
+                  Retry
+                </Button>
+              </div>
+            )}
+            {activeResult.status === "ready" && activeResult.scriptSnippet}
+            {activeResult.status === "idle" && (
+              <div className="h-full flex items-center justify-center text-muted-foreground">
+                Select a take to generate it.
+              </div>
+            )}
           </div>
         </div>
 
@@ -312,10 +300,11 @@ BRACE YOURSELF!`,
             <Button
               size="sm"
               onClick={handleApply}
+              disabled={activeResult.status !== "ready"}
               className="text-xs gap-1.5 bg-accent text-accent-foreground hover:bg-accent/90"
             >
               <Sparkles className="h-3.5 w-3.5" />
-              Apply {activeTake.takeLabel.split("·")[0]} to Production
+              Apply {activeStyle.takeLabel.split("·")[0]} to Production
             </Button>
           </div>
         </div>

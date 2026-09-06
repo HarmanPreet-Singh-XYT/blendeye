@@ -341,7 +341,8 @@ export function VeoVideoDialog({
       videoUrl: url,
       prompt: customPrompt,
       characterName: selectedCharName || undefined,
-      isMaster: true,
+      // Only the first take for this scene auto-becomes Master; later takes are
+      // saved as alternates so a render never silently bumps the director's pick.
     });
     setSavedTakes((prev) => [newTake, ...prev]);
     setActiveTakeId(newTake.id);
@@ -350,7 +351,9 @@ export function VeoVideoDialog({
 
     toast.add({
       title: `Take #${nextNum} Saved to Project Vault`,
-      description: "Video file saved to disk and set as Master Scene Take.",
+      description: newTake.isMaster
+        ? "Video file saved to disk and set as Master Scene Take."
+        : "Video file saved to disk as an alternate take. Use \"Set as Master\" to promote it.",
       type: "success",
     });
   };

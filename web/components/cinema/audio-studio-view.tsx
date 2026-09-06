@@ -334,7 +334,10 @@ export function AudioStudioView({
       if (speakerUpper.includes("ELENA")) targetChannel = channels.DX2;
       else if (speakerUpper.includes("NARRATOR")) targetChannel = channels.DX3;
 
-      if (targetChannel.isMuted) {
+      const anySoloed = Object.values(channels).some((c) => c.isSolo);
+      const isSilenced = targetChannel.isMuted || (anySoloed && !targetChannel.isSolo);
+
+      if (isSilenced) {
         setCurrentLineIdx(idx + 1);
         playMasterLine(idx + 1);
         return;
@@ -813,12 +816,15 @@ export function AudioStudioView({
               </div>
             </div>
 
-            {/* Pitch & Timbre Mod */}
+            {/* Pitch & Timbre Mod — direction-setting only; Gemini TTS has no live formant-shift API, so this isn't applied to rendered audio */}
             <div className="space-y-1.5 bg-secondary/30 p-3 rounded-lg border border-border">
               <div className="flex items-center justify-between text-xs font-mono">
                 <span className="text-muted-foreground">Formant / Vocal Weight</span>
                 <span className="text-foreground font-bold">{activeChannel.formantShift > 0 ? `+${activeChannel.formantShift}` : activeChannel.formantShift}</span>
               </div>
+              <p className="text-[10px] font-mono text-amber-400/80">
+                Direction note for the voice actor model — not applied as audio DSP on the rendered take.
+              </p>
               <input
                 type="range"
                 min="-6"
@@ -995,6 +1001,10 @@ export function AudioStudioView({
             <h3 className="font-heading text-sm font-bold text-foreground">Spatial Room Acoustics</h3>
             <p className="text-xs text-muted-foreground">
               Select room simulation profiles to match the environmental setting of {sceneTitle}.
+            </p>
+            <p className="text-[10px] font-mono text-amber-400/80 mt-1">
+              Sets the room profile referenced in production notes — reverb convolution isn&apos;t
+              rendered into the audition/table-read audio yet.
             </p>
           </div>
 

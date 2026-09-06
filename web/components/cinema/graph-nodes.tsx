@@ -1229,7 +1229,7 @@ export function FloorPlanNode({ data, selected }: NodeProps & { data: FloorPlanN
 // 12. Tension Curve Node
 // -------------------------------------------------------------
 export interface TensionCurveNodeData extends Record<string, unknown> {
-  peakTension: number;
+  peakTension?: number;
   hasWarning?: boolean;
   onOpenDeck?: () => void;
 }
@@ -1253,10 +1253,12 @@ export function TensionCurveNode({ data, selected }: NodeProps & { data: Tension
 
         <div className="flex items-center justify-between text-[10px]">
           <span className="text-muted-foreground">Dynamic Stakes vs Relief</span>
-          <span className="font-mono text-rose-400 font-bold">Peak: {data.peakTension || 92}%</span>
+          <span className="font-mono text-rose-400 font-bold">
+            {typeof data.peakTension === "number" ? `Peak: ${data.peakTension}%` : "Not yet analyzed"}
+          </span>
         </div>
 
-        {/* Mini SVG Tension Graph */}
+        {/* Illustrative example curve shape — not derived from this scene's actual script */}
         <div className="w-full h-12 bg-secondary/30 rounded border border-border/50 relative overflow-hidden flex items-center justify-center p-1">
           <svg className="w-full h-full" viewBox="0 0 100 30" preserveAspectRatio="none">
             <path
@@ -1264,9 +1266,15 @@ export function TensionCurveNode({ data, selected }: NodeProps & { data: Tension
               fill="none"
               stroke="#f43f5e"
               strokeWidth="2"
+              strokeOpacity={typeof data.peakTension === "number" ? 1 : 0.4}
             />
-            <circle cx="75" cy="5" r="2.5" fill="#f43f5e" />
+            <circle cx="75" cy="5" r="2.5" fill="#f43f5e" opacity={typeof data.peakTension === "number" ? 1 : 0.4} />
           </svg>
+          {typeof data.peakTension !== "number" && (
+            <span className="absolute inset-0 flex items-center justify-center text-[9px] text-muted-foreground font-mono bg-secondary/40">
+              Example shape — open to analyze
+            </span>
+          )}
         </div>
 
         {data.hasWarning && (
@@ -1375,8 +1383,8 @@ export function TableReadNode({ data, selected }: NodeProps & { data: TableReadN
 // 14. Global Territory Viability Node (ClickHouse)
 // -------------------------------------------------------------
 export interface MarketNodeData extends Record<string, unknown> {
-  globalScore: number;
-  topTerritory: string;
+  globalScore?: number;
+  topTerritory?: string;
   onOpenHeatmap?: () => void;
 }
 
@@ -1399,12 +1407,16 @@ export function MarketNode({ data, selected }: NodeProps & { data: MarketNodeDat
 
         <div className="flex items-center justify-between text-[10px]">
           <span className="text-muted-foreground">Historical Box Office Comps</span>
-          <span className="font-mono text-emerald-400 font-bold">Global: {data.globalScore || 79}%</span>
+          <span className="font-mono text-emerald-400 font-bold">
+            {typeof data.globalScore === "number" ? `Global: ${data.globalScore}%` : "Not yet analyzed"}
+          </span>
         </div>
 
         <div className="rounded border border-emerald-500/20 bg-emerald-500/10 p-2 text-[11px]">
           <div className="text-[9px] font-mono uppercase text-emerald-400">Prime Market Fit:</div>
-          <p className="mt-0.5 text-foreground font-medium">{data.topTerritory || "North America (86%) & South Korea (83%)"}</p>
+          <p className="mt-0.5 text-foreground font-medium">
+            {data.topTerritory || "Open Territory Map to run a live prediction"}
+          </p>
         </div>
 
         <button
