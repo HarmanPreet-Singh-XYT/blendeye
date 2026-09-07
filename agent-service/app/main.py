@@ -30,6 +30,7 @@ from app.routers import (
     shotlist,
     showrunner,
     style_extractor,
+    video_sequence,
 )
 from app.services.clickhouse_store import get_clickhouse_store
 
@@ -82,6 +83,7 @@ app.include_router(shotlist.router)
 app.include_router(market_viability.router)
 app.include_router(production.router)
 app.include_router(media.router)
+app.include_router(video_sequence.router)
 
 
 @app.get("/health")

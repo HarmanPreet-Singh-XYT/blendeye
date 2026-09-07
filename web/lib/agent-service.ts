@@ -733,6 +733,16 @@ export function checkContinuity(
   });
 }
 
+export interface ShotContinuityBible {
+  character_appearance?: string;
+  wardrobe?: string;
+  location?: string;
+  lighting?: string;
+  time_of_day?: string;
+  blocking_start?: string;
+  blocking_end?: string;
+}
+
 export interface ShotItem {
   shot_number: number;
   shot_type: string;
@@ -744,6 +754,23 @@ export interface ShotItem {
   dramatic_intent: string;
   imagen_prompt: string;
   estimated_duration_sec: number;
+  continuity_bible?: ShotContinuityBible;
+  conditioning_source?: "character_ref" | "location_ref" | "previous_frame" | "none";
+  conditioning_ref?: string;
+}
+
+export interface ShotCharacterDetail {
+  name: string;
+  objective?: string;
+  wardrobe?: string;
+  has_face_ref?: boolean;
+  has_body_ref?: boolean;
+}
+
+export interface ShotSceneLocation {
+  name?: string;
+  category?: string;
+  has_preview_image?: boolean;
 }
 
 export interface ShotlistResponse {
@@ -752,6 +779,7 @@ export interface ShotlistResponse {
   visual_rhythm: string;
   aspect_ratio: string;
   color_temperature: string;
+  total_planned_duration_sec?: number;
   shots: ShotItem[];
   _fallback?: boolean;
   _error?: string;
@@ -763,13 +791,71 @@ export function generateShotlist(req: {
   sceneTitle?: string;
   directorStyle?: string;
   characters?: string[];
+  targetTotalDurationSec?: number;
+  cameraMotion?: string;
+  stylePreset?: string;
+  aspectRatio?: string;
+  charactersDetail?: ShotCharacterDetail[];
+  location?: ShotSceneLocation;
 }) {
   return postJson<ShotlistResponse>("/shotlist/generate", {
     scene_text: req.sceneText,
     scene_title: req.sceneTitle || "INT. SCENE - NIGHT",
     director_style: req.directorStyle || "David Fincher / Neo-Noir Precision",
     characters: req.characters || [],
+    target_total_duration_sec: req.targetTotalDurationSec,
+    camera_motion: req.cameraMotion || "",
+    style_preset: req.stylePreset || "",
+    aspect_ratio: req.aspectRatio || "16:9",
+    characters_detail: req.charactersDetail || [],
+    location: req.location || null,
   });
+}
+
+export interface SequenceShotInput {
+  shot_number: number;
+  prompt: string;
+  estimated_duration_sec: number;
+  continuity_bible?: ShotContinuityBible;
+  conditioning_source?: "character_ref" | "location_ref" | "previous_frame" | "none";
+  conditioning_ref?: string;
+}
+
+export interface SequenceShotState {
+  shot_number: number;
+  status: "planned" | "generating" | "completed" | "error";
+  video_url?: string | null;
+  last_frame_data_uri?: string | null;
+  error_message?: string | null;
+}
+
+export interface SequenceJobResponse {
+  job_id: string;
+  scene_id: string;
+  status: "queued" | "running" | "completed" | "error";
+  current_shot_index: number;
+  total_shots: number;
+  shots: SequenceShotState[];
+  error_message?: string | null;
+  created_at?: number;
+  updated_at?: number;
+}
+
+export function startVideoSequence(
+  sceneId: string,
+  shots: SequenceShotInput[],
+  referenceImages?: Record<string, string>
+) {
+  return postJson<{ job_id: string; scene_id: string; status: string; total_shots: number }>(
+    "/media/video/sequence/start",
+    { scene_id: sceneId, shots, reference_images: referenceImages || {} }
+  );
+}
+
+export function getVideoSequenceStatus(jobId: string) {
+  return getJson<SequenceJobResponse>(
+    `/media/video/sequence/status?job_id=${encodeURIComponent(jobId)}`
+  );
 }
 
 export interface StripboardSceneInput {

@@ -53,6 +53,17 @@ import type { Node } from "@xyflow/react";
 import { cn } from "@/lib/utils";
 import type { ProjectCharacter, FilmScene } from "@/lib/project-store";
 import { getVideoTakes, saveVideoTake, setMasterVideoTake, deleteVideoTake, type VideoTake } from "@/lib/project-store";
+import { getShots, saveShots, saveActiveSequenceJob, type Shot } from "@/lib/project-store";
+import {
+  generateShotlist,
+  startVideoSequence,
+  getVideoSequenceStatus,
+  type ShotItem,
+  type ShotCharacterDetail,
+  type ShotSceneLocation,
+  type SequenceShotInput,
+  type SequenceJobResponse,
+} from "@/lib/agent-service";
 import {
   synthesizeCinemaPrompt,
   type NodeContribution,
@@ -505,6 +516,239 @@ export function GenerationStudioView({
       description: "Stored in project take vault and set as Master Take.",
       type: "success",
     });
+  };
+
+  // ---- Full-Scene (multi-shot chained Veo) generation ----
+  // A single Veo call is capped at 4-8s; scenes can run far longer, so this
+  // plans a sequence of shots up front (each with a locked continuity bible)
+  // and then generates them one at a time server-side, conditioning each
+  // shot on the previous shot's last frame for visual continuity.
+  const [fullSceneMode, setFullSceneMode] = React.useState<boolean>(false);
+  const [targetSceneDurationSec, setTargetSceneDurationSec] = React.useState<number>(30);
+  const [isPlanningShots, setIsPlanningShots] = React.useState<boolean>(false);
+  const [plannedShots, setPlannedShots] = React.useState<ShotItem[]>([]);
+  const [sequenceJob, setSequenceJob] = React.useState<SequenceJobResponse | null>(null);
+  const sequencePollRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopSequencePolling = React.useCallback(() => {
+    if (sequencePollRef.current) {
+      clearInterval(sequencePollRef.current);
+      sequencePollRef.current = null;
+    }
+  }, []);
+
+  React.useEffect(() => {
+    return () => stopSequencePolling();
+  }, [stopSequencePolling]);
+
+  // Builds the full director-agent context bundle from studio state that
+  // already exists but previously never left the UI: chosen camera style,
+  // each present character's in-scene objective (from the scene's castRoles)
+  // plus whatever reference imagery is available for them, and the scene's
+  // scouted location if one was picked. Without this the planner only saw
+  // screenplay text and character names, so it had no way to anchor shots
+  // on real reference images or connect them to what the director had
+  // already dialed in for this session.
+  const buildCharactersDetail = React.useCallback((): ShotCharacterDetail[] => {
+    return characters.map((c) => ({
+      name: c.name,
+      objective: activeSceneObj?.castRoles?.[c.name] || c.objective || "",
+      wardrobe: c.wardrobe || "",
+      has_face_ref: Boolean(c.imageUrl),
+      has_body_ref: Boolean(c.fullBodyImageUrl),
+    }));
+  }, [characters, activeSceneObj]);
+
+  const selectedLocationCandidate = React.useMemo(() => {
+    if (!activeSceneObj?.selectedLocationCandidateId) return null;
+    return (
+      activeSceneObj.locationCandidates?.find(
+        (c) => c.candidate_id === activeSceneObj.selectedLocationCandidateId
+      ) || null
+    );
+  }, [activeSceneObj]);
+
+  const buildLocationContext = React.useCallback((): ShotSceneLocation | undefined => {
+    if (!selectedLocationCandidate) return undefined;
+    return {
+      name: selectedLocationCandidate.name,
+      category: selectedLocationCandidate.category,
+      has_preview_image: Boolean(selectedLocationCandidate.preview_image_url),
+    };
+  }, [selectedLocationCandidate]);
+
+  const handlePlanShots = async () => {
+    if (isPlanningShots) return;
+    setIsPlanningShots(true);
+    setPlannedShots([]);
+    try {
+      const result = await generateShotlist({
+        sceneText: screenplayText || sceneSummary || sceneTitle,
+        sceneTitle,
+        directorStyle: activeSceneObj?.directorStyle,
+        characters: characters.map((c) => c.name),
+        targetTotalDurationSec: targetSceneDurationSec,
+        cameraMotion,
+        stylePreset,
+        aspectRatio,
+        charactersDetail: buildCharactersDetail(),
+        location: buildLocationContext(),
+      });
+      if (result.shots && result.shots.length > 0) {
+        setPlannedShots(result.shots);
+        notifyIfFallback(result, "Shot Planning");
+      } else {
+        toast.add({
+          title: "Shot planning failed",
+          description: "No shots were returned. Try again.",
+          type: "error",
+        });
+      }
+    } catch (err) {
+      toast.add({
+        title: "Shot planning failed",
+        description: err instanceof Error ? err.message : "Could not reach the shot planner.",
+        type: "error",
+      });
+    } finally {
+      setIsPlanningShots(false);
+    }
+  };
+
+  const pollSequenceJob = React.useCallback(
+    (jobId: string) => {
+      stopSequencePolling();
+      sequencePollRef.current = setInterval(async () => {
+        try {
+          const job = await getVideoSequenceStatus(jobId);
+          setSequenceJob(job);
+
+          if (job.status === "completed" || job.status === "error") {
+            stopSequencePolling();
+
+            if (activeSceneObj) {
+              const savedShots: Shot[] = job.shots.map((s, idx) => ({
+                id: `shot-${jobId}-${s.shot_number}`,
+                sceneId: activeSceneObj.id,
+                sequenceIndex: idx,
+                shotNumber: s.shot_number,
+                shotType: plannedShots[idx]?.shot_type || "",
+                cameraMovement: plannedShots[idx]?.camera_movement || "",
+                prompt: plannedShots[idx]?.imagen_prompt || "",
+                estimatedDurationSec: plannedShots[idx]?.estimated_duration_sec || 6,
+                continuityBible: plannedShots[idx]?.continuity_bible
+                  ? {
+                      characterAppearance: plannedShots[idx].continuity_bible?.character_appearance,
+                      wardrobe: plannedShots[idx].continuity_bible?.wardrobe,
+                      location: plannedShots[idx].continuity_bible?.location,
+                      lighting: plannedShots[idx].continuity_bible?.lighting,
+                      timeOfDay: plannedShots[idx].continuity_bible?.time_of_day,
+                      blockingStart: plannedShots[idx].continuity_bible?.blocking_start,
+                      blockingEnd: plannedShots[idx].continuity_bible?.blocking_end,
+                    }
+                  : undefined,
+                status: s.status,
+                videoUrl: s.video_url || undefined,
+                lastFrameUrl: s.last_frame_data_uri || undefined,
+                errorMessage: s.error_message || undefined,
+                createdAt: Date.now(),
+              }));
+              saveShots(effectiveProjectId, activeSceneObj.id, savedShots);
+              saveActiveSequenceJob(effectiveProjectId, undefined);
+            }
+
+            if (job.status === "completed") {
+              const firstUrl = job.shots.find((s) => s.video_url)?.video_url;
+              if (firstUrl) {
+                setActiveVideoUrl(firstUrl);
+                addTakeToHistory(firstUrl);
+              }
+              toast.add({
+                title: "Full scene rendered",
+                description: `${job.total_shots} chained shots completed. Each Shot card in the timeline can be played back individually.`,
+                type: "success",
+              });
+            } else {
+              toast.add({
+                title: "Full scene generation failed",
+                description: job.error_message || "One of the chained shots failed to render.",
+                type: "error",
+              });
+            }
+          }
+        } catch (err) {
+          stopSequencePolling();
+          toast.add({
+            title: "Lost connection to render backend",
+            description: "Could not confirm sequence status. Check agent-service logs.",
+            type: "error",
+          });
+        }
+      }, 4000);
+    },
+    [activeSceneObj, plannedShots, effectiveProjectId, stopSequencePolling]
+  );
+
+  const handleGenerateFullScene = async () => {
+    if (!plannedShots.length || !activeSceneObj) return;
+
+    const sequenceInput: SequenceShotInput[] = plannedShots.map((s) => ({
+      shot_number: s.shot_number,
+      prompt: s.imagen_prompt,
+      estimated_duration_sec: s.estimated_duration_sec,
+      continuity_bible: s.continuity_bible,
+      conditioning_source: s.conditioning_source,
+      conditioning_ref: s.conditioning_ref,
+    }));
+
+    // Resolve the actual reference image URLs the director agent's per-shot
+    // conditioning_source/conditioning_ref decisions point at, so the
+    // sequencer can anchor a shot on a character's own reference image or
+    // the scouted location's image instead of always falling back to
+    // whatever the previous shot's last frame happened to look like.
+    const referenceImages: Record<string, string> = {};
+    for (const c of characters) {
+      const url = c.imageUrl || c.fullBodyImageUrl;
+      if (url) referenceImages[c.name] = url;
+    }
+    if (selectedLocationCandidate?.preview_image_url) {
+      referenceImages["location"] = selectedLocationCandidate.preview_image_url;
+    }
+
+    try {
+      const started = await startVideoSequence(activeSceneObj.id, sequenceInput, referenceImages);
+      const initialJob: SequenceJobResponse = {
+        job_id: started.job_id,
+        scene_id: started.scene_id,
+        status: started.status as SequenceJobResponse["status"],
+        current_shot_index: 0,
+        total_shots: started.total_shots,
+        shots: plannedShots.map((s) => ({ shot_number: s.shot_number, status: "planned" })),
+      };
+      setSequenceJob(initialJob);
+      saveActiveSequenceJob(effectiveProjectId, {
+        jobId: initialJob.job_id,
+        sceneId: initialJob.scene_id,
+        status: initialJob.status,
+        currentShotIndex: 0,
+        totalShots: initialJob.total_shots,
+        shots: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      pollSequenceJob(started.job_id);
+      toast.add({
+        title: "Full scene render started",
+        description: `Generating ${started.total_shots} chained shots server-side. This can take several minutes — you can navigate away and come back.`,
+        type: "info",
+      });
+    } catch (err) {
+      toast.add({
+        title: "Could not start full-scene render",
+        description: err instanceof Error ? err.message : "Failed to reach the sequencer endpoint.",
+        type: "error",
+      });
+    }
   };
 
   const selectTake = (take: RenderedTake) => {
@@ -1795,47 +2039,178 @@ export function GenerationStudioView({
                 </div>
               </div>
 
-              {/* Primary Render Button */}
-              <div className="mt-auto pt-2 flex flex-col gap-2">
-                <div className="flex gap-2">
-                  <Button
-                    size="lg"
-                    onClick={handleGenerateVeoVideo}
-                    disabled={isGenerating}
-                    className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90 font-semibold gap-2 cursor-pointer shadow-md"
-                  >
-                    {isGenerating ? (
-                      <RefreshCw className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Sparkles className="h-4 w-4" />
-                    )}
-                    <span>
-                      {isGenerating ? "Rendering with Veo 3.1..." : "Render Scene with Google Veo 3.1"}
-                    </span>
-                  </Button>
-                  {isGenerating && (
-                    <Button
-                      size="lg"
-                      variant="outline"
-                      onClick={handleCancelGeneration}
-                      className="cursor-pointer"
-                    >
-                      Cancel
-                    </Button>
-                  )}
-                </div>
+              {/* Full Scene (chained multi-shot) toggle */}
+              <div className="rounded-lg border border-border bg-secondary/20 p-3 flex flex-col gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setFullSceneMode((v) => !v)}
+                  className="flex items-center justify-between cursor-pointer"
+                >
+                  <span className="flex items-center gap-2">
+                    <Layers className="h-3.5 w-3.5 text-accent" />
+                    <SlateLabel>Full Scene (Chained Shots)</SlateLabel>
+                  </span>
+                  <Badge variant={fullSceneMode ? "default" : "outline"} className="text-[10px] font-mono">
+                    {fullSceneMode ? "ON" : "OFF"}
+                  </Badge>
+                </button>
+                <p className="text-[11px] text-muted-foreground leading-snug">
+                  Veo only renders 4-8s per call. Enable this to plan a scene of any length as a
+                  sequence of shots, each conditioned on the previous shot&apos;s last frame for continuity.
+                </p>
 
-                {isGenerating && (
-                  <div className="rounded-lg bg-accent/10 border border-accent/30 p-2.5 text-center flex flex-col gap-1.5">
-                    <span className="text-[11px] font-mono text-accent font-bold uppercase tracking-wider animate-pulse">
-                      {generationStage}
-                    </span>
-                    <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
-                      <div className="h-full bg-accent rounded-full animate-pulse w-3/4" />
+                {fullSceneMode && (
+                  <div className="flex flex-col gap-2.5 pt-1">
+                    <div className="flex items-center gap-2">
+                      <SlateLabel>Target Scene Length</SlateLabel>
+                      <input
+                        type="number"
+                        min={8}
+                        max={600}
+                        step={1}
+                        value={targetSceneDurationSec}
+                        onChange={(e) => setTargetSceneDurationSec(Number(e.target.value))}
+                        className="w-20 rounded border border-border bg-background px-2 py-1 text-xs font-mono"
+                      />
+                      <span className="text-[11px] text-muted-foreground">seconds</span>
                     </div>
+
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handlePlanShots}
+                      disabled={isPlanningShots}
+                      className="cursor-pointer gap-2"
+                    >
+                      {isPlanningShots ? (
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Clapperboard className="h-3.5 w-3.5" />
+                      )}
+                      {isPlanningShots ? "Planning shots..." : `Plan Shot List (~${targetSceneDurationSec}s)`}
+                    </Button>
+
+                    {plannedShots.length > 0 && (
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-mono text-muted-foreground">
+                            {plannedShots.length} shots planned · {plannedShots.reduce((sum, s) => sum + s.estimated_duration_sec, 0)}s total
+                          </span>
+                        </div>
+                        <div className="max-h-48 overflow-y-auto flex flex-col gap-1.5 pr-1">
+                          {plannedShots.map((shot) => (
+                            <div
+                              key={shot.shot_number}
+                              className="rounded border border-border bg-background/50 p-2 text-[11px] flex flex-col gap-0.5"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="font-semibold">
+                                  #{shot.shot_number} · {shot.shot_type}
+                                </span>
+                                <span className="font-mono text-accent">{shot.estimated_duration_sec}s</span>
+                              </div>
+                              <span className="text-muted-foreground line-clamp-2">{shot.blocking_notes}</span>
+                              {shot.conditioning_source && shot.conditioning_source !== "previous_frame" && (
+                                <span className="text-[10px] font-mono text-accent/80">
+                                  {shot.conditioning_source === "character_ref"
+                                    ? `Anchored on ${shot.conditioning_ref || "character"} reference image`
+                                    : shot.conditioning_source === "location_ref"
+                                    ? "Anchored on scouted location image"
+                                    : "No image conditioning"}
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+
+                        <Button
+                          size="lg"
+                          onClick={handleGenerateFullScene}
+                          disabled={!!sequenceJob && sequenceJob.status !== "completed" && sequenceJob.status !== "error"}
+                          className="bg-accent text-accent-foreground hover:bg-accent/90 font-semibold gap-2 cursor-pointer shadow-md"
+                        >
+                          <Sparkles className="h-4 w-4" />
+                          Generate Full Scene ({plannedShots.length} shots)
+                        </Button>
+                      </div>
+                    )}
+
+                    {sequenceJob && (
+                      <div className="rounded-lg bg-accent/10 border border-accent/30 p-2.5 flex flex-col gap-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-mono text-accent font-bold uppercase tracking-wider">
+                            {sequenceJob.status === "completed"
+                              ? "All shots completed"
+                              : sequenceJob.status === "error"
+                              ? "Sequence failed"
+                              : `Rendering shot ${sequenceJob.current_shot_index + 1} of ${sequenceJob.total_shots}`}
+                          </span>
+                          {sequenceJob.status === "running" && <RefreshCw className="h-3.5 w-3.5 animate-spin text-accent" />}
+                        </div>
+                        <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-accent rounded-full transition-all"
+                            style={{
+                              width: `${Math.round(
+                                (sequenceJob.shots.filter((s) => s.status === "completed").length /
+                                  Math.max(1, sequenceJob.total_shots)) *
+                                  100
+                              )}%`,
+                            }}
+                          />
+                        </div>
+                        {sequenceJob.error_message && (
+                          <span className="text-[11px] text-destructive">{sequenceJob.error_message}</span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
+
+              {/* Primary Render Button (single shot) */}
+              {!fullSceneMode && (
+                <div className="mt-auto pt-2 flex flex-col gap-2">
+                  <div className="flex gap-2">
+                    <Button
+                      size="lg"
+                      onClick={handleGenerateVeoVideo}
+                      disabled={isGenerating}
+                      className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90 font-semibold gap-2 cursor-pointer shadow-md"
+                    >
+                      {isGenerating ? (
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Sparkles className="h-4 w-4" />
+                      )}
+                      <span>
+                        {isGenerating ? "Rendering with Veo 3.1..." : "Render Scene with Google Veo 3.1"}
+                      </span>
+                    </Button>
+                    {isGenerating && (
+                      <Button
+                        size="lg"
+                        variant="outline"
+                        onClick={handleCancelGeneration}
+                        className="cursor-pointer"
+                      >
+                        Cancel
+                      </Button>
+                    )}
+                  </div>
+
+                  {isGenerating && (
+                    <div className="rounded-lg bg-accent/10 border border-accent/30 p-2.5 text-center flex flex-col gap-1.5">
+                      <span className="text-[11px] font-mono text-accent font-bold uppercase tracking-wider animate-pulse">
+                        {generationStage}
+                      </span>
+                      <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
+                        <div className="h-full bg-accent rounded-full animate-pulse w-3/4" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

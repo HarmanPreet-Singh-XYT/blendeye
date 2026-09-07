@@ -46,6 +46,45 @@ export interface VideoTake {
   isMaster?: boolean;
 }
 
+export interface ShotContinuityBible {
+  characterAppearance?: string;
+  wardrobe?: string;
+  location?: string;
+  lighting?: string;
+  timeOfDay?: string;
+  blockingStart?: string;
+  blockingEnd?: string;
+}
+
+export interface Shot {
+  id: string;
+  sceneId: string;
+  sequenceIndex: number;
+  shotNumber: number;
+  shotType: string;
+  cameraMovement: string;
+  prompt: string;
+  estimatedDurationSec: number;
+  continuityBible?: ShotContinuityBible;
+  status: "planned" | "generating" | "completed" | "error";
+  videoUrl?: string;
+  lastFrameUrl?: string;
+  errorMessage?: string;
+  createdAt: number;
+}
+
+export interface ShotSequenceJob {
+  jobId: string;
+  sceneId: string;
+  status: "queued" | "running" | "completed" | "error";
+  currentShotIndex: number;
+  totalShots: number;
+  shots: Shot[];
+  createdAt: number;
+  updatedAt: number;
+  errorMessage?: string;
+}
+
 export interface ScoreTake {
   id: string;
   sceneId?: string;
@@ -576,6 +615,7 @@ export interface FilmScene {
   events?: StoryEventMarker[];
   activeScoreUrl?: string;
   scoreTakes?: ScoreTake[];
+  shots?: Shot[];
 }
 
 export interface ProjectData {
@@ -610,6 +650,7 @@ export interface ProjectData {
   targetTerritories?: string[];
   povScripts?: Record<string, string>; // characterName -> POV script
   scratchpadNotes?: ScratchpadNote[];
+  activeSequenceJob?: ShotSequenceJob;
   activeVideoUrl?: string;
   videoTakes?: VideoTake[];
   activeScoreUrl?: string;
@@ -2913,6 +2954,62 @@ export function deleteScoreTake(projectId: string, takeId: string, sceneId?: str
     scenes: updatedScenes,
     activeScoreUrl: newActiveUrl,
     scoreTakes: remainingProjectTakes,
+  });
+}
+
+/**
+ * Gets all shots (chained-generation sub-clips) for a given scene.
+ */
+export function getShots(projectId: string, sceneId: string): Shot[] {
+  const project = getProjectById(projectId);
+  if (!project || !project.scenes) return [];
+  const scene = project.scenes.find((s) => s.id === sceneId);
+  return scene?.shots || [];
+}
+
+/**
+ * Replaces the full shot list for a scene (used when a shot plan is approved,
+ * and as each shot in a sequence job transitions status/videoUrl).
+ */
+export function saveShots(projectId: string, sceneId: string, shots: Shot[]): void {
+  const project = getProjectById(projectId);
+  if (!project || !project.scenes) return;
+
+  const updatedScenes = project.scenes.map((s) =>
+    s.id === sceneId ? { ...s, shots } : s
+  );
+
+  saveProject({
+    ...project,
+    scenes: updatedScenes,
+  });
+}
+
+/**
+ * Updates a single shot within a scene's shot list (e.g. status transitions
+ * during sequential generation).
+ */
+export function updateShot(
+  projectId: string,
+  sceneId: string,
+  shotId: string,
+  patch: Partial<Shot>
+): void {
+  const shots = getShots(projectId, sceneId);
+  const updated = shots.map((sh) => (sh.id === shotId ? { ...sh, ...patch } : sh));
+  saveShots(projectId, sceneId, updated);
+}
+
+/**
+ * Persists the active/most recent chained-generation job so progress can
+ * survive a page reload while the server-side job keeps running.
+ */
+export function saveActiveSequenceJob(projectId: string, job: ShotSequenceJob | undefined): void {
+  const project = getProjectById(projectId);
+  if (!project) return;
+  saveProject({
+    ...project,
+    activeSequenceJob: job,
   });
 }
 

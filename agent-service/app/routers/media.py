@@ -549,6 +549,127 @@ class GenerateVideoResponse(BaseModel):
     error: str | None = None
 
 
+def dispatch_veo_generation(
+    client: "genai.Client",
+    *,
+    prompt: str,
+    duration_seconds: int,
+    aspect_ratio: str = "16:9",
+    style_preset: str | None = "35mm Anamorphic Film",
+    character_name: str | None = None,
+    image_url: str | None = None,
+) -> str:
+    """Builds the cinematic prompt, resolves optional image conditioning, and
+    dispatches a single Veo 3.1 render. Returns the operation name.
+
+    Shared by the single-shot /media/video endpoint and the sequential
+    chained-generation job (services/video_sequencer.py) so both paths hit
+    Veo identically — the sequencer is not a second implementation of this,
+    it's the same call driven in a loop with the previous shot's last frame
+    passed in as image_url.
+    """
+    character_clause = f" Keep {character_name} as the primary subject in frame throughout." if character_name else ""
+    style_clause = f" Overall visual style: {style_preset}." if style_preset and style_preset.lower() not in prompt.lower() else ""
+    cinematic_prompt = (
+        f"{prompt.strip().rstrip('.')}.{character_clause}{style_clause} "
+        f"Aspect ratio {aspect_ratio}, photoreal depth, consistent lighting and continuity across frames, "
+        f"no text or watermarks, no jump cuts."
+    )
+
+    duration = max(4, min(8, duration_seconds))
+
+    img_bytes, mime = resolve_image_bytes(image_url)
+    image_arg = None
+    if img_bytes:
+        from google.genai import types
+        image_arg = types.Image(image_bytes=img_bytes, mime_type=mime or "image/jpeg")
+        logger.info("Conditioning Veo 3.1 video generation with image reference (%d bytes, %s)", len(img_bytes), mime)
+
+    kwargs: dict[str, Any] = {
+        "model": "models/veo-3.1-fast-generate-preview",
+        "prompt": cinematic_prompt,
+        "config": {
+            "aspect_ratio": aspect_ratio,
+            "duration_seconds": duration,
+        },
+    }
+    if image_arg is not None:
+        kwargs["image"] = image_arg
+
+    op = client.models.generate_videos(**kwargs)
+    return op.name
+
+
+def poll_veo_operation(client: "genai.Client", operation_name: str) -> dict[str, Any]:
+    """Single poll of a Veo operation; downloads+saves the video on completion.
+    Shared synchronous core behind both the HTTP status endpoint and the
+    sequencer's internal polling loop.
+    """
+    from google.genai import types
+
+    op = client.operations.get(types.GenerateVideosOperation(name=operation_name))
+    if op.done:
+        # Surface the operation's own error first — Veo reports rejected requests
+        # (e.g. malformed conditioning image, quota) here rather than in `response`.
+        if getattr(op, "error", None):
+            logger.error("Veo operation %s errored: %s", operation_name, op.error)
+            return {
+                "status": "error",
+                "error": f"Veo operation error: {op.error}",
+                "video_url": None,
+            }
+
+        video_url = None
+        if hasattr(op, "response") and op.response and hasattr(op.response, "generated_videos"):
+            videos = op.response.generated_videos
+            if videos and len(videos) > 0:
+                try:
+                    target_dir = Path(__file__).resolve().parent.parent.parent.parent / "web" / "public" / "videos"
+                    target_dir.mkdir(parents=True, exist_ok=True)
+                    file_id = uuid.uuid4().hex[:12]
+                    filename = f"veo_{file_id}.mp4"
+                    target_path = target_dir / filename
+
+                    client.files.download(file=videos[0].video, destination=str(target_path))
+                    if target_path.exists() and target_path.stat().st_size > 0:
+                        video_url = f"/videos/{filename}"
+                except Exception as dl_err:
+                    logger.error("Could not stream Veo file to disk: %s", dl_err)
+                    return {
+                        "status": "error",
+                        "error": f"Video finished rendering but could not be retrieved: {dl_err}",
+                        "video_url": None,
+                    }
+
+        if not video_url:
+            # Most common real cause of "completed but no video": Google's
+            # responsible-AI filter silently rejected the output (e.g. the
+            # conditioning image or prompt tripped a safety heuristic) rather
+            # than raising an error. Surface the actual reason when present
+            # instead of the previous unhelpful generic message.
+            filter_reasons = None
+            if hasattr(op, "response") and op.response:
+                count = getattr(op.response, "rai_media_filtered_count", 0) or 0
+                reasons = getattr(op.response, "rai_media_filtered_reasons", None)
+                if count or reasons:
+                    filter_reasons = reasons or ["content filtered, no reason given"]
+
+            error_detail = (
+                f"Veo filtered this render (responsible-AI check): {'; '.join(filter_reasons)}"
+                if filter_reasons
+                else "Veo operation completed but returned no video (no error or filter reason reported)"
+            )
+            logger.error("Veo operation %s: %s", operation_name, error_detail)
+            return {
+                "status": "error",
+                "error": error_detail,
+                "video_url": None,
+            }
+
+        return {"status": "completed", "video_url": video_url}
+    return {"status": "processing", "video_url": None}
+
+
 @router.post("/video", response_model=GenerateVideoResponse)
 async def generate_video(req: GenerateVideoRequest):
     """Dispatch a cinematic scene render to Google Veo 3.1 video generation."""
@@ -559,38 +680,18 @@ async def generate_video(req: GenerateVideoRequest):
 
     client = genai.Client(api_key=api_key)
 
-    character_clause = f" Keep {req.character_name} as the primary subject in frame throughout." if req.character_name else ""
-    style_clause = f" Overall visual style: {req.style_preset}." if req.style_preset and req.style_preset.lower() not in req.prompt.lower() else ""
-    cinematic_prompt = (
-        f"{req.prompt.strip().rstrip('.')}.{character_clause}{style_clause} "
-        f"Aspect ratio {req.aspect_ratio}, photoreal depth, consistent lighting and continuity across frames, "
-        f"no text or watermarks, no jump cuts."
-    )
-
-    duration = max(4, min(8, req.duration_seconds))
-
-    img_bytes, mime = resolve_image_bytes(req.image_url)
-    image_arg = None
-    if img_bytes:
-        from google.genai import types
-        image_arg = types.Image(image_bytes=img_bytes, mime_type=mime or "image/jpeg")
-        logger.info("Conditioning Veo 3.1 video generation with image reference (%d bytes, %s)", len(img_bytes), mime)
-
     try:
-        kwargs = {
-            "model": "models/veo-3.1-fast-generate-preview",
-            "prompt": cinematic_prompt,
-            "config": {
-                "aspect_ratio": req.aspect_ratio,
-                "duration_seconds": duration,
-            },
-        }
-        if image_arg is not None:
-            kwargs["image"] = image_arg
-
-        op = client.models.generate_videos(**kwargs)
+        operation_name = dispatch_veo_generation(
+            client,
+            prompt=req.prompt,
+            duration_seconds=req.duration_seconds,
+            aspect_ratio=req.aspect_ratio,
+            style_preset=req.style_preset,
+            character_name=req.character_name,
+            image_url=req.image_url,
+        )
         return GenerateVideoResponse(
-            operation_name=op.name,
+            operation_name=operation_name,
             prompt=req.prompt,
             status="processing",
         )
@@ -613,49 +714,7 @@ async def get_video_status(operation_name: str):
     client = genai.Client(api_key=api_key)
 
     try:
-        from google.genai import types
-
-        op = client.operations.get(types.GenerateVideosOperation(name=operation_name))
-        if op.done:
-            video_url = None
-            if hasattr(op, "response") and op.response and hasattr(op.response, "generated_videos"):
-                videos = op.response.generated_videos
-                if videos and len(videos) > 0:
-                    try:
-                        # Save the generated video physically to web/public/videos/
-                        target_dir = Path(__file__).resolve().parent.parent.parent.parent / "web" / "public" / "videos"
-                        target_dir.mkdir(parents=True, exist_ok=True)
-                        file_id = uuid.uuid4().hex[:12]
-                        filename = f"veo_{file_id}.mp4"
-                        target_path = target_dir / filename
-
-                        # Download the video directly from Google GenAI
-                        client.files.download(file=videos[0].video, destination=str(target_path))
-                        if target_path.exists() and target_path.stat().st_size > 0:
-                            video_url = f"/videos/{filename}"
-                    except Exception as dl_err:
-                        logger.error("Could not stream Veo file to disk: %s", dl_err)
-                        return {
-                            "status": "error",
-                            "error": f"Video finished rendering but could not be retrieved: {dl_err}",
-                            "video_url": None,
-                        }
-
-            if not video_url:
-                return {
-                    "status": "error",
-                    "error": "Veo operation completed but returned no video",
-                    "video_url": None,
-                }
-
-            return {
-                "status": "completed",
-                "video_url": video_url,
-            }
-        return {
-            "status": "processing",
-            "video_url": None,
-        }
+        return poll_veo_operation(client, operation_name)
     except Exception as e:  # noqa: BLE001
         logger.error("Veo status check failed: %s", e)
         return {

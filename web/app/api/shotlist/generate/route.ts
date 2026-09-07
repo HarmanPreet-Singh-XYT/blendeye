@@ -14,12 +14,29 @@ export async function POST(req: NextRequest) {
   const sceneTitle = typeof body?.scene_title === "string" ? body.scene_title : "INT. SCENE - NIGHT";
   const directorStyle = typeof body?.director_style === "string" ? body.director_style : "David Fincher / Neo-Noir Precision";
   const characters = Array.isArray(body?.characters) ? body.characters : [];
+  const targetTotalDurationSec = typeof body?.target_total_duration_sec === "number" ? body.target_total_duration_sec : undefined;
+  const cameraMotion = typeof body?.camera_motion === "string" ? body.camera_motion : undefined;
+  const stylePreset = typeof body?.style_preset === "string" ? body.style_preset : undefined;
+  const aspectRatio = typeof body?.aspect_ratio === "string" ? body.aspect_ratio : undefined;
+  const charactersDetail = Array.isArray(body?.characters_detail) ? body.characters_detail : undefined;
+  const location = body?.location && typeof body.location === "object" ? body.location : undefined;
 
   if (!sceneText) {
     return NextResponse.json({ error: "scene_text is required" }, { status: 400 });
   }
 
-  const payload = { sceneText, sceneTitle, directorStyle, characters };
+  const payload = {
+    sceneText,
+    sceneTitle,
+    directorStyle,
+    characters,
+    targetTotalDurationSec,
+    cameraMotion,
+    stylePreset,
+    aspectRatio,
+    charactersDetail,
+    location,
+  };
 
   try {
     const cached = await getCachedGeneration<any>("shotlist", payload);
