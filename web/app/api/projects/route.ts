@@ -54,15 +54,30 @@ export async function POST(req: NextRequest) {
 
   // Bind project to authenticated user if session is provided
   const authUser = await getAuthUserFromHeader(req.headers.get("authorization"));
-  const effectiveUserId = authUser?.id || body.userId || null;
-
-  if (authUser) {
-    body.userId = authUser.id;
+  if (!authUser) {
+    return NextResponse.json({
+      saved: false,
+      configured: true,
+      id: body.id,
+      message: "Authentication required to sync projects with cloud storage; stored locally only.",
+    }, { status: 401 });
   }
 
+  // Strictly enforce user_id from verified auth token, never client payload
+  const effectiveUserId = authUser.id;
+  body.userId = effectiveUserId;
+
   const success = await upsertProjectToSupabase(body, effectiveUserId);
+  if (!success) {
+    return NextResponse.json({
+      saved: false,
+      configured: true,
+      error: "Failed to persist project or unauthorized access to project ID",
+    }, { status: 403 });
+  }
+
   return NextResponse.json({
-    saved: success,
+    saved: true,
     configured: true,
     id: body.id,
     userId: effectiveUserId,

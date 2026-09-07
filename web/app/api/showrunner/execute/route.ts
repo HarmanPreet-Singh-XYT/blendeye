@@ -37,6 +37,9 @@ AVAILABLE ACTIONS YOU CAN EMIT IN "actions":
 27. {"type": "add_location_candidate", "sceneIdentifier": 2, "candidate": {"name": "Venue Name", "category": "practical"|"warehouse"|"rooftop"|"vault"|"studio"|"historic", "region": "City/State", "day_rate": 2500, "permit_fee": 400, "film_precedent": "Movie Title", "director": "Director Name", "why": "Why it fits", "practical_notes": "...", "environment_type": "practical"|"studio_stage"|"green_screen", "auto_lock": true}}
 28. {"type": "set_location_budget", "sceneIdentifier": optional 2, "budget": 15000, "locationsPct": 20}
 29. {"type": "set_shoot_region", "shootRegion": "New York, NY" | "London, UK" | "Los Angeles, CA", "sceneIdentifier": optional 2}
+30. {"type": "create_score_take", "sceneIdentifier": 2, "title": "Score Cue", "prompt": "Tense cinematic strings", "durationSec": 30, "scoreType": "score"|"source"|"vocal", "audioUrl": "/audio/demo-score.wav"}
+31. {"type": "set_master_score", "sceneIdentifier": 2, "takeNumber": 1}
+32. {"type": "delete_score_take", "sceneIdentifier": 2, "takeNumber": 1}
 
 OUTPUT FORMAT:
 You MUST respond with a single, valid, raw JSON object matching:

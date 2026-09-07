@@ -36,8 +36,16 @@ export async function POST(req: NextRequest) {
   }
 
   const authUser = await getAuthUserFromHeader(req.headers.get("authorization"));
-  const success = await upsertNoteToSupabase(body, authUser?.id || body.userId || null);
-  return NextResponse.json({ saved: success, id: body.id });
+  if (!authUser) {
+    return NextResponse.json({ error: "Unauthorized", saved: false }, { status: 401 });
+  }
+
+  body.userId = authUser.id;
+  const success = await upsertNoteToSupabase(body, authUser.id);
+  if (!success) {
+    return NextResponse.json({ error: "Unauthorized or note update failed", saved: false }, { status: 403 });
+  }
+  return NextResponse.json({ saved: true, id: body.id });
 }
 
 export async function DELETE(req: NextRequest) {
@@ -49,7 +57,14 @@ export async function DELETE(req: NextRequest) {
   }
 
   const authUser = await getAuthUserFromHeader(req.headers.get("authorization"));
-  const success = await deleteNoteFromSupabase(id, authUser?.id || null);
-  return NextResponse.json({ deleted: success, id });
+  if (!authUser) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const success = await deleteNoteFromSupabase(id, authUser.id);
+  if (!success) {
+    return NextResponse.json({ error: "Unauthorized or note not found" }, { status: 403 });
+  }
+  return NextResponse.json({ deleted: true, id });
 }
 

@@ -171,6 +171,12 @@ export function AudioStudioView({
   const [currentLineIdx, setCurrentLineIdx] = React.useState<number>(0);
   const activeAudioRef = React.useRef<HTMLAudioElement | null>(null);
 
+  // Gemini 3.1 Multi-Speaker Continuous Synthesis
+  const [isMultiSpeakerLoading, setIsMultiSpeakerLoading] = React.useState<boolean>(false);
+  const [isMultiSpeakerPlaying, setIsMultiSpeakerPlaying] = React.useState<boolean>(false);
+  const [multiSpeakerAudioUrl, setMultiSpeakerAudioUrl] = React.useState<string | null>(null);
+  const multiSpeakerAudioRef = React.useRef<HTMLAudioElement | null>(null);
+
   // Parse lines for sequential playback
   const scriptLines = React.useMemo(() => {
     const raw = screenplayText.split("\n");
@@ -502,6 +508,11 @@ export function AudioStudioView({
   };
 
   const togglePlayMaster = () => {
+    if (multiSpeakerAudioRef.current) {
+      multiSpeakerAudioRef.current.pause();
+    }
+    setIsMultiSpeakerPlaying(false);
+
     if (isPlayingMaster) {
       if (activeAudioRef.current) activeAudioRef.current.pause();
       setIsPlayingMaster(false);
@@ -511,9 +522,102 @@ export function AudioStudioView({
     }
   };
 
+  const toggleMultiSpeakerMaster = async () => {
+    // Stop any active single-line / sequential audio
+    if (activeAudioRef.current) {
+      activeAudioRef.current.pause();
+    }
+    setIsPlayingMaster(false);
+
+    if (isMultiSpeakerPlaying) {
+      if (multiSpeakerAudioRef.current) {
+        multiSpeakerAudioRef.current.pause();
+      }
+      setIsMultiSpeakerPlaying(false);
+      return;
+    }
+
+    if (multiSpeakerAudioUrl) {
+      if (!multiSpeakerAudioRef.current) {
+        multiSpeakerAudioRef.current = new Audio(multiSpeakerAudioUrl);
+      }
+      const audio = multiSpeakerAudioRef.current;
+      audio.onended = () => setIsMultiSpeakerPlaying(false);
+      audio.onerror = () => setIsMultiSpeakerPlaying(false);
+      setIsMultiSpeakerPlaying(true);
+      await audio.play();
+      return;
+    }
+
+    setIsMultiSpeakerLoading(true);
+    try {
+      const linesPayload = scriptLines.map((l) => {
+        const spkUpper = l.speaker.toUpperCase();
+        let vName = channels.DX1.voiceName;
+        if (spkUpper.includes("ELENA")) vName = channels.DX2.voiceName;
+        else if (spkUpper.includes("NARRATOR")) vName = channels.DX3.voiceName;
+        return {
+          speaker: l.speaker,
+          text: l.text,
+          voice_name: vName,
+        };
+      });
+
+      const res = await fetch("/api/media/tts/multi", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lines: linesPayload,
+          scriptText: screenplayText,
+          speakerA: channels.DX1.name,
+          voiceA: channels.DX1.voiceName,
+          speakerB: channels.DX2.name,
+          voiceB: channels.DX2.voiceName,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.audio_url && !data._fallback) {
+          setMultiSpeakerAudioUrl(data.audio_url);
+          const audio = new Audio(data.audio_url);
+          multiSpeakerAudioRef.current = audio;
+          audio.onended = () => setIsMultiSpeakerPlaying(false);
+          audio.onerror = () => setIsMultiSpeakerPlaying(false);
+          setIsMultiSpeakerPlaying(true);
+          await audio.play();
+          toast.add({
+            title: "Multi-Speaker Table Read Active",
+            description: `Generated continuous dialogue for ${data.speakers?.join(", ") || "cast"} via Gemini 3.1 Flash TTS.`,
+            type: "success",
+          });
+          return;
+        }
+      }
+
+      toast.add({
+        title: "Falling back to line stems",
+        description: "Multi-speaker service unavailable. Switching to sequential line synthesis.",
+        type: "warning",
+      });
+      togglePlayMaster();
+    } catch (err) {
+      console.error("Multi-speaker synthesis error:", err);
+      toast.add({
+        title: "Multi-speaker synthesis failed",
+        description: err instanceof Error ? err.message : "Network error. Reverting to sequential table read.",
+        type: "error",
+      });
+      togglePlayMaster();
+    } finally {
+      setIsMultiSpeakerLoading(false);
+    }
+  };
+
   React.useEffect(() => {
     return () => {
       if (activeAudioRef.current) activeAudioRef.current.pause();
+      if (multiSpeakerAudioRef.current) multiSpeakerAudioRef.current.pause();
       if (ambientContextRef.current) ambientContextRef.current.close();
     };
   }, []);
@@ -598,22 +702,53 @@ export function AudioStudioView({
             <span className="hidden sm:inline">{isAmbientPlaying ? "Score Bed Active" : "Lyria Ambient Bed"}</span>
           </button>
 
-          {/* Sequential Master Table Read */}
+          {/* Gemini 3.1 Multi-Speaker Master Read */}
           <Button
             size="sm"
-            onClick={togglePlayMaster}
+            onClick={toggleMultiSpeakerMaster}
+            disabled={isMultiSpeakerLoading}
             className={cn(
               "h-8 px-3 gap-1.5 text-xs font-semibold cursor-pointer shadow-xs",
+              isMultiSpeakerPlaying
+                ? "bg-purple-600 hover:bg-purple-500 text-white animate-pulse"
+                : "bg-purple-700/90 hover:bg-purple-600 text-white"
+            )}
+            title="Generate continuous multi-speaker table read with natural conversational pacing using Gemini 3.1 TTS MultiSpeakerVoiceConfig"
+          >
+            {isMultiSpeakerLoading ? (
+              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+            ) : isMultiSpeakerPlaying ? (
+              <Pause className="h-3.5 w-3.5" />
+            ) : (
+              <Sparkles className="h-3.5 w-3.5 fill-current text-purple-200" />
+            )}
+            <span>
+              {isMultiSpeakerLoading
+                ? "Synthesizing Cast..."
+                : isMultiSpeakerPlaying
+                ? "Multi-Speaker Active"
+                : "Play Multi-Speaker Scene"}
+            </span>
+          </Button>
+
+          {/* Sequential Stems Table Read */}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={togglePlayMaster}
+            className={cn(
+              "h-8 px-3 gap-1.5 text-xs font-medium cursor-pointer shadow-xs border-border/80",
               isPlayingMaster
                 ? "bg-accent text-accent-foreground animate-pulse"
-                : "bg-cyan-500 hover:bg-cyan-400 text-black font-medium"
+                : "bg-secondary/60 hover:bg-secondary text-foreground"
             )}
+            title="Step through dialogue line-by-line with individual character channel processing"
           >
             {isPlayingMaster ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5 fill-current" />}
             <span>
               {isPlayingMaster
-                ? `Reading Line ${currentLineIdx + 1}/${scriptLines.length}`
-                : "Play Full Table Read"}
+                ? `Line ${currentLineIdx + 1}/${scriptLines.length}`
+                : "Play Line Stems"}
             </span>
           </Button>
 

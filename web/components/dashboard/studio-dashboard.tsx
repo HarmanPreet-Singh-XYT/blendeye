@@ -34,6 +34,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   getAllProjects,
+  seedDemoProjects,
   syncProjectsWithSupabase,
   saveProject,
   toggleStarProject,
@@ -99,7 +100,7 @@ function getGenreStyle(genre: string) {
 
 export function StudioDashboard() {
   const router = useRouter();
-  const { user, signOut } = useAuth();
+  const { user, signOut, loading: authLoading } = useAuth();
 
   // Navigation & View state
   const [activeTab, setActiveTab] = React.useState<DashboardTab>("home");
@@ -155,21 +156,36 @@ export function StudioDashboard() {
   // Load projects from local storage and sync with Supabase
   const refreshProjects = React.useCallback(() => {
     setProjects(getAllProjects());
-    syncProjectsWithSupabase().then((synced) => {
-      if (synced && synced.length > 0) {
-        setProjects(synced);
-      }
-    });
+    syncProjectsWithSupabase()
+      .then((synced) => {
+        if (synced && synced.length > 0) {
+          setProjects(synced);
+        }
+      })
+      .catch((err) => {
+        console.warn("[ProjectStore] Sync warning:", err);
+      });
   }, []);
 
   React.useEffect(() => {
+    // Wait until auth state is known before reading projects to prevent anon/auth flash
+    if (authLoading) return;
+
     refreshProjects();
     const handleAuthChange = () => {
       refreshProjects();
     };
+    const handleQuotaWarning = (e: any) => {
+      alert(e?.detail?.message || "Storage quota exceeded. Please sign in to sync with cloud storage.");
+    };
+
     window.addEventListener("agentic_cinema_auth_changed", handleAuthChange);
-    return () => window.removeEventListener("agentic_cinema_auth_changed", handleAuthChange);
-  }, [refreshProjects, user]);
+    window.addEventListener("agentic_cinema_quota_exceeded", handleQuotaWarning);
+    return () => {
+      window.removeEventListener("agentic_cinema_auth_changed", handleAuthChange);
+      window.removeEventListener("agentic_cinema_quota_exceeded", handleQuotaWarning);
+    };
+  }, [refreshProjects, user, authLoading]);
 
   // Handle New Project from dialog with Autonomous AI Showrunner Sequence Architect
   const handleCreateNewProject = async (data: NewProjectFormData) => {
@@ -866,14 +882,48 @@ export function StudioDashboard() {
                   />
                 ))}
               </div>
+            ) : projects.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center py-20 text-center max-w-md mx-auto">
+                <div className="h-16 w-16 rounded-2xl bg-accent/10 border border-accent/20 flex items-center justify-center text-accent mb-4 shadow-sm">
+                  <Clapperboard className="h-8 w-8" />
+                </div>
+                <h3 className="font-heading text-lg font-bold text-foreground">Your studio slate is currently empty</h3>
+                <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
+                  Start an autonomous pre-production slate to write scenes, synthesize cast ensembles, scout real locations, and generate cinematic Veo video takes.
+                </p>
+                <div className="flex flex-col sm:flex-row items-center gap-3 mt-6 w-full justify-center">
+                  <Button
+                    size="sm"
+                    onClick={() => setNewProjectOpen(true)}
+                    className="gap-2 bg-foreground text-background hover:bg-foreground/90 w-full sm:w-auto"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Create First Production
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      seedDemoProjects();
+                      refreshProjects();
+                    }}
+                    className="gap-2 border-border text-foreground hover:bg-secondary w-full sm:w-auto"
+                  >
+                    <Sparkles className="h-4 w-4 text-accent" />
+                    Explore Demo Productions
+                  </Button>
+                </div>
+              </div>
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center py-20 text-center">
                 <div className="h-12 w-12 rounded-2xl bg-secondary/50 border border-border flex items-center justify-center text-muted-foreground mb-4">
                   <Film className="h-6 w-6" />
                 </div>
-                <h3 className="font-heading text-sm font-bold text-foreground">No productions found</h3>
+                <h3 className="font-heading text-sm font-bold text-foreground">No matching productions found</h3>
                 <p className="text-xs text-muted-foreground mt-1 max-w-sm">
-                  {searchQuery ? `No productions match "${searchQuery}".` : "Your studio slate is currently empty."}
+                  {searchQuery
+                    ? `No productions match "${searchQuery}".`
+                    : `No productions match the filter "${selectedGenreFilter}".`}
                 </p>
                 <Button
                   variant="outline"
@@ -1123,6 +1173,8 @@ export function StudioDashboard() {
           setCharacterLabOpen(false);
           if (mostRecentProject) {
             router.push(`/studio/${mostRecentProject.id}?hotSeat=${encodeURIComponent(name)}`);
+          } else {
+            setNewProjectOpen(true);
           }
         }}
       />

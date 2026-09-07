@@ -592,6 +592,41 @@ export function generateMediaTTS(
   });
 }
 
+export interface MultiSpeakerLineItem {
+  speaker: string;
+  text: string;
+  voice_name?: string;
+}
+
+export interface GenerateMultiSpeakerTTSOptions {
+  lines?: MultiSpeakerLineItem[];
+  scriptText?: string;
+  speakerA?: string;
+  voiceA?: string;
+  speakerB?: string;
+  voiceB?: string;
+}
+
+export interface GenerateMultiSpeakerTTSResponse {
+  audio_url: string;
+  duration_estimate_sec: number;
+  speakers: string[];
+  voice_mapping: Record<string, string>;
+  line_count: number;
+  _fallback?: boolean;
+}
+
+export function generateMultiSpeakerTTS(options: GenerateMultiSpeakerTTSOptions) {
+  return postJson<GenerateMultiSpeakerTTSResponse>("/media/tts-multi", {
+    lines: options.lines,
+    script_text: options.scriptText,
+    speaker_a: options.speakerA,
+    voice_a: options.voiceA,
+    speaker_b: options.speakerB,
+    voice_b: options.voiceB,
+  });
+}
+
 export interface GenerateMediaVideoResponse {
   operation_name: string;
   prompt: string;
@@ -621,6 +656,43 @@ export function getVideoStatus(operationName: string) {
   return getJson<{ status: string; video_url?: string; error?: string }>(
     `/media/video/status?operation_name=${encodeURIComponent(operationName)}`
   );
+}
+
+export interface GenerateMediaMusicOptions {
+  prompt: string;
+  durationMode?: "clip" | "pro";
+  durationSeconds?: number;
+  imageUrl?: string;
+  imageUrls?: string[];
+  lyrics?: string;
+  language?: string;
+  responseModalities?: string[];
+  stream?: boolean;
+}
+
+export interface GenerateMediaMusicResponse {
+  audio_url: string;
+  prompt: string;
+  model: string;
+  duration_mode: string;
+  lyrics_text?: string;
+  duration_estimate_sec: number;
+  fallback: boolean;
+  _fallback?: boolean;
+}
+
+export function generateMediaMusic(options: GenerateMediaMusicOptions) {
+  return postJson<GenerateMediaMusicResponse>("/media/music", {
+    prompt: options.prompt,
+    duration_mode: options.durationMode || "clip",
+    duration_seconds: options.durationSeconds,
+    image_url: options.imageUrl,
+    image_urls: options.imageUrls || [],
+    lyrics: options.lyrics,
+    language: options.language || "English",
+    response_modalities: options.responseModalities || ["AUDIO", "TEXT"],
+    stream: options.stream || false,
+  });
 }
 
 export interface ContinuityIssue {

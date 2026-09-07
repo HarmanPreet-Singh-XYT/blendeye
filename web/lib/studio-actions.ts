@@ -29,7 +29,10 @@ export type StudioActionType =
   | "set_scene_location"
   | "add_location_candidate"
   | "set_location_budget"
-  | "set_shoot_region";
+  | "set_shoot_region"
+  | "create_score_take"
+  | "set_master_score"
+  | "delete_score_take";
 
 export interface CreateNodeAction {
   type: "create_node";
@@ -263,6 +266,35 @@ export interface SetShootRegionAction {
   sceneIdentifier?: number | string;
 }
 
+export interface CreateScoreTakeAction {
+  type: "create_score_take";
+  sceneIdentifier?: string | number;
+  title?: string;
+  prompt?: string;
+  durationSec?: number;
+  scoreType?: "score" | "source" | "vocal";
+  audioUrl?: string;
+  lyricsText?: string;
+  isMaster?: boolean;
+  instruments?: string[];
+  dynamicArc?: string;
+  model?: string;
+}
+
+export interface SetMasterScoreAction {
+  type: "set_master_score";
+  sceneIdentifier?: string | number;
+  takeNumber?: number;
+  takeId?: string;
+}
+
+export interface DeleteScoreTakeAction {
+  type: "delete_score_take";
+  sceneIdentifier?: string | number;
+  takeNumber?: number;
+  takeId?: string;
+}
+
 export type StudioAction =
   | CreateNodeAction
   | DeleteNodeAction
@@ -292,7 +324,10 @@ export type StudioAction =
   | SetSceneLocationAction
   | AddLocationCandidateAction
   | SetLocationBudgetAction
-  | SetShootRegionAction;
+  | SetShootRegionAction
+  | CreateScoreTakeAction
+  | SetMasterScoreAction
+  | DeleteScoreTakeAction;
 
 export interface CitedPrecedent {
   genre: string;

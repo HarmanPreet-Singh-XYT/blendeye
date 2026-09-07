@@ -114,10 +114,11 @@ function BlueprintNodeShell({
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0 nodrag">
           {connCount > 0 && (
             <button
               type="button"
+              onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.stopPropagation();
                 if (nodeId) {
@@ -126,24 +127,24 @@ function BlueprintNodeShell({
                   );
                 }
               }}
-              className="flex items-center gap-1 rounded bg-secondary/90 hover:bg-rose-500/20 hover:text-rose-400 hover:border-rose-500/40 border border-border/80 px-1.5 py-0.5 text-[9px] font-mono text-muted-foreground transition-all cursor-pointer"
+              className="flex items-center gap-1 rounded bg-secondary/90 hover:bg-rose-500/20 hover:text-rose-400 hover:border-rose-500/40 border border-border/80 px-1.5 py-0.5 text-[9px] font-mono text-muted-foreground transition-all cursor-pointer nodrag"
               title={`Unlink all ${connCount} wires attached to this node`}
             >
               <Unlink className="h-2.5 w-2.5" />
               <span>{connCount}</span>
             </button>
           )}
-          {headerRight}
+          <div className="nodrag">{headerRight}</div>
           <Badge className={cn("text-[9px] py-0 px-1.5", badge.className)}>{badge.label}</Badge>
         </div>
       </div>
 
       {state === "generating" ? (
-        <div className="px-3.5 pt-3">
+        <div className="px-3.5 pt-3 nodrag">
           <FilmstripLoader frames={6} />
         </div>
       ) : (
-        <div className="px-3.5 pt-2.5">{children}</div>
+        <div className="px-3.5 pt-2.5 nodrag cursor-default">{children}</div>
       )}
     </div>
   );
@@ -621,10 +622,11 @@ export function CharacterCoreNode({ data, selected }: NodeProps & { data: Charac
             <h3 className="font-heading text-sm font-bold text-foreground leading-tight">{data.name}</h3>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0 nodrag">
           {connCount > 0 && (
             <button
               type="button"
+              onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.stopPropagation();
                 if (nodeId) {
@@ -633,7 +635,7 @@ export function CharacterCoreNode({ data, selected }: NodeProps & { data: Charac
                   );
                 }
               }}
-              className="flex items-center gap-1 rounded bg-secondary/90 hover:bg-rose-500/20 hover:text-rose-400 hover:border-rose-500/40 border border-border/80 px-1.5 py-0.5 text-[9px] font-mono text-muted-foreground transition-all cursor-pointer"
+              className="flex items-center gap-1 rounded bg-secondary/90 hover:bg-rose-500/20 hover:text-rose-400 hover:border-rose-500/40 border border-border/80 px-1.5 py-0.5 text-[9px] font-mono text-muted-foreground transition-all cursor-pointer nodrag"
               title={`Unlink all ${connCount} wires attached to ${data.name}`}
             >
               <Unlink className="h-2.5 w-2.5" />
@@ -654,7 +656,7 @@ export function CharacterCoreNode({ data, selected }: NodeProps & { data: Charac
       </div>
 
       {/* Body Details */}
-      <div className="mt-2.5 flex flex-col gap-2 text-xs">
+      <div className="mt-2.5 flex flex-col gap-2 text-xs nodrag cursor-default">
         <p className="text-[11px] text-muted-foreground leading-snug">{data.archetype}</p>
 
         <div className="rounded border border-border/50 bg-background/50 p-2 text-[11px]">
@@ -673,25 +675,27 @@ export function CharacterCoreNode({ data, selected }: NodeProps & { data: Charac
         </div>
 
         {/* Actions */}
-        <div className="mt-1 flex items-center gap-1.5">
+        <div className="mt-1 flex items-center gap-1.5 nodrag">
           <button
             type="button"
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
               data.onOpenHotSeat?.();
             }}
-            className="flex-1 flex items-center justify-center gap-1 rounded bg-accent/15 hover:bg-accent/25 text-accent py-1 text-[10px] font-medium transition-colors"
+            className="flex-1 flex items-center justify-center gap-1 rounded bg-accent/15 hover:bg-accent/25 text-accent py-1 text-[10px] font-medium transition-colors cursor-pointer nodrag"
           >
             <MessageSquare className="h-3 w-3" />
             Hot Seat Chat
           </button>
           <button
             type="button"
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
               data.onTuneVoice?.();
             }}
-            className="flex items-center justify-center gap-1 rounded bg-secondary hover:bg-secondary/80 text-foreground px-2 py-1 text-[10px] transition-colors"
+            className="flex items-center justify-center gap-1 rounded bg-secondary hover:bg-secondary/80 text-foreground px-2 py-1 text-[10px] transition-colors cursor-pointer nodrag"
             title="Tune Dialogue Cadence"
           >
             <Sliders className="h-3 w-3" />
@@ -763,11 +767,12 @@ export function ChemistryNode({ data, selected }: NodeProps & { data: ChemistryN
 
         <button
           type="button"
+          onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
             data.onRunChemistry?.();
           }}
-          className="flex items-center justify-center gap-1.5 w-full rounded bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 py-1.5 text-xs font-semibold transition-colors border border-rose-500/30"
+          className="flex items-center justify-center gap-1.5 w-full rounded bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 py-1.5 text-xs font-semibold transition-colors border border-rose-500/30 cursor-pointer nodrag"
         >
           <Flame className="h-3.5 w-3.5" />
           Test 1-Page Dynamic Friction
@@ -854,14 +859,15 @@ export function SceneNode({ data, selected }: NodeProps & { data: SceneNodeData 
           {data.hasStyleRef && <span className="text-purple-400 font-mono">Style Sync ✓</span>}
         </div>
 
-        <div className="flex items-center gap-1.5 pt-1">
+        <div className="flex items-center gap-1.5 pt-1 nodrag">
           <button
             type="button"
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
               data.onGenerateDraft?.();
             }}
-            className="flex-1 rounded bg-accent text-accent-foreground hover:bg-accent/90 py-1 text-[11px] font-semibold transition-colors text-center"
+            className="flex-1 rounded bg-accent text-accent-foreground hover:bg-accent/90 py-1 text-[11px] font-semibold transition-colors text-center cursor-pointer nodrag"
           >
             Generate Screenplay Draft
           </button>
@@ -905,11 +911,12 @@ export function ScriptNode({ data, selected }: NodeProps & { data: ScriptNodeDat
       headerRight={
         <button
           type="button"
+          onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
             data.onToggleLock?.();
           }}
-          className="text-muted-foreground hover:text-foreground"
+          className="text-muted-foreground hover:text-foreground cursor-pointer nodrag"
           title={data.isLocked ? "Lines Locked" : "Lines Unlocked"}
         >
           {data.isLocked ? <Lock className="h-3.5 w-3.5 text-accent" /> : <Unlock className="h-3.5 w-3.5" />}
@@ -932,11 +939,12 @@ export function ScriptNode({ data, selected }: NodeProps & { data: ScriptNodeDat
           <span>{data.wordCount || 420} words</span>
           <button
             type="button"
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
               data.onViewScript?.();
             }}
-            className="text-accent hover:underline font-medium"
+            className="text-accent hover:underline font-medium cursor-pointer nodrag"
           >
             Open Screenplay Reader →
           </button>
@@ -1051,9 +1059,10 @@ export function StoryboardNode({ id, data, selected }: NodeProps & { data: Story
             </div>
             <button
               type="button"
+              onPointerDown={(e) => e.stopPropagation()}
               onClick={handleRender}
               disabled={isRendering}
-              className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity bg-black/70 hover:bg-black text-[10px] text-accent px-2 py-0.5 rounded border border-accent/40 font-mono flex items-center gap-1 cursor-pointer"
+              className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity bg-black/70 hover:bg-black text-[10px] text-accent px-2 py-0.5 rounded border border-accent/40 font-mono flex items-center gap-1 cursor-pointer nodrag"
             >
               <Sparkles className="h-2.5 w-2.5" />
               <span>{isRendering ? "Rendering..." : "Re-roll"}</span>
@@ -1070,9 +1079,10 @@ export function StoryboardNode({ id, data, selected }: NodeProps & { data: Story
 
             <button
               type="button"
+              onPointerDown={(e) => e.stopPropagation()}
               onClick={handleRender}
               disabled={isRendering}
-              className="mt-1 flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/50 text-purple-300 text-[11px] font-medium transition-all cursor-pointer shadow-sm disabled:opacity-50"
+              className="mt-1 flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/50 text-purple-300 text-[11px] font-medium transition-all cursor-pointer shadow-sm disabled:opacity-50 nodrag"
             >
               <Sparkles className="h-3 w-3 text-purple-400" />
               <span>{isRendering ? "Painting Frame with Imagen 3..." : "Render 16:9 Frame (Imagen 3)"}</span>
@@ -1141,12 +1151,13 @@ export function FloorPlanNode({ data, selected }: NodeProps & { data: FloorPlanN
             <button
               key={cam}
               type="button"
+              onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.stopPropagation();
                 setActiveCam(cam);
               }}
               className={cn(
-                "py-0.5 text-[9px] font-mono rounded border transition-all",
+                "py-0.5 text-[9px] font-mono rounded border transition-all cursor-pointer nodrag",
                 activeCam === cam
                   ? "bg-blue-500/30 text-blue-300 border-blue-400/50 shadow-sm"
                   : "bg-secondary/40 text-muted-foreground border-border/40 hover:bg-secondary/70 hover:text-foreground"
@@ -1194,11 +1205,12 @@ export function FloorPlanNode({ data, selected }: NodeProps & { data: FloorPlanN
 
         <button
           type="button"
+          onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
             data.onOpenDeck?.();
           }}
-          className="w-full mt-0.5 py-1 rounded bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 text-[10px] font-medium transition-colors text-center border border-blue-500/30 nodrag"
+          className="w-full mt-0.5 py-1 rounded bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 text-[10px] font-medium transition-colors text-center border border-blue-500/30 cursor-pointer nodrag"
         >
           Open Director Blocking Deck →
         </button>
@@ -1290,11 +1302,12 @@ export function TensionCurveNode({ data, selected }: NodeProps & { data: Tension
 
         <button
           type="button"
+          onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
             data.onOpenDeck?.();
           }}
-          className="w-full mt-1 py-1 rounded bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 text-[10px] font-medium transition-colors text-center border border-rose-500/30"
+          className="w-full mt-1 py-1 rounded bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 text-[10px] font-medium transition-colors text-center border border-rose-500/30 cursor-pointer nodrag"
         >
           View Full 3-Act Curve →
         </button>
@@ -1358,11 +1371,12 @@ export function TableReadNode({ data, selected }: NodeProps & { data: TableReadN
 
         <button
           type="button"
+          onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
             data.onOpenPlayer?.();
           }}
-          className="flex items-center justify-center gap-1.5 w-full rounded bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 py-1 text-[11px] font-semibold transition-colors border border-cyan-500/30"
+          className="flex items-center justify-center gap-1.5 w-full rounded bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 py-1 text-[11px] font-semibold transition-colors border border-cyan-500/30 cursor-pointer nodrag"
         >
           <Play className="h-3 w-3 fill-current" />
           Play Multi-Speaker Table Read
@@ -1425,11 +1439,12 @@ export function MarketNode({ data, selected }: NodeProps & { data: MarketNodeDat
 
         <button
           type="button"
+          onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
             data.onOpenHeatmap?.();
           }}
-          className="w-full mt-1 py-1 rounded bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 text-[10px] font-medium transition-colors text-center border border-emerald-500/30"
+          className="w-full mt-1 py-1 rounded bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 text-[10px] font-medium transition-colors text-center border border-emerald-500/30 cursor-pointer nodrag"
         >
           Inspect World Choropleth Map →
         </button>
@@ -1609,8 +1624,9 @@ export function LocationNode({ id, data, selected }: NodeProps & { data: Locatio
       headerRight={
         <button
           type="button"
+          onPointerDown={(e) => e.stopPropagation()}
           onClick={handleToggleLock}
-          className="text-muted-foreground hover:text-amber-400 transition-colors p-0.5 rounded cursor-pointer"
+          className="text-muted-foreground hover:text-amber-400 transition-colors p-0.5 rounded cursor-pointer nodrag"
           title={isLocked ? "Venue Locked for Shoot" : "Candidate Open (Click to Lock)"}
         >
           {isLocked ? <Lock className="h-3.5 w-3.5 text-amber-400" /> : <Unlock className="h-3.5 w-3.5" />}
@@ -1636,7 +1652,7 @@ export function LocationNode({ id, data, selected }: NodeProps & { data: Locatio
 
         {/* Candidate Switcher Dropdown / Pills for Location Experimentation */}
         {candidates.length > 1 && (
-          <div className="flex flex-col gap-1 rounded border border-amber-500/20 bg-amber-500/5 p-1.5">
+          <div className="flex flex-col gap-1 rounded border border-amber-500/20 bg-amber-500/5 p-1.5 nodrag">
             <div className="flex items-center justify-between text-[10px] font-mono text-amber-400 font-bold">
               <span>Scouted Candidates ({candidates.length})</span>
               <span className="text-[9px] text-muted-foreground">Experiment &amp; Compare</span>
@@ -1648,12 +1664,13 @@ export function LocationNode({ id, data, selected }: NodeProps & { data: Locatio
                   <button
                     key={c.candidate_id}
                     type="button"
+                    onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => {
                       e.stopPropagation();
                       handleSwitchCandidate(c.candidate_id);
                     }}
                     className={cn(
-                      "px-1.5 py-0.5 rounded text-[10px] font-mono truncate max-w-[130px] transition-all cursor-pointer",
+                      "px-1.5 py-0.5 rounded text-[10px] font-mono truncate max-w-[130px] transition-all cursor-pointer nodrag",
                       isSelectedCand
                         ? "bg-amber-500 text-black font-bold shadow-xs"
                         : "bg-secondary/70 hover:bg-secondary text-muted-foreground hover:text-foreground border border-border/50"
@@ -1704,9 +1721,10 @@ export function LocationNode({ id, data, selected }: NodeProps & { data: Locatio
             {/* Re-roll overlay button */}
             <button
               type="button"
+              onPointerDown={(e) => e.stopPropagation()}
               onClick={handleGenerateConceptLook}
               disabled={isRendering}
-              className="absolute top-1.5 right-1.5 flex items-center gap-1 rounded bg-black/75 hover:bg-black text-white px-1.5 py-0.5 text-[9px] font-mono opacity-80 group-hover:opacity-100 transition-opacity border border-white/20 cursor-pointer disabled:opacity-50"
+              className="absolute top-1.5 right-1.5 flex items-center gap-1 rounded bg-black/75 hover:bg-black text-white px-1.5 py-0.5 text-[9px] font-mono opacity-80 group-hover:opacity-100 transition-opacity border border-white/20 cursor-pointer disabled:opacity-50 nodrag"
             >
               <RotateCcw className={cn("h-2.5 w-2.5", isRendering && "animate-spin")} />
               <span>{isRendering ? "Rendering..." : "Re-roll"}</span>
@@ -1718,9 +1736,10 @@ export function LocationNode({ id, data, selected }: NodeProps & { data: Locatio
             <span className="text-[10px] text-muted-foreground font-mono">No visual concept rendered yet</span>
             <button
               type="button"
+              onPointerDown={(e) => e.stopPropagation()}
               onClick={handleGenerateConceptLook}
               disabled={isRendering}
-              className="flex items-center gap-1 rounded bg-amber-500 text-black hover:bg-amber-400 px-2 py-1 text-[10px] font-semibold transition-colors cursor-pointer disabled:opacity-50"
+              className="flex items-center gap-1 rounded bg-amber-500 text-black hover:bg-amber-400 px-2 py-1 text-[10px] font-semibold transition-colors cursor-pointer disabled:opacity-50 nodrag"
             >
               <Sparkles className={cn("h-3 w-3", isRendering && "animate-spin")} />
               <span>{isRendering ? "Rendering Look..." : "Generate Concept Look (Imagen 3)"}</span>
@@ -1729,23 +1748,25 @@ export function LocationNode({ id, data, selected }: NodeProps & { data: Locatio
         )}
 
         {/* Action Controls Footer */}
-        <div className="mt-1 flex items-center gap-1.5">
+        <div className="mt-1 flex items-center gap-1.5 nodrag">
           <button
             type="button"
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
               data.onOpenDossier?.(activeCand?.candidate_id);
             }}
-            className="flex-1 flex items-center justify-center gap-1 rounded bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 py-1 text-[10px] font-medium transition-colors border border-amber-500/30 cursor-pointer"
+            className="flex-1 flex items-center justify-center gap-1 rounded bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 py-1 text-[10px] font-medium transition-colors border border-amber-500/30 cursor-pointer nodrag"
           >
             <FileText className="h-3 w-3" />
             Specs Dossier &amp; Grid
           </button>
           <button
             type="button"
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={handleToggleLock}
             className={cn(
-              "flex items-center justify-center gap-1 rounded px-2 py-1 text-[10px] font-medium transition-colors cursor-pointer",
+              "flex items-center justify-center gap-1 rounded px-2 py-1 text-[10px] font-medium transition-colors cursor-pointer nodrag",
               isLocked
                 ? "bg-amber-500 text-black font-semibold"
                 : "bg-secondary hover:bg-secondary/80 text-foreground"

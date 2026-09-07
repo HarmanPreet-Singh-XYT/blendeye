@@ -46,16 +46,19 @@ import {
   Building2,
   Image as ImageIcon,
   Star,
+  Music,
+  Trash2,
 } from "lucide-react";
 import type { Node } from "@xyflow/react";
 import { cn } from "@/lib/utils";
 import type { ProjectCharacter, FilmScene } from "@/lib/project-store";
-import { getVideoTakes, saveVideoTake, setMasterVideoTake, type VideoTake } from "@/lib/project-store";
+import { getVideoTakes, saveVideoTake, setMasterVideoTake, deleteVideoTake, type VideoTake } from "@/lib/project-store";
 import {
   synthesizeCinemaPrompt,
   type NodeContribution,
 } from "@/lib/cinema-prompt-synthesizer";
 import { SceneScoutView } from "@/components/cinema/scene-scout-view";
+import { SceneScoreView } from "@/components/cinema/scene-score-view";
 import { cleanCandidateName } from "@/components/cinema/location-board";
 
 interface GenerationStudioViewProps {
@@ -148,10 +151,10 @@ export function GenerationStudioView({
   onSelectScene,
   onUpdateScene,
 }: GenerationStudioViewProps) {
-  const effectiveProjectId = projectId || "vault-heist-demo";
+  const effectiveProjectId = projectId || "default-production";
 
-  // Studio Mode: Veo Video Takes vs Dedicated Scene Scouting & Images
-  const [studioMode, setStudioMode] = React.useState<"video" | "scout">("video");
+  // Studio Mode: Veo Video Takes vs Dedicated Scene Scouting vs Lyria 3 Music Scoring
+  const [studioMode, setStudioMode] = React.useState<"video" | "scout" | "score">("video");
   const [conditioningSource, setConditioningSource] = React.useState<"character" | "scene">("character");
   const [activeSceneRefTitle, setActiveSceneRefTitle] = React.useState<string | null>(null);
 
@@ -611,6 +614,31 @@ export function GenerationStudioView({
     }
   };
 
+  // Delete Video Take from Project Vault
+  const handleDeleteTake = (takeId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    deleteVideoTake(effectiveProjectId, takeId);
+    const updated = recentTakes.filter((t) => t.id !== takeId);
+    setRecentTakes(updated);
+
+    if (activeTakeId === takeId) {
+      const nextTake = updated[0];
+      if (nextTake) {
+        setActiveTakeId(nextTake.id);
+        setActiveVideoUrl(nextTake.videoUrl);
+      } else {
+        setActiveTakeId("");
+        setActiveVideoUrl("");
+      }
+    }
+
+    toast.add({
+      title: "Take Removed",
+      description: "Video take deleted from project vault.",
+      type: "info",
+    });
+  };
+
   // Export Master Studio Package
   const handleExportPackage = () => {
     const pkg = {
@@ -680,11 +708,17 @@ export function GenerationStudioView({
           <div className="flex items-center gap-2">
             {studioMode === "video" ? (
               <Clapperboard className="h-4 w-4 text-purple-400 shrink-0" />
-            ) : (
+            ) : studioMode === "scout" ? (
               <Compass className="h-4 w-4 text-amber-400 shrink-0" />
+            ) : (
+              <Music className="h-4 w-4 text-purple-400 shrink-0" />
             )}
             <span className="font-heading font-semibold text-xs uppercase tracking-wider text-foreground whitespace-nowrap">
-              {studioMode === "video" ? "Screening Room & Dailies" : "Scene Scouting Studio"}
+              {studioMode === "video"
+                ? "Screening Room & Dailies"
+                : studioMode === "scout"
+                ? "Scene Scouting Studio"
+                : "Scene Score & Soundtrack"}
             </span>
             <span className="text-muted-foreground text-xs">·</span>
             <span className="text-xs font-mono text-muted-foreground truncate max-w-[160px] sm:max-w-xs">
@@ -696,9 +730,13 @@ export function GenerationStudioView({
             <Badge variant="outline" className="hidden sm:inline-flex border-accent/40 bg-accent/10 text-accent font-mono text-[10px]">
               Google Veo 3.1
             </Badge>
-          ) : (
+          ) : studioMode === "scout" ? (
             <Badge variant="outline" className="hidden sm:inline-flex border-amber-500/40 bg-amber-500/10 text-amber-300 font-mono text-[10px]">
               Imagen 3 Photoreal
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="hidden sm:inline-flex border-purple-500/40 bg-purple-500/10 text-purple-300 font-mono text-[10px]">
+              Google Lyria 3
             </Badge>
           )}
 
@@ -707,7 +745,7 @@ export function GenerationStudioView({
           </Badge>
         </div>
 
-        {/* Mode Switcher: Video Takes vs Scene Scouting */}
+        {/* Mode Switcher: Video Takes vs Scene Scouting vs Lyria 3 Score */}
         <div className="flex items-center gap-1 rounded-lg border border-border/80 bg-secondary/50 p-0.5 shadow-xs">
           <button
             type="button"
@@ -720,7 +758,7 @@ export function GenerationStudioView({
             )}
           >
             <Video className="h-3.5 w-3.5" />
-            <span>Veo 3.1 Video Takes</span>
+            <span>Veo 3.1 Video</span>
           </button>
           <button
             type="button"
@@ -733,7 +771,20 @@ export function GenerationStudioView({
             )}
           >
             <ImageIcon className="h-3.5 w-3.5" />
-            <span>Scene Scouting &amp; Lookbooks</span>
+            <span>Scene Scouting</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setStudioMode("score")}
+            className={cn(
+              "px-3 py-1 rounded-md text-xs font-heading font-semibold transition-all flex items-center gap-1.5 cursor-pointer",
+              studioMode === "score"
+                ? "bg-purple-600 text-white shadow-xs font-bold"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Music className="h-3.5 w-3.5" />
+            <span>Lyria 3 Score</span>
           </button>
         </div>
 
@@ -812,6 +863,18 @@ export function GenerationStudioView({
               type: "success",
             });
           }}
+        />
+      ) : studioMode === "score" ? (
+        <SceneScoreView
+          projectId={effectiveProjectId}
+          scenes={scenes}
+          activeSceneId={activeSceneId}
+          onSelectScene={onSelectScene}
+          onUpdateScene={onUpdateScene}
+          characters={characters}
+          genre={genre}
+          projectTitle={projectTitle}
+          nodes={nodes}
         />
       ) : (
         /* Main 2-Column Director Workstation */
@@ -1020,9 +1083,23 @@ export function GenerationStudioView({
                 </Badge>
               </div>
 
-              <span className="text-[10px] font-mono text-muted-foreground hidden sm:inline">
-                Click any take to review in monitor
-              </span>
+              <div className="flex items-center gap-2">
+                {activeTakeId && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => handleDeleteTake(activeTakeId)}
+                    className="h-6 px-2 text-[10px] font-mono text-muted-foreground hover:text-destructive hover:bg-destructive/10 gap-1 cursor-pointer"
+                    title="Delete current active take from vault"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                    <span>Delete Active Take</span>
+                  </Button>
+                )}
+                <span className="text-[10px] font-mono text-muted-foreground hidden sm:inline">
+                  Click any take to review in monitor
+                </span>
+              </div>
             </div>
 
             {/* Horizontal Reel of Takes */}
@@ -1030,12 +1107,11 @@ export function GenerationStudioView({
               {recentTakes.map((take) => {
                 const isSelected = activeTakeId === take.id;
                 return (
-                  <button
+                  <div
                     key={take.id}
-                    type="button"
                     onClick={() => selectTake(take)}
                     className={cn(
-                      "w-48 shrink-0 rounded-lg border p-2 text-left cursor-pointer transition-all flex flex-col gap-1",
+                      "w-48 shrink-0 rounded-lg border p-2 text-left cursor-pointer transition-all flex flex-col gap-1 relative group",
                       isSelected
                         ? "border-accent bg-accent/15 ring-1 ring-accent/40 shadow-xs"
                         : "border-border bg-secondary/30 hover:bg-secondary/60 text-muted-foreground"
@@ -1045,7 +1121,17 @@ export function GenerationStudioView({
                       <span className={cn("font-bold", isSelected ? "text-accent" : "text-foreground")}>
                         TAKE 0{take.takeNumber}
                       </span>
-                      <span className="text-muted-foreground">{take.durationSec}s · {take.timestamp}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-muted-foreground">{take.durationSec}s</span>
+                        <button
+                          type="button"
+                          onClick={(e) => handleDeleteTake(take.id, e)}
+                          className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-destructive/80 text-muted-foreground hover:text-white transition-opacity cursor-pointer"
+                          title="Delete this take"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
                     </div>
                     <span className="text-xs font-medium text-foreground truncate flex items-center gap-1.5">
                       {take.title}
@@ -1056,7 +1142,7 @@ export function GenerationStudioView({
                       )}
                     </span>
                     <span className="text-[10px] font-mono text-muted-foreground truncate">{take.camera}</span>
-                  </button>
+                  </div>
                 );
               })}
 
@@ -1887,6 +1973,18 @@ export function GenerationStudioView({
                     <span>Download Raw MP4 Master</span>
                   </Button>
                 </a>
+
+                {activeTakeId && (
+                  <Button
+                    variant="outline"
+                    size="default"
+                    onClick={() => handleDeleteTake(activeTakeId)}
+                    className="w-full text-xs gap-2 cursor-pointer border-destructive/40 text-destructive hover:bg-destructive/10"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    <span>Delete Current Take from Vault</span>
+                  </Button>
+                )}
               </div>
             </div>
           )}

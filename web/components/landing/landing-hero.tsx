@@ -1,11 +1,13 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { SlateLabel } from "@/components/cinema/slate-label";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   Play,
   Plus,
@@ -65,24 +67,29 @@ export function LandingHero({ onOpenNewProject, onOpenFusion }: LandingHeroProps
 
       {/* Call to Actions Bar */}
       <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-        <Button
-          size="lg"
-          className="h-12 px-7 text-sm font-semibold gap-2 bg-accent text-accent-foreground hover:bg-accent/90 shadow-xl shadow-accent/25 transition-all"
-          onClick={() => router.push("/dashboard")}
+        <Link
+          href="/dashboard"
+          prefetch={true}
+          className={cn(
+            buttonVariants({ size: "lg" }),
+            "h-12 px-7 text-sm font-semibold gap-2 bg-accent text-accent-foreground hover:bg-accent/90 shadow-xl shadow-accent/25 transition-all inline-flex items-center cursor-pointer"
+          )}
         >
           <Film className="h-4 w-4" />
           Enter Studio Dashboard
-        </Button>
+        </Link>
 
-        <Button
-          size="lg"
-          variant="outline"
-          className="h-12 px-6 text-sm font-medium gap-2 border-border bg-card/60 hover:bg-secondary transition-all"
-          onClick={() => router.push("/studio/vault-heist-demo")}
+        <Link
+          href="/studio/vault-heist-demo"
+          prefetch={true}
+          className={cn(
+            buttonVariants({ variant: "outline", size: "lg" }),
+            "h-12 px-6 text-sm font-medium gap-2 border-border bg-card/60 hover:bg-secondary transition-all inline-flex items-center cursor-pointer"
+          )}
         >
           <Play className="h-4 w-4 fill-current text-accent" />
           Launch Benchmark Demo
-        </Button>
+        </Link>
 
         <Button
           size="lg"
@@ -170,14 +177,17 @@ export function LandingHero({ onOpenNewProject, onOpenFusion }: LandingHeroProps
               </div>
 
               <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  className="h-8 text-xs bg-accent text-accent-foreground hover:bg-accent/90 font-medium"
-                  onClick={() => router.push("/studio/vault-heist-demo")}
+                <Link
+                  href="/studio/vault-heist-demo"
+                  prefetch={true}
+                  className={cn(
+                    buttonVariants({ size: "sm" }),
+                    "h-8 text-xs bg-accent text-accent-foreground hover:bg-accent/90 font-medium inline-flex items-center cursor-pointer"
+                  )}
                 >
                   <Play className="h-3 w-3 fill-current mr-1.5" />
                   Enter Scene 04
-                </Button>
+                </Link>
               </div>
             </div>
           </div>

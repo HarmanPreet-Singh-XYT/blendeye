@@ -1,10 +1,12 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Film, Plus, Database, Layers } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { AuthUserButton } from "@/components/cinema/auth-user-button";
+import { cn } from "@/lib/utils";
 
 interface LandingNavbarProps {
   onOpenNewProject: () => void;
@@ -33,7 +35,7 @@ export function LandingNavbar({ onOpenNewProject }: LandingNavbarProps) {
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between gap-4">
         {/* Left: Brand Identity (Single clean line, no wrapping) */}
-        <div className="flex items-center gap-2.5 shrink-0">
+        <Link href="/" className="flex items-center gap-2.5 shrink-0 hover:opacity-90 transition-opacity">
           <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-accent/15 border border-accent/30 text-accent">
             <Film className="h-4 w-4" />
           </div>
@@ -46,7 +48,7 @@ export function LandingNavbar({ onOpenNewProject }: LandingNavbarProps) {
               Studio
             </span>
           </div>
-        </div>
+        </Link>
 
         {/* Center: Quick navigation links */}
         <nav className="hidden lg:flex items-center gap-5 text-xs font-medium text-muted-foreground">
@@ -102,7 +104,7 @@ export function LandingNavbar({ onOpenNewProject }: LandingNavbarProps) {
           <Button
             variant="outline"
             size="sm"
-            className="h-8 text-xs gap-1.5 border-border hover:bg-secondary"
+            className="h-8 text-xs gap-1.5 border-border hover:bg-secondary cursor-pointer"
             onClick={onOpenNewProject}
           >
             <Plus className="h-3.5 w-3.5" />
@@ -110,14 +112,17 @@ export function LandingNavbar({ onOpenNewProject }: LandingNavbarProps) {
             <span className="sm:hidden">New</span>
           </Button>
 
-          <Button
-            size="sm"
-            className="h-8 px-3 text-xs gap-1.5 bg-accent text-accent-foreground hover:bg-accent/90 shadow-sm font-semibold whitespace-nowrap"
-            onClick={() => router.push("/dashboard")}
+          <Link
+            href="/dashboard"
+            prefetch={true}
+            className={cn(
+              buttonVariants({ size: "sm" }),
+              "h-8 px-3 text-xs gap-1.5 bg-accent text-accent-foreground hover:bg-accent/90 shadow-sm font-semibold whitespace-nowrap cursor-pointer inline-flex items-center"
+            )}
           >
             <Film className="h-3.5 w-3.5" />
             <span>Studio Dashboard</span>
-          </Button>
+          </Link>
 
           <AuthUserButton />
         </div>

@@ -255,6 +255,9 @@ AVAILABLE ACTIONS YOU CAN EMIT IN "actions":
 27. {{"type": "add_location_candidate", "sceneIdentifier": 2, "candidate": {{"name": "Venue Name", "category": "practical"|"studio"|"historic", "region": "City/State", "day_rate": 2500, "permit_fee": 400, "film_precedent": "Title", "auto_lock": True}}}}
 28. {{"type": "set_location_budget", "sceneIdentifier": 2, "budget": 12000, "locationsPct": 20}}
 29. {{"type": "set_shoot_region", "shootRegion": "London, UK" | "New York, NY", "sceneIdentifier": 2}}
+30. {{"type": "create_score_take", "sceneIdentifier": 2, "title": "Score Cue", "prompt": "Tense cinematic strings", "durationSec": 30, "scoreType": "score"|"source"|"vocal", "audioUrl": "/audio/demo-score.wav"}}
+31. {{"type": "set_master_score", "sceneIdentifier": 2, "takeNumber": 1}}
+32. {{"type": "delete_score_take", "sceneIdentifier": 2, "takeNumber": 1}}
 
 PROJECT CONTEXT:
 Title: {body.project_title or "Untitled"}

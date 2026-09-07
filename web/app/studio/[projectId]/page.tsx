@@ -94,6 +94,7 @@ import { StudioInspector } from "@/components/cinema/studio-inspector";
 import { cn } from "@/lib/utils";
 import {
   Film,
+  Clapperboard,
   Sparkles,
   Bot,
   UserCheck,
@@ -143,6 +144,7 @@ import {
   saveProject,
   createNewProjectEntry,
   buildProjectNodesAndEdges,
+  rehydrateNodeCallbacks,
   type ProjectData,
   type ProjectCharacter,
   type NarrativeFormat,
@@ -167,14 +169,18 @@ export default function StudioPage() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const rawProjectId = (params?.projectId as string) || "vault-heist-demo";
+  const rawProjectId = (params?.projectId as string) || "";
   const routeSceneId = params?.sceneId as string | undefined;
   const shouldAutoRunPipeline = searchParams?.get("pipeline") === "1";
 
   // Load project from persistent store (or seed presets)
-  const initialProject = React.useMemo(() => {
-    return getProjectById(rawProjectId) || SEED_PROJECTS[0];
+  const foundProject = React.useMemo(() => {
+    if (!rawProjectId) return null;
+    return getProjectById(rawProjectId);
   }, [rawProjectId]);
+
+  const initialProject = foundProject || SEED_PROJECTS[0];
+  const isProjectNotFound = !foundProject;
 
   // Dedicated View Mode: "scenes" (Dedicated Project Overview & Scenes Sequence) vs "studio" (Scene Studio Workspace)
   const [pageViewMode, setPageViewMode] = React.useState<"scenes" | "studio">(() => {
@@ -251,6 +257,9 @@ export default function StudioPage() {
     setAllProjects(getAllProjects());
   }, [projectId]);
 
+  // Ref to hold nodeCallbacks for effects running before/during state initialization
+  const nodeCallbacksRef = React.useRef<NodeCallbacks>({});
+
   // Synchronize state when initialProject changes
   React.useEffect(() => {
     if (initialProject) {
@@ -283,7 +292,7 @@ export default function StudioPage() {
         setTimeSeconds(targetSc.startSeconds || 0);
         setSceneDurationSeconds(targetSc.durationSeconds || 120);
         if (targetSc.nodes !== undefined) {
-          setNodes(targetSc.nodes);
+          setNodes(rehydrateNodeCallbacks(targetSc.nodes, nodeCallbacksRef.current));
         }
         if (targetSc.edges !== undefined) {
           setEdges(targetSc.edges);
@@ -687,6 +696,11 @@ export default function StudioPage() {
         setMainTab("simulation");
         setSimulationTab("hotseat");
       },
+      onTuneVoice: (charName: string) => {
+        setActiveCharacterName(charName);
+        setMainTab("simulation");
+        setSimulationTab("audio");
+      },
       onGenerateDraft: () => {
         runFullPipeline(projectId, premiseInput);
       },
@@ -699,7 +713,18 @@ export default function StudioPage() {
         } else {
           setMainTab("planning");
           setDeckSubTab(subTab as DeckSubTab);
-          setViewModeRef.current?.("split");
+          // Maximize the bottom panel so the deck gets full workspace
+          setViewModeRef.current?.("dock-only");
+          toast.add({
+            title:
+              (subTab as string) === "blocking"
+                ? "2D Camera Blocking Deck"
+                : (subTab as string) === "tension"
+                  ? "Pacing & Tension Curve"
+                  : "Director Staging",
+            description: "Bottom panel maximized. Click Restore to return to split view.",
+            type: "info",
+          });
         }
       },
       onOpenTableRead: () => {
@@ -719,9 +744,19 @@ export default function StudioPage() {
         // via a ref, since nodeCallbacks must exist before useNodesState/setNodes.
         handleUpdateNodeDataRef.current?.(`node-dial-${charName.toLowerCase()}`, dials);
       },
+      onOpenDossier: (candId?: string) => {
+        const curScene = scenes.find((s) => s.id === activeSceneId);
+        const candidates = curScene?.locationCandidates || [];
+        const matched = candidates.find((c) => c.candidate_id === candId) || candidates[0];
+        if (matched) {
+          setDossierCandidate(matched);
+        }
+        setDossierOpen(true);
+      },
     }),
     [projectId, premiseInput]
   );
+  nodeCallbacksRef.current = nodeCallbacks;
 
   // Generate initial React Flow nodes & edges directly from project data, then
   // overlay any persisted per-node customization (dials, quirks, images, style)
@@ -731,7 +766,10 @@ export default function StudioPage() {
     const targetId = routeSceneId || searchParams?.get("scene") || initialProject.activeSceneId || initialProject.scenes?.[0]?.id;
     const currentScene = (initialProject.scenes || []).find((s) => s.id === targetId);
     if (currentScene && currentScene.nodes !== undefined) {
-      return { nodes: currentScene.nodes, edges: currentScene.edges || [] };
+      return {
+        nodes: rehydrateNodeCallbacks(currentScene.nodes, nodeCallbacks),
+        edges: currentScene.edges || [],
+      };
     }
 
     const fresh = buildProjectNodesAndEdges(initialProject, nodeCallbacks, isGenerating);
@@ -791,7 +829,7 @@ export default function StudioPage() {
   // Apply VCS snapshot back into live canvas and project storage
   const applySnapshot = React.useCallback(
     (snap: SnapshotState) => {
-      if (snap.nodes) setNodes(snap.nodes);
+      if (snap.nodes) setNodes(rehydrateNodeCallbacks(snap.nodes, nodeCallbacks));
       if (snap.edges) setEdges(snap.edges);
       if (snap.characters) setCharacters(snap.characters);
       if (snap.sceneTitle) setSceneTitle(snap.sceneTitle);
@@ -882,7 +920,7 @@ export default function StudioPage() {
           setScenePlacementSeconds(target.startSeconds || 0);
           setSceneDurationSeconds(target.durationSeconds || 120);
           setTimeSeconds(target.startSeconds || 0);
-          setNodes(target.nodes || []);
+          setNodes(rehydrateNodeCallbacks(target.nodes || [], nodeCallbacks));
           setEdges(target.edges || []);
           setEvents(target.events || []);
         }
@@ -1482,27 +1520,32 @@ export default function StudioPage() {
   const topPanelRef = usePanelRef();
   const bottomPanelRef = usePanelRef();
   const [layoutMode, setLayoutMode] = React.useState<"split" | "canvas-only" | "dock-only">("split");
+  // Prevents onResize callbacks from fighting programmatic layout changes mid-animation
+  const isProgrammaticResize = React.useRef(false);
 
   const setViewMode = React.useCallback(
     (mode: "split" | "canvas-only" | "dock-only") => {
+      // Lock out onResize callbacks during the animation (panels report intermediate sizes)
+      isProgrammaticResize.current = true;
       setLayoutMode(mode);
       if (mode === "canvas-only") {
         bottomPanelRef.current?.collapse();
         inspectorPanelRef.current?.collapse();
         setIsSidebarOpen(false);
         topPanelRef.current?.expand();
-        topPanelRef.current?.resize("100%");
       } else if (mode === "dock-only") {
+        // Collapsing the top panel automatically gives all space to the bottom
         topPanelRef.current?.collapse();
         bottomPanelRef.current?.expand();
-        bottomPanelRef.current?.resize("100%");
       } else {
-        // "split"
+        // "split" — expand both; library restores their last non-collapsed sizes
         topPanelRef.current?.expand();
         bottomPanelRef.current?.expand();
-        topPanelRef.current?.resize("65%");
-        bottomPanelRef.current?.resize("35%");
       }
+      // Release the lock after animations finish (~300ms is enough for CSS transitions)
+      setTimeout(() => {
+        isProgrammaticResize.current = false;
+      }, 350);
     },
     [topPanelRef, bottomPanelRef, inspectorPanelRef]
   );
@@ -1820,6 +1863,11 @@ export default function StudioPage() {
               setMainTab("simulation");
               setSimulationTab("hotseat");
             },
+            onTuneVoice: () => {
+              setActiveCharacterName("New Hero");
+              setMainTab("simulation");
+              setSimulationTab("audio");
+            },
           },
         };
         setCharacters((prev) => [
@@ -1888,10 +1936,7 @@ export default function StudioPage() {
           data: {
             sceneTitle: sceneTitle || "Production Set Master",
             cameraCount: 3,
-            onOpenDeck: () => {
-              setMainTab("planning");
-              setDeckSubTab("blocking");
-            },
+            onOpenDeck: () => nodeCallbacksRef.current.onOpenDeck?.("blocking"),
           },
         };
         break;
@@ -1904,10 +1949,7 @@ export default function StudioPage() {
             peakTension: 88,
             actCount: 3,
             currentSeconds: timeSeconds,
-            onOpenDeck: () => {
-              setMainTab("planning");
-              setDeckSubTab("tension");
-            },
+            onOpenDeck: () => nodeCallbacksRef.current.onOpenDeck?.("tension"),
           },
         };
         break;
@@ -2037,6 +2079,34 @@ export default function StudioPage() {
     },
     [inspectorPanelRef]
   );
+
+  if (isProjectNotFound) {
+    return (
+      <div className="flex h-screen w-screen flex-col items-center justify-center bg-background text-foreground p-6 text-center">
+        <div className="h-16 w-16 rounded-2xl bg-secondary/60 border border-border flex items-center justify-center text-muted-foreground mb-4">
+          <Clapperboard className="h-8 w-8 text-accent" />
+        </div>
+        <h1 className="font-heading text-xl font-bold text-foreground">Production Slate Not Found</h1>
+        <p className="text-xs text-muted-foreground mt-2 max-w-md">
+          The production &ldquo;{rawProjectId || "unknown"}&rdquo; was not found in your studio slate. It may have been removed or created under another account.
+        </p>
+        <div className="flex items-center gap-3 mt-6">
+          <Button onClick={() => router.push("/dashboard")} className="gap-2 bg-foreground text-background hover:bg-foreground/90">
+            Back to Dashboard
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              router.push("/studio/vault-heist-demo");
+            }}
+            className="gap-2"
+          >
+            Explore Vault Heist Demo
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (pageViewMode === "scenes") {
     const currentProj: ProjectData = {
@@ -2494,6 +2564,7 @@ export default function StudioPage() {
             maxSize="90%"
             className="relative"
             onResize={(panelSize) => {
+              if (isProgrammaticResize.current) return;
               if (panelSize.asPercentage <= 2) {
                 setLayoutMode((prev) => (prev !== "dock-only" ? "dock-only" : prev));
               } else {
@@ -2620,6 +2691,7 @@ export default function StudioPage() {
             maxSize="85%"
             className="flex flex-col overflow-hidden bg-card/95 backdrop-blur border-t border-border"
             onResize={(panelSize) => {
+              if (isProgrammaticResize.current) return;
               if (panelSize.asPercentage <= 2) {
                 setLayoutMode((prev) => (prev !== "canvas-only" ? "canvas-only" : prev));
               } else {
@@ -2633,7 +2705,7 @@ export default function StudioPage() {
             }}
           >
             {/* Director Staging Strip */}
-            <div className="flex h-10 shrink-0 items-center justify-between border-b border-border px-4 bg-secondary/30">
+            <div id="director-staging-dock" className="flex h-10 shrink-0 items-center justify-between border-b border-border px-4 bg-secondary/30">
               <div className="flex items-center gap-1.5">
                 <span className="text-[11px] font-mono text-muted-foreground uppercase tracking-wider mr-1 hidden sm:inline">
                   Director Staging:

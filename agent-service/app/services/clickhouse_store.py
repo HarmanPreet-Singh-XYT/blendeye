@@ -34,6 +34,10 @@ from pydantic import BaseModel
 
 from app.config import get_settings
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 EventType = Literal["known_fact", "unaware_of", "location", "objective"]
 
 _TABLE_DDL = """
@@ -59,16 +63,26 @@ class StoryEvent(BaseModel):
 
 class ClickHouseStore:
     def __init__(self) -> None:
-        settings = get_settings()
-        self._client = clickhouse_connect.get_client(
-            host=settings.clickhouse_host,
-            port=settings.clickhouse_port,
-            username=settings.clickhouse_user,
-            password=settings.clickhouse_password,
-            database=settings.clickhouse_database,
-            secure=settings.clickhouse_secure,
-        )
-        self._client.command(_TABLE_DDL)
+        self._client = None
+        self._memory_events: list[StoryEvent] = []
+        try:
+            settings = get_settings()
+            self._client = clickhouse_connect.get_client(
+                host=settings.clickhouse_host,
+                port=settings.clickhouse_port,
+                username=settings.clickhouse_user,
+                password=settings.clickhouse_password,
+                database=settings.clickhouse_database,
+                secure=settings.clickhouse_secure,
+            )
+            self._client.command(_TABLE_DDL)
+        except Exception as e:
+            logger.warning("ClickHouse unavailable, activating memory fallback store: %s", e)
+            self._client = None
+
+    @property
+    def is_connected(self) -> bool:
+        return self._client is not None
 
     @property
     def client(self):
@@ -81,20 +95,26 @@ class ClickHouseStore:
     def insert_events(self, events: list[StoryEvent]) -> None:
         if not events:
             return
-        self._client.insert(
-            "story_events",
-            [
-                [e.project_id, e.character_name, e.event_timestamp, e.event_type, e.content]
-                for e in events
-            ],
-            column_names=[
-                "project_id",
-                "character_name",
-                "event_timestamp",
-                "event_type",
-                "content",
-            ],
-        )
+        if self._client:
+            try:
+                self._client.insert(
+                    "story_events",
+                    [
+                        [e.project_id, e.character_name, e.event_timestamp, e.event_type, e.content]
+                        for e in events
+                    ],
+                    column_names=[
+                        "project_id",
+                        "character_name",
+                        "event_timestamp",
+                        "event_type",
+                        "content",
+                    ],
+                )
+                return
+            except Exception as e:
+                logger.warning("ClickHouse insert failed, falling back to memory: %s", e)
+        self._memory_events.extend(events)
 
     def knowledge_state(
         self, project_id: str, character_name: str, at_timestamp: str
@@ -103,57 +123,90 @@ class ClickHouseStore:
         `at_timestamp`, split into known_facts vs. unaware_of. This is the
         exact query underlying the timeline scrubber's core mechanic.
         """
-        result = self._client.query(
-            """
-            SELECT event_type, content
-            FROM story_events
-            WHERE project_id = {project_id:String}
-              AND character_name = {character_name:String}
-              AND event_timestamp <= {at_timestamp:String}
-            ORDER BY event_timestamp
-            """,
-            parameters={
-                "project_id": project_id,
-                "character_name": character_name,
-                "at_timestamp": at_timestamp,
-            },
-        )
-        known_facts: list[str] = []
-        unaware_of: list[str] = []
-        for event_type, content in result.result_rows:
-            if event_type == "known_fact":
-                known_facts.append(content)
-            elif event_type == "unaware_of":
-                unaware_of.append(content)
+        if self._client:
+            try:
+                result = self._client.query(
+                    """
+                    SELECT event_type, content
+                    FROM story_events
+                    WHERE project_id = {project_id:String}
+                      AND character_name = {character_name:String}
+                      AND event_timestamp <= {at_timestamp:String}
+                    ORDER BY event_timestamp
+                    """,
+                    parameters={
+                        "project_id": project_id,
+                        "character_name": character_name,
+                        "at_timestamp": at_timestamp,
+                    },
+                )
+                known_facts: list[str] = []
+                unaware_of: list[str] = []
+                for event_type, content in result.result_rows:
+                    if event_type == "known_fact":
+                        known_facts.append(content)
+                    elif event_type == "unaware_of":
+                        unaware_of.append(content)
+                return {"known_facts": known_facts, "unaware_of": unaware_of}
+            except Exception as e:
+                logger.warning("ClickHouse knowledge_state query failed: %s", e)
+
+        # In-memory fallback
+        known_facts = []
+        unaware_of = []
+        for e in sorted(self._memory_events, key=lambda x: x.event_timestamp):
+            if (
+                e.project_id == project_id
+                and e.character_name == character_name
+                and e.event_timestamp <= at_timestamp
+            ):
+                if e.event_type == "known_fact":
+                    known_facts.append(e.content)
+                elif e.event_type == "unaware_of":
+                    unaware_of.append(e.content)
         return {"known_facts": known_facts, "unaware_of": unaware_of}
 
     def events_for_project(self, project_id: str) -> list[StoryEvent]:
-        result = self._client.query(
-            """
-            SELECT project_id, character_name, event_timestamp, event_type, content
-            FROM story_events
-            WHERE project_id = {project_id:String}
-            ORDER BY event_timestamp
-            """,
-            parameters={"project_id": project_id},
-        )
+        if self._client:
+            try:
+                result = self._client.query(
+                    """
+                    SELECT project_id, character_name, event_timestamp, event_type, content
+                    FROM story_events
+                    WHERE project_id = {project_id:String}
+                    ORDER BY event_timestamp
+                    """,
+                    parameters={"project_id": project_id},
+                )
+                return [
+                    StoryEvent(
+                        project_id=row[0],
+                        character_name=row[1],
+                        event_timestamp=row[2],
+                        event_type=row[3],
+                        content=row[4],
+                    )
+                    for row in result.result_rows
+                ]
+            except Exception as e:
+                logger.warning("ClickHouse events_for_project query failed: %s", e)
+
         return [
-            StoryEvent(
-                project_id=row[0],
-                character_name=row[1],
-                event_timestamp=row[2],
-                event_type=row[3],
-                content=row[4],
-            )
-            for row in result.result_rows
+            e for e in sorted(self._memory_events, key=lambda x: x.event_timestamp)
+            if e.project_id == project_id
         ]
 
     def clear_project_events(self, project_id: str) -> None:
         """Deletes prior events for a project to ensure idempotent re-sharding."""
-        self._client.command(
-            "ALTER TABLE story_events DELETE WHERE project_id = {project_id:String}",
-            parameters={"project_id": project_id},
-        )
+        if self._client:
+            try:
+                self._client.command(
+                    "ALTER TABLE story_events DELETE WHERE project_id = {project_id:String}",
+                    parameters={"project_id": project_id},
+                )
+            except Exception as e:
+                logger.warning("ClickHouse clear_project_events command failed: %s", e)
+        self._memory_events = [e for e in self._memory_events if e.project_id != project_id]
 
     def get_cinematic_precedents(self, genre: str = "") -> list[dict]:
         """Queries ClickHouse cinematic_precedents table for grounding flourish with hybrid genre fallback."""

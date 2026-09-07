@@ -4,7 +4,7 @@ import * as React from "react";
 import { SlateLabel } from "@/components/cinema/slate-label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Sparkles, RefreshCw } from "lucide-react";
+import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Sparkles, RefreshCw, Loader2 } from "lucide-react";
 import { notifyIfFallback } from "@/lib/fallback-notice";
 
 interface ScriptLine {
@@ -32,6 +32,11 @@ export function TableReadPlayer({
   const [voiceEngine, setVoiceEngine] = React.useState<"gemini" | "browser">("gemini");
   const [isSynthesizing, setIsSynthesizing] = React.useState(false);
   const [activeVoiceName, setActiveVoiceName] = React.useState<string>("Fenrir");
+
+  // Native Gemini Multi-Speaker Conversation State
+  const [isMultiSpeakerLoading, setIsMultiSpeakerLoading] = React.useState(false);
+  const [isMultiSpeakerPlaying, setIsMultiSpeakerPlaying] = React.useState(false);
+  const [multiSpeakerAudioUrl, setMultiSpeakerAudioUrl] = React.useState<string | null>(null);
 
   const activeUtteranceRef = React.useRef<SpeechSynthesisUtterance | null>(null);
   const activeAudioRef = React.useRef<HTMLAudioElement | null>(null);
@@ -233,18 +238,67 @@ export function TableReadPlayer({
   };
 
   const handleReset = () => {
-    window.speechSynthesis.cancel();
+    stopAllAudio();
     setIsPlaying(false);
+    setIsMultiSpeakerPlaying(false);
     setCurrentIndex(0);
+  };
+
+  const toggleMultiSpeakerPlay = async () => {
+    stopAllAudio();
+    setIsPlaying(false);
+
+    if (isMultiSpeakerPlaying) {
+      setIsMultiSpeakerPlaying(false);
+      return;
+    }
+
+    if (multiSpeakerAudioUrl) {
+      const audio = new Audio(multiSpeakerAudioUrl);
+      activeAudioRef.current = audio;
+      audio.playbackRate = speechRate;
+      audio.onended = () => setIsMultiSpeakerPlaying(false);
+      audio.onerror = () => setIsMultiSpeakerPlaying(false);
+      setIsMultiSpeakerPlaying(true);
+      await audio.play();
+      return;
+    }
+
+    setIsMultiSpeakerLoading(true);
+    try {
+      const res = await fetch("/api/media/tts/multi", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scriptText: screenplayText }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.audio_url && !data._fallback) {
+          setMultiSpeakerAudioUrl(data.audio_url);
+          const audio = new Audio(data.audio_url);
+          activeAudioRef.current = audio;
+          audio.playbackRate = speechRate;
+          audio.onended = () => setIsMultiSpeakerPlaying(false);
+          audio.onerror = () => setIsMultiSpeakerPlaying(false);
+          setIsMultiSpeakerPlaying(true);
+          await audio.play();
+          return;
+        }
+      }
+      // Fall back to line-by-line togglePlay
+      togglePlay();
+    } catch {
+      togglePlay();
+    } finally {
+      setIsMultiSpeakerLoading(false);
+    }
   };
 
   React.useEffect(() => {
     return () => {
-      if (typeof window !== "undefined" && "speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
-      }
+      stopAllAudio();
     };
-  }, []);
+  }, [stopAllAudio]);
 
   const currentLine = lines[currentIndex];
 
@@ -327,13 +381,33 @@ export function TableReadPlayer({
 
           <Button
             size="sm"
-            className={`h-8 px-4 gap-2 text-xs font-semibold ${
+            className={`h-8 px-4 gap-2 text-xs font-semibold cursor-pointer ${
               isPlaying ? "bg-accent text-accent-foreground" : "bg-card border border-border text-foreground hover:bg-secondary"
             }`}
             onClick={togglePlay}
           >
             {isPlaying ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5 text-accent" />}
-            <span>{isPlaying ? "Pause Read" : "Start Table Read"}</span>
+            <span>{isPlaying ? "Pause Read" : "Line by Line"}</span>
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
+            className={`h-8 px-3 gap-1.5 text-xs font-semibold cursor-pointer border-accent/40 ${
+              isMultiSpeakerPlaying ? "bg-accent text-accent-foreground border-accent" : "hover:bg-accent/15 text-accent bg-accent/5"
+            }`}
+            onClick={toggleMultiSpeakerPlay}
+            disabled={isSynthesizing || isMultiSpeakerLoading}
+            title="Play full scene conversation using Gemini 3.1 Flash TTS Multi-Speaker"
+          >
+            {isMultiSpeakerLoading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-accent" />
+            ) : isMultiSpeakerPlaying ? (
+              <Pause className="h-3.5 w-3.5" />
+            ) : (
+              <Sparkles className="h-3.5 w-3.5 text-accent" />
+            )}
+            <span>{isMultiSpeakerLoading ? "Synthesizing..." : isMultiSpeakerPlaying ? "Pause Multi-Voice" : "Play Multi-Speaker Scene"}</span>
           </Button>
 
           <Button
@@ -359,7 +433,7 @@ export function TableReadPlayer({
 
         {/* Audio Waveform Speaking Animation & Controls */}
         <div className="flex items-center gap-2 font-mono text-[11px]">
-          {isPlaying ? (
+          {isPlaying || isMultiSpeakerPlaying ? (
             <div className="flex items-center gap-0.5 h-4">
               <span className="w-1 bg-accent rounded-full animate-[bounce_0.6s_infinite_100ms] h-3" />
               <span className="w-1 bg-accent rounded-full animate-[bounce_0.6s_infinite_200ms] h-4" />
@@ -370,9 +444,16 @@ export function TableReadPlayer({
           ) : (
             <span className="text-muted-foreground">Ready</span>
           )}
-          <span className="text-muted-foreground">
-            Line {currentIndex + 1} / {lines.length}
-          </span>
+          {isMultiSpeakerPlaying ? (
+            <span className="text-accent font-semibold flex items-center gap-1">
+              <Sparkles className="h-3 w-3" />
+              Gemini Multi-Speaker Master Active
+            </span>
+          ) : (
+            <span className="text-muted-foreground">
+              Line {currentIndex + 1} / {lines.length}
+            </span>
+          )}
           {hideHeader && (
             <div className="flex items-center gap-1 ml-2 border-l border-border pl-2">
               <button

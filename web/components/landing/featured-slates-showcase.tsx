@@ -1,12 +1,14 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { SlateLabel } from "@/components/cinema/slate-label";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Play, Plus, Clock, Users, ArrowRight, Film, ShieldCheck } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface ProductionSlate {
   id: string;
@@ -167,30 +169,32 @@ export function FeaturedSlatesShowcase({ onOpenNewProject }: { onOpenNewProject:
               </div>
 
               {/* Action Button */}
-              <Button
-                size="sm"
-                className="w-full text-xs gap-2 bg-secondary text-foreground hover:bg-accent hover:text-accent-foreground transition-colors font-medium h-9"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (slate.isCustom) {
+              {slate.isCustom ? (
+                <Button
+                  size="sm"
+                  className="w-full text-xs gap-2 bg-secondary text-foreground hover:bg-accent hover:text-accent-foreground transition-colors font-medium h-9 cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
                     onOpenNewProject();
-                  } else {
-                    router.push(`/studio/${slate.id}`);
-                  }
-                }}
-              >
-                {slate.isCustom ? (
-                  <>
-                    <Plus className="h-3.5 w-3.5" />
-                    <span>Create Custom Slate</span>
-                  </>
-                ) : (
-                  <>
-                    <Play className="h-3.5 w-3.5 fill-current" />
-                    <span>Enter Writers&apos; Room</span>
-                  </>
-                )}
-              </Button>
+                  }}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Create Custom Slate</span>
+                </Button>
+              ) : (
+                <Link
+                  href={`/studio/${slate.id}`}
+                  prefetch={true}
+                  onClick={(e) => e.stopPropagation()}
+                  className={cn(
+                    buttonVariants({ size: "sm" }),
+                    "w-full text-xs gap-2 bg-secondary text-foreground hover:bg-accent hover:text-accent-foreground transition-colors font-medium h-9 inline-flex items-center justify-center cursor-pointer"
+                  )}
+                >
+                  <Play className="h-3.5 w-3.5 fill-current" />
+                  <span>Enter Writers&apos; Room</span>
+                </Link>
+              )}
             </div>
           </div>
         ))}

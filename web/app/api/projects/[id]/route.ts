@@ -45,13 +45,18 @@ export async function PUT(
   }
 
   const authUser = await getAuthUserFromHeader(req.headers.get("authorization"));
-  body.id = id;
-  if (authUser) {
-    body.userId = authUser.id;
+  if (!authUser) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const success = await upsertProjectToSupabase(body, authUser?.id || body.userId || null);
-  return NextResponse.json({ saved: success, id });
+  body.id = id;
+  body.userId = authUser.id;
+
+  const success = await upsertProjectToSupabase(body, authUser.id);
+  if (!success) {
+    return NextResponse.json({ error: "Unauthorized or project update failed" }, { status: 403 });
+  }
+  return NextResponse.json({ saved: true, id });
 }
 
 export async function DELETE(
@@ -64,7 +69,14 @@ export async function DELETE(
   }
 
   const authUser = await getAuthUserFromHeader(req.headers.get("authorization"));
-  const success = await deleteProjectFromSupabase(id, authUser?.id || null);
-  return NextResponse.json({ deleted: success, id });
+  if (!authUser) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const success = await deleteProjectFromSupabase(id, authUser.id);
+  if (!success) {
+    return NextResponse.json({ error: "Unauthorized or project not found" }, { status: 403 });
+  }
+  return NextResponse.json({ deleted: true, id });
 }
 

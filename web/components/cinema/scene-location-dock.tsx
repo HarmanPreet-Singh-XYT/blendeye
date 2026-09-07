@@ -49,6 +49,9 @@ import {
   Check,
   Plus,
   FileText,
+  Zap,
+  Layers,
+  Trash2,
 } from "lucide-react";
 import { LocationDossierDialog } from "@/components/cinema/location-dossier-dialog";
 
@@ -338,14 +341,26 @@ export function SceneLocationDock({
         throw new Error(data.error || "No image URL returned");
       }
 
+      const newEntry = {
+        id: `gal-${Date.now()}`,
+        url: data.image_url,
+        prompt,
+        style_preset: preset,
+        camera_framing: framing,
+        createdAt: Date.now(),
+        title: `${cleanCandidateName(cand.name)} — ${framing}`,
+      };
+
       const updatedCandidates = (scene.locationCandidates || []).map((c) => {
         if (c.candidate_id === candId) {
+          const existingGallery = c.gallery_images || [];
           return {
             ...c,
             preview_image_url: data.image_url,
             preview_image_prompt: prompt,
             preview_style_preset: preset,
             preview_camera_framing: framing,
+            gallery_images: [newEntry, ...existingGallery.filter((g) => g.url !== data.image_url)],
           };
         }
         return c;
@@ -354,6 +369,17 @@ export function SceneLocationDock({
       const updatedScene: FilmScene = {
         ...scene,
         locationCandidates: updatedCandidates,
+        sceneImages: [
+          {
+            id: newEntry.id,
+            url: newEntry.url,
+            prompt: newEntry.prompt,
+            createdAt: newEntry.createdAt,
+            title: newEntry.title,
+            source: "location" as const,
+          },
+          ...(scene.sceneImages || []),
+        ],
       };
 
       onUpdateScene(updatedScene);
@@ -384,6 +410,237 @@ export function SceneLocationDock({
     } finally {
       setIsGeneratingImage((prev) => ({ ...prev, [candId]: false }));
     }
+  };
+
+  // Generate Multi-Angle Coverage (3 camera angles) for Candidate
+  const handleGenerateMultiAngle = async (cand: LocationCandidate, count: number = 3) => {
+    const candId = cand.candidate_id;
+    const preset = selectedPresetPerCand[candId] || LOCATION_STYLE_PRESETS[0].name;
+
+    setIsGeneratingImage((prev) => ({ ...prev, [candId]: true }));
+    try {
+      const generatedEntries: Array<{
+        id: string;
+        url: string;
+        prompt?: string;
+        style_preset?: string;
+        camera_framing?: string;
+        createdAt?: number;
+        title?: string;
+      }> = [];
+
+      for (let i = 0; i < count; i++) {
+        const framingObj = LOCATION_CAMERA_FRAMINGS[i % LOCATION_CAMERA_FRAMINGS.length];
+        const prompt = synthesizeLocationVisualPrompt(cand, scene, preset, framingObj.name);
+
+        const res = await fetch("/api/media/image", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt,
+            aspect_ratio: "16:9",
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          notifyIfFallback(data, `Location Angle: ${framingObj.name}`);
+          if (data.image_url) {
+            generatedEntries.push({
+              id: `gal-${Date.now()}-${i}`,
+              url: data.image_url,
+              prompt,
+              style_preset: preset,
+              camera_framing: framingObj.name,
+              createdAt: Date.now() + i * 10,
+              title: `${cleanCandidateName(cand.name)} — ${framingObj.name}`,
+            });
+          }
+        }
+      }
+
+      if (generatedEntries.length > 0) {
+        const existingGallery = cand.gallery_images || [];
+        const combinedGallery = [
+          ...generatedEntries,
+          ...existingGallery.filter((g) => !generatedEntries.some((ne) => ne.url === g.url)),
+        ];
+
+        const newSceneImages = generatedEntries.map((e) => ({
+          id: e.id,
+          url: e.url,
+          prompt: e.prompt || "",
+          createdAt: e.createdAt || Date.now(),
+          title: e.title || cleanCandidateName(cand.name),
+          source: "location" as const,
+        }));
+
+        const updatedCandidates = (scene.locationCandidates || []).map((c) => {
+          if (c.candidate_id === candId) {
+            return {
+              ...c,
+              preview_image_url: generatedEntries[0].url,
+              gallery_images: combinedGallery,
+              preview_style_preset: preset,
+              preview_camera_framing: generatedEntries[0].camera_framing,
+            };
+          }
+          return c;
+        });
+
+        const updatedScene: FilmScene = {
+          ...scene,
+          locationCandidates: updatedCandidates,
+          sceneImages: [...newSceneImages, ...(scene.sceneImages || [])],
+        };
+
+        onUpdateScene(updatedScene);
+
+        if (project.scenes) {
+          const updatedScenes = project.scenes.map((s) => (s.id === scene.id ? updatedScene : s));
+          const updatedProject: ProjectData = {
+            ...project,
+            scenes: updatedScenes,
+            updatedAt: Date.now(),
+          };
+          saveProject(updatedProject);
+          onUpdateProject?.(updatedProject);
+        }
+
+        toast.add({
+          title: `${generatedEntries.length} Camera Angles Synthesized`,
+          description: `Multi-angle coverage generated for ${cleanCandidateName(cand.name)}.`,
+          type: "success",
+        });
+      } else {
+        toast.add({
+          title: "Generation Failed",
+          description: "No images could be synthesized. Please try again.",
+          type: "error",
+        });
+      }
+    } catch (err) {
+      console.error("Multi-angle generation error:", err);
+      toast.add({
+        title: "Multi-Angle Generation Error",
+        description: err instanceof Error ? err.message : "Failed to generate angles.",
+        type: "error",
+      });
+    } finally {
+      setIsGeneratingImage((prev) => ({ ...prev, [candId]: false }));
+    }
+  };
+
+  // Switch Active Candidate Keyframe from Gallery
+  const handleSelectCandidateGalleryImage = (cand: LocationCandidate, imageUrl: string) => {
+    const candId = cand.candidate_id;
+    const selectedImg = cand.gallery_images?.find((g) => g.url === imageUrl);
+    const updatedCandidates = (scene.locationCandidates || []).map((c) => {
+      if (c.candidate_id === candId) {
+        return {
+          ...c,
+          preview_image_url: imageUrl,
+          preview_camera_framing: selectedImg?.camera_framing || c.preview_camera_framing,
+          preview_style_preset: selectedImg?.style_preset || c.preview_style_preset,
+        };
+      }
+      return c;
+    });
+
+    const updatedScene: FilmScene = {
+      ...scene,
+      locationCandidates: updatedCandidates,
+    };
+
+    onUpdateScene(updatedScene);
+
+    if (project.scenes) {
+      const updatedScenes = project.scenes.map((s) => (s.id === scene.id ? updatedScene : s));
+      const updatedProject: ProjectData = {
+        ...project,
+        scenes: updatedScenes,
+        updatedAt: Date.now(),
+      };
+      saveProject(updatedProject);
+      onUpdateProject?.(updatedProject);
+    }
+  };
+
+  // Delete Candidate Location from Scene
+  const handleDeleteCandidate = (candId: string) => {
+    const cand = candidates.find((c) => c.candidate_id === candId);
+    const remaining = (scene.locationCandidates || []).filter((c) => c.candidate_id !== candId);
+    const isLocked = scene.selectedLocationCandidateId === candId;
+
+    const updatedScene: FilmScene = {
+      ...scene,
+      selectedLocationCandidateId: isLocked ? undefined : scene.selectedLocationCandidateId,
+      locationCandidates: remaining,
+    };
+
+    onUpdateScene(updatedScene);
+
+    if (project.scenes) {
+      const updatedScenes = project.scenes.map((s) => (s.id === scene.id ? updatedScene : s));
+      const updatedProject: ProjectData = {
+        ...project,
+        scenes: updatedScenes,
+        updatedAt: Date.now(),
+      };
+      saveProject(updatedProject);
+      onUpdateProject?.(updatedProject);
+    }
+
+    toast.add({
+      title: "Location Candidate Dismissed",
+      description: `Removed "${cleanCandidateName(cand?.name || "venue")}" from scene candidates.`,
+      type: "info",
+    });
+  };
+
+  // Delete Candidate Gallery Image
+  const handleDeleteCandidateGalleryImage = (cand: LocationCandidate, imageUrl: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const candId = cand.candidate_id;
+    const remainingGallery = (cand.gallery_images || []).filter((g) => g.url !== imageUrl);
+
+    const updatedCandidates = (scene.locationCandidates || []).map((c) => {
+      if (c.candidate_id === candId) {
+        return {
+          ...c,
+          preview_image_url:
+            c.preview_image_url === imageUrl
+              ? remainingGallery[0]?.url || undefined
+              : c.preview_image_url,
+          gallery_images: remainingGallery,
+        };
+      }
+      return c;
+    });
+
+    const updatedScene: FilmScene = {
+      ...scene,
+      locationCandidates: updatedCandidates,
+    };
+
+    onUpdateScene(updatedScene);
+
+    if (project.scenes) {
+      const updatedScenes = project.scenes.map((s) => (s.id === scene.id ? updatedScene : s));
+      const updatedProject: ProjectData = {
+        ...project,
+        scenes: updatedScenes,
+        updatedAt: Date.now(),
+      };
+      saveProject(updatedProject);
+      onUpdateProject?.(updatedProject);
+    }
+
+    toast.add({
+      title: "Angle Removed",
+      description: "Visual angle removed from candidate gallery.",
+      type: "info",
+    });
   };
 
   // Add Studio Stage Candidate
@@ -856,26 +1113,69 @@ export function SceneLocationDock({
                   {/* LEFT: 16:9 Dedicated Media Slot (Unified height across cards) */}
                   <div className="sm:w-52 md:w-56 shrink-0 flex flex-col">
                     {cand.preview_image_url ? (
-                      <div
-                        onClick={() => setExpandedImageCandidate(cand)}
-                        className="relative rounded-lg overflow-hidden border border-border bg-black aspect-video cursor-pointer group shadow-sm flex-1 min-h-[110px]"
-                      >
-                        <img
-                          src={cand.preview_image_url}
-                          alt={cand.name}
-                          className="w-full h-full object-cover group-hover:scale-103 transition-transform duration-300"
-                        />
-                        <div className="absolute inset-0 bg-black/25 group-hover:bg-black/55 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                          <span className="text-[10px] text-white font-semibold flex items-center gap-1 bg-black/75 px-2 py-1 rounded">
-                            <Maximize2 className="h-3 w-3" />
-                            Expand Keyframe
-                          </span>
+                      <div className="flex flex-col flex-1">
+                        <div
+                          onClick={() => setExpandedImageCandidate(cand)}
+                          className="relative rounded-lg overflow-hidden border border-border bg-black aspect-video cursor-pointer group shadow-sm flex-1 min-h-[110px]"
+                        >
+                          <img
+                            src={cand.preview_image_url}
+                            alt={cand.name}
+                            className="w-full h-full object-cover group-hover:scale-103 transition-transform duration-300"
+                          />
+                          <div className="absolute inset-0 bg-black/25 group-hover:bg-black/55 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                            <span className="text-[10px] text-white font-semibold flex items-center gap-1 bg-black/75 px-2 py-1 rounded">
+                              <Maximize2 className="h-3 w-3" />
+                              Expand Keyframe
+                            </span>
+                          </div>
+                          <div className="absolute bottom-1 left-1.5 right-1.5 flex items-center justify-between pointer-events-none">
+                            <Badge className="text-[8px] bg-black/85 text-white/90 font-mono py-0 px-1.5 backdrop-blur-xs">
+                              {cand.preview_style_preset?.slice(0, 18) || "35mm Scope"}
+                            </Badge>
+                            {cand.gallery_images && cand.gallery_images.length > 1 && (
+                              <Badge className="text-[8px] bg-amber-500/90 text-black font-mono font-bold py-0 px-1.5 backdrop-blur-xs border-0">
+                                {cand.gallery_images.length} Angles
+                              </Badge>
+                            )}
+                          </div>
                         </div>
-                        <div className="absolute bottom-1 left-1.5 right-1.5 flex items-center justify-between pointer-events-none">
-                          <Badge className="text-[8px] bg-black/85 text-white/90 font-mono py-0 px-1.5 backdrop-blur-xs">
-                            {cand.preview_style_preset?.slice(0, 18) || "35mm Scope"}
-                          </Badge>
-                        </div>
+
+                        {/* Multi-Angle Mini Carousel Strip */}
+                        {cand.gallery_images && cand.gallery_images.length > 1 && (
+                          <div className="flex items-center gap-1 mt-1.5 overflow-x-auto pb-0.5 scrollbar-thin">
+                            <span className="text-[9px] font-mono text-muted-foreground shrink-0 flex items-center gap-0.5">
+                              <Layers className="h-2.5 w-2.5 text-amber-400" />
+                              <span>{cand.gallery_images.length}</span>
+                            </span>
+                            {cand.gallery_images.map((gImg) => {
+                              const isSelected = cand.preview_image_url === gImg.url;
+                              return (
+                                <button
+                                  key={gImg.id}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSelectCandidateGalleryImage(cand, gImg.url);
+                                  }}
+                                  className={cn(
+                                    "w-8 h-5.5 rounded shrink-0 overflow-hidden border transition-all cursor-pointer",
+                                    isSelected
+                                      ? "border-amber-400 ring-1 ring-amber-400/60 scale-105"
+                                      : "border-border/60 opacity-60 hover:opacity-100 hover:border-amber-500/50"
+                                  )}
+                                  title={gImg.camera_framing || gImg.title || "Angle thumbnail"}
+                                >
+                                  <img
+                                    src={gImg.url}
+                                    alt="Angle"
+                                    className="w-full h-full object-cover"
+                                  />
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     ) : (
                       /* Sleek Interactive Render Placeholder (matches 16:9 thumbnail exactly) */
@@ -1039,7 +1339,7 @@ export function SceneLocationDock({
                           variant="outline"
                           disabled={isGen}
                           onClick={() => handleGenerateKeyframe(cand)}
-                          className="h-6.5 text-[11px] font-semibold gap-1 border-accent/40 text-accent hover:bg-accent/10 cursor-pointer py-0 px-2.5"
+                          className="h-6.5 text-[11px] font-semibold gap-1 border-accent/40 text-accent hover:bg-accent/10 cursor-pointer py-0 px-2"
                           title="Render on-demand 16:9 cinematic keyframe"
                         >
                           {isGen ? (
@@ -1048,6 +1348,18 @@ export function SceneLocationDock({
                             <Camera className="h-3 w-3" />
                           )}
                           <span>{cand.preview_image_url ? "Re-render" : "Render"}</span>
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={isGen}
+                          onClick={() => handleGenerateMultiAngle(cand, 3)}
+                          className="h-6.5 text-[11px] font-semibold gap-1 border-amber-500/40 text-amber-300 hover:bg-amber-500/10 cursor-pointer py-0 px-2"
+                          title="Synthesize 3 distinct camera angles (Wide, Low Angle, Eye Level) for this venue"
+                        >
+                          <Zap className="h-3 w-3 text-amber-400" />
+                          <span>+3 Angles</span>
                         </Button>
 
                         <Button
@@ -1070,6 +1382,18 @@ export function SceneLocationDock({
                         >
                           <MessageSquare className="h-3.5 w-3.5" />
                         </Button>
+
+                        {!isLocked && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDeleteCandidate(cand.candidate_id)}
+                            className="h-6.5 w-6.5 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer shrink-0"
+                            title="Dismiss location candidate"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1368,10 +1692,80 @@ export function SceneLocationDock({
             </div>
           )}
 
+          {/* Multi-Angle Switcher in Expanded Modal */}
+          {expandedImageCandidate?.gallery_images && expandedImageCandidate.gallery_images.length > 1 && (
+            <div className="flex items-center gap-2 mt-2 overflow-x-auto pb-1">
+              <span className="text-[10px] font-mono text-muted-foreground shrink-0 flex items-center gap-1">
+                <Layers className="h-3 w-3 text-amber-400" />
+                <span>{expandedImageCandidate.gallery_images.length} Angles:</span>
+              </span>
+              {expandedImageCandidate.gallery_images.map((g) => {
+                const isSelected = expandedImageCandidate.preview_image_url === g.url;
+                return (
+                  <button
+                    key={g.id}
+                    type="button"
+                    onClick={() => {
+                      handleSelectCandidateGalleryImage(expandedImageCandidate, g.url);
+                      setExpandedImageCandidate({
+                        ...expandedImageCandidate,
+                        preview_image_url: g.url,
+                        preview_camera_framing: g.camera_framing || expandedImageCandidate.preview_camera_framing,
+                        preview_style_preset: g.style_preset || expandedImageCandidate.preview_style_preset,
+                      });
+                    }}
+                    className={cn(
+                      "w-16 h-10 rounded overflow-hidden border shrink-0 transition-all cursor-pointer",
+                      isSelected
+                        ? "border-amber-400 ring-2 ring-amber-400/50 scale-105"
+                        : "border-border/60 opacity-60 hover:opacity-100 hover:border-amber-500/40"
+                    )}
+                    title={g.camera_framing || g.title || "Camera Angle"}
+                  >
+                    <img src={g.url} alt="Angle" className="w-full h-full object-cover" />
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           {expandedImageCandidate?.preview_image_prompt && (
             <div className="rounded bg-secondary/30 p-2 text-[10px] font-mono text-muted-foreground mt-2 border border-border">
               <span className="font-bold text-foreground">Synthesized Prompt: </span>
               {expandedImageCandidate.preview_image_prompt}
+            </div>
+          )}
+
+          {expandedImageCandidate && (
+            <div className="flex items-center justify-between pt-2 border-t border-border/40 mt-1">
+              <span className="text-[10px] font-mono text-muted-foreground">
+                {expandedImageCandidate.gallery_images?.length || 1} Total Camera Angle(s)
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={(e) => {
+                  if (expandedImageCandidate.preview_image_url) {
+                    handleDeleteCandidateGalleryImage(expandedImageCandidate, expandedImageCandidate.preview_image_url, e);
+                    const remaining = (expandedImageCandidate.gallery_images || []).filter(
+                      (g) => g.url !== expandedImageCandidate.preview_image_url
+                    );
+                    if (remaining.length > 0) {
+                      setExpandedImageCandidate({
+                        ...expandedImageCandidate,
+                        preview_image_url: remaining[0].url,
+                        gallery_images: remaining,
+                      });
+                    } else {
+                      setExpandedImageCandidate(null);
+                    }
+                  }
+                }}
+                className="h-7 text-xs border-destructive/40 text-destructive hover:bg-destructive/10 gap-1 cursor-pointer"
+              >
+                <Trash2 className="h-3 w-3" />
+                <span>Delete This Angle</span>
+              </Button>
             </div>
           )}
         </DialogContent>

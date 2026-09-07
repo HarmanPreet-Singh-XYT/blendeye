@@ -114,9 +114,12 @@ export async function fetchProjectByIdFromSupabase(id: string, userId?: string |
       return null;
     }
 
-    if (data.user_id && userId && data.user_id !== userId) {
-      console.warn(`[SupabaseStore] Project ${id} belongs to different user`);
-      return null;
+    // If the project is owned by a user, the requester must be that user.
+    if (data.user_id) {
+      if (!userId || data.user_id !== userId) {
+        console.warn(`[SupabaseStore] Project ${id} access denied (owned by ${data.user_id}, requested by ${userId || "anonymous"})`);
+        return null;
+      }
     }
 
     return rowToProject(data);
@@ -128,6 +131,7 @@ export async function fetchProjectByIdFromSupabase(id: string, userId?: string |
 
 /**
  * Upserts a project into Supabase linked to the user account.
+ * Guarantees that callers cannot overwrite another user's project.
  */
 export async function upsertProjectToSupabase(project: ProjectData, explicitUserId?: string | null): Promise<boolean> {
   if (!isSupabaseConfigured()) return false;
@@ -135,6 +139,18 @@ export async function upsertProjectToSupabase(project: ProjectData, explicitUser
   try {
     const client = typeof window === "undefined" ? getSupabaseAdminClient() || getSupabaseClient() : getSupabaseClient();
     if (!client) return false;
+
+    // Check ownership of existing project to prevent IDOR overwrites
+    const { data: existing } = await client
+      .from("projects")
+      .select("user_id")
+      .eq("id", project.id)
+      .maybeSingle();
+
+    if (existing && existing.user_id && existing.user_id !== explicitUserId) {
+      console.warn(`[SupabaseStore] IDOR prevented: project ${project.id} belongs to user ${existing.user_id}, denied to ${explicitUserId}`);
+      return false;
+    }
 
     const row = projectToRow(project, explicitUserId);
     const { error } = await client
@@ -155,18 +171,20 @@ export async function upsertProjectToSupabase(project: ProjectData, explicitUser
 
 /**
  * Deletes a project by id from Supabase, ensuring ownership if userId is provided.
+ * Requires authenticated userId so unauthenticated requests cannot delete arbitrary projects.
  */
 export async function deleteProjectFromSupabase(id: string, userId?: string | null): Promise<boolean> {
   if (!isSupabaseConfigured()) return false;
+  if (!userId) {
+    console.warn(`[SupabaseStore] Refusing to delete project ${id}: authenticated userId required.`);
+    return false;
+  }
 
   try {
     const client = typeof window === "undefined" ? getSupabaseAdminClient() || getSupabaseClient() : getSupabaseClient();
     if (!client) return false;
 
-    let query = client.from("projects").delete().eq("id", id);
-    if (userId) {
-      query = query.eq("user_id", userId);
-    }
+    const query = client.from("projects").delete().eq("id", id).eq("user_id", userId);
 
     const { error } = await query;
 
@@ -228,16 +246,32 @@ export async function fetchNotesFromSupabase(projectId?: string, userId?: string
  */
 export async function upsertNoteToSupabase(note: ScratchpadNote, explicitUserId?: string | null): Promise<boolean> {
   if (!isSupabaseConfigured()) return false;
+  if (!explicitUserId) {
+    console.warn(`[SupabaseStore] Refusing to upsert note ${note.id}: authenticated userId required.`);
+    return false;
+  }
 
   try {
     const client = typeof window === "undefined" ? getSupabaseAdminClient() || getSupabaseClient() : getSupabaseClient();
     if (!client) return false;
 
+    // Check ownership of existing note to prevent IDOR overwrites
+    const { data: existing } = await client
+      .from("scratchpad_notes")
+      .select("user_id")
+      .eq("id", note.id)
+      .maybeSingle();
+
+    if (existing && existing.user_id && existing.user_id !== explicitUserId) {
+      console.warn(`[SupabaseStore] IDOR prevented: note ${note.id} belongs to user ${existing.user_id}, denied to ${explicitUserId}`);
+      return false;
+    }
+
     const { error } = await client
       .from("scratchpad_notes")
       .upsert({
         id: note.id,
-        user_id: explicitUserId !== undefined ? explicitUserId : (note as any).userId || null,
+        user_id: explicitUserId,
         project_id: note.projectId || null,
         title: note.title,
         content: note.content || "",
@@ -262,15 +296,16 @@ export async function upsertNoteToSupabase(note: ScratchpadNote, explicitUserId?
  */
 export async function deleteNoteFromSupabase(id: string, userId?: string | null): Promise<boolean> {
   if (!isSupabaseConfigured()) return false;
+  if (!userId) {
+    console.warn(`[SupabaseStore] Refusing to delete note ${id}: authenticated userId required.`);
+    return false;
+  }
 
   try {
     const client = typeof window === "undefined" ? getSupabaseAdminClient() || getSupabaseClient() : getSupabaseClient();
     if (!client) return false;
 
-    let query = client.from("scratchpad_notes").delete().eq("id", id);
-    if (userId) {
-      query = query.eq("user_id", userId);
-    }
+    const query = client.from("scratchpad_notes").delete().eq("id", id).eq("user_id", userId);
 
     const { error } = await query;
 

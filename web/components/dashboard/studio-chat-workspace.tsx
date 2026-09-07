@@ -32,6 +32,7 @@ import {
   type ProjectData,
   type ProjectCharacter,
   type FilmScene,
+  type ScoreTake,
   createNewProjectEntry,
   buildProjectNodesAndEdges,
   saveProject,
@@ -675,6 +676,98 @@ function applyShowrunnerActionsToProject(
             currentProj.shootRegion = region;
             modifiedFields.push(`Production Shoot Region: "${region}"`);
           }
+        }
+        break;
+      }
+      case "create_score_take": {
+        const currentScenes: FilmScene[] = [...(currentProj.scenes || [])];
+        const ident = String(action.sceneIdentifier).toLowerCase().trim();
+        const numIdent = parseInt(ident, 10);
+        const targetIdx = currentScenes.findIndex((s, idx) => {
+          if (!isNaN(numIdent) && (s.sceneNumber === numIdent || idx + 1 === numIdent)) return true;
+          if (s.id.toLowerCase() === ident) return true;
+          if (s.title.toLowerCase().includes(ident)) return true;
+          return false;
+        });
+        if (targetIdx !== -1) {
+          const sc = currentScenes[targetIdx];
+          const existingTakes = sc.scoreTakes || [];
+          const nextTakeNum = existingTakes.length + 1;
+          const newTake: ScoreTake = {
+            id: `score-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            sceneId: sc.id,
+            takeNumber: nextTakeNum,
+            title: action.title || `${sc.title} — Score Take ${String(nextTakeNum).padStart(2, "0")}`,
+            prompt: action.prompt || "Atmospheric cinematic score",
+            durationMode: (action.durationSec || 30) > 30 ? "pro" : "clip",
+            durationSec: action.durationSec || 30,
+            createdAt: Date.now(),
+            audioUrl: action.audioUrl || "/audio/demo-score.wav",
+            lyricsText: action.lyricsText,
+            isMaster: action.isMaster ?? (existingTakes.length === 0),
+            scoreType: action.scoreType || "score",
+            instruments: action.instruments,
+            dynamicArc: action.dynamicArc,
+            model: action.model || "Lyria 3",
+          };
+          const updatedTakes = [newTake, ...existingTakes];
+          currentScenes[targetIdx] = {
+            ...sc,
+            activeScoreUrl: newTake.isMaster ? newTake.audioUrl : (sc.activeScoreUrl || newTake.audioUrl),
+            scoreTakes: updatedTakes,
+          };
+          currentProj.scenes = currentScenes;
+          modifiedFields.push(`Created Score Take for Scene ${sc.sceneNumber}: "${newTake.title}"`);
+        }
+        break;
+      }
+      case "set_master_score": {
+        const currentScenes: FilmScene[] = [...(currentProj.scenes || [])];
+        const ident = String(action.sceneIdentifier).toLowerCase().trim();
+        const numIdent = parseInt(ident, 10);
+        const targetIdx = currentScenes.findIndex((s, idx) => {
+          if (!isNaN(numIdent) && (s.sceneNumber === numIdent || idx + 1 === numIdent)) return true;
+          if (s.id.toLowerCase() === ident) return true;
+          if (s.title.toLowerCase().includes(ident)) return true;
+          return false;
+        });
+        if (targetIdx !== -1) {
+          const sc = currentScenes[targetIdx];
+          const takes = (sc.scoreTakes || []).map((t) => {
+            const isMatch = (typeof action.takeNumber === "number" && t.takeNumber === action.takeNumber) || (action.takeId && t.id === action.takeId);
+            return { ...t, isMaster: isMatch };
+          });
+          const masterTake = takes.find((t) => t.isMaster);
+          currentScenes[targetIdx] = {
+            ...sc,
+            activeScoreUrl: masterTake ? masterTake.audioUrl : sc.activeScoreUrl,
+            scoreTakes: takes,
+          };
+          currentProj.scenes = currentScenes;
+          modifiedFields.push(`Locked Master Score for Scene ${sc.sceneNumber}`);
+        }
+        break;
+      }
+      case "delete_score_take": {
+        const currentScenes: FilmScene[] = [...(currentProj.scenes || [])];
+        const ident = String(action.sceneIdentifier).toLowerCase().trim();
+        const numIdent = parseInt(ident, 10);
+        const targetIdx = currentScenes.findIndex((s, idx) => {
+          if (!isNaN(numIdent) && (s.sceneNumber === numIdent || idx + 1 === numIdent)) return true;
+          if (s.id.toLowerCase() === ident) return true;
+          if (s.title.toLowerCase().includes(ident)) return true;
+          return false;
+        });
+        if (targetIdx !== -1) {
+          const sc = currentScenes[targetIdx];
+          const takes = (sc.scoreTakes || []).filter((t) => t.id !== action.takeId && t.takeNumber !== action.takeNumber);
+          currentScenes[targetIdx] = {
+            ...sc,
+            scoreTakes: takes,
+            activeScoreUrl: takes[0]?.audioUrl || undefined,
+          };
+          currentProj.scenes = currentScenes;
+          modifiedFields.push(`Removed Score Take from Scene ${sc.sceneNumber}`);
         }
         break;
       }

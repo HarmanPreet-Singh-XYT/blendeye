@@ -4,7 +4,8 @@ import React from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,16 +28,18 @@ export function AuthUserButton({ className }: { className?: string }) {
 
   if (!user) {
     return (
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => router.push("/auth?mode=signin")}
-        className={`h-8 text-xs border-accent/40 bg-accent/5 text-accent hover:bg-accent/15 gap-1.5 cursor-pointer font-mono ${className || ""}`}
+      <Link
+        href="/auth?mode=signin"
+        prefetch={true}
+        className={cn(
+          buttonVariants({ variant: "outline", size: "sm" }),
+          `h-8 text-xs border-accent/40 bg-accent/5 text-accent hover:bg-accent/15 gap-1.5 cursor-pointer font-mono inline-flex items-center ${className || ""}`
+        )}
         title="Sign in with Supabase to sync your projects across devices"
       >
         <LogIn className="h-3.5 w-3.5" />
         <span>Sign In</span>
-      </Button>
+      </Link>
     );
   }
 

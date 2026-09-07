@@ -46,6 +46,27 @@ export interface VideoTake {
   isMaster?: boolean;
 }
 
+export interface ScoreTake {
+  id: string;
+  sceneId?: string;
+  takeNumber: number;
+  title: string;
+  prompt: string;
+  durationMode: "clip" | "pro";
+  durationSec: number;
+  createdAt: number;
+  audioUrl: string;
+  lyricsText?: string;
+  isMaster?: boolean;
+  scoreType?: "score" | "source" | "vocal";
+  conditioningImageUrl?: string | null;
+  conditioningImageUrls?: string[];
+  responseModalities?: string[];
+  instruments?: string[];
+  dynamicArc?: string;
+  model?: string;
+}
+
 export type NarrativeFormat = "feature" | "pilot" | "short" | "teaser" | "series" | "custom";
 
 export interface NarrativeFormatConfig {
@@ -473,6 +494,15 @@ export interface LocationCandidate {
   preview_image_prompt?: string;
   preview_style_preset?: string;
   preview_camera_framing?: string;
+  gallery_images?: Array<{
+    id: string;
+    url: string;
+    prompt?: string;
+    style_preset?: string;
+    camera_framing?: string;
+    createdAt?: number;
+    title?: string;
+  }>;
 }
 
 export interface LocationCluster {
@@ -544,6 +574,8 @@ export interface FilmScene {
   nodes?: Node[];
   edges?: Edge[];
   events?: StoryEventMarker[];
+  activeScoreUrl?: string;
+  scoreTakes?: ScoreTake[];
 }
 
 export interface ProjectData {
@@ -580,6 +612,8 @@ export interface ProjectData {
   scratchpadNotes?: ScratchpadNote[];
   activeVideoUrl?: string;
   videoTakes?: VideoTake[];
+  activeScoreUrl?: string;
+  scoreTakes?: ScoreTake[];
   narrativeFormat?: NarrativeFormat;
   targetRuntimeMinutes?: number;
   scenePlacementSeconds?: number;
@@ -640,13 +674,16 @@ Exactly where they need to be.`,
         speechStyle: "terse, breathless, defensive",
         subtextRatio: "high",
         actorComp: "Willem Dafoe",
+        castingReasoning: "Raw nervous intensity and kinetic vulnerability under pressure",
         objective: "Locate missing vault bypass keys before vents cycle",
         dialsSummary: "Speed 80% · Subtext 70%",
         quirks: ["Fidgets with silver zippo", "Avoids direct eye contact when panicked"],
+        confidence: 0.6,
+        verbalPacing: 0.85,
         visualDescription: "Mid-30s, sharp angular jaw, sweat-streaked brow, anxious hollow eyes, stubble, intense gaze, cinematic 85mm anamorphic portrait",
-        wardrobe: "Olive-drab tactical harness over dark thermal shirt, reinforced ripstop cargo pants, fingerless gloves, worn combat boots",
-        imageUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=800&q=80",
-        fullBodyImageUrl: "https://images.unsplash.com/photo-1488161628813-04466f872be2?auto=format&fit=crop&w=800&q=80",
+        wardrobe: "Olive-drab tactical harness over charcoal waffle-knit thermal, reinforced ripstop cargo trousers, fingerless tactical gloves, worn combat boots",
+        imageUrl: "/cinema/characters/marcus_portrait.jpg",
+        fullBodyImageUrl: "/cinema/characters/marcus_portrait.jpg",
       },
       {
         name: "Elena",
@@ -654,13 +691,16 @@ Exactly where they need to be.`,
         speechStyle: "measured, icy, dismissive",
         subtextRatio: "extreme",
         actorComp: "Florence Pugh / Cate Blanchett",
+        castingReasoning: "Aristocratic poise, razor-sharp stillness, chilling emotional detachment",
         objective: "Hold Marcus in place until syndicate extraction window arrives",
         dialsSummary: "Confidence 95% · Subtext 95%",
         quirks: ["Checks chronograph with unblinking stillness", "Speaks in quiet monotones"],
-        visualDescription: "Early 40s, poised aristocratic facial features, pale skin, piercing hazel eyes, slicked-back dark hair, micro-expressions of calculated detachment",
-        wardrobe: "Tailored charcoal wool trench coat with structured lapels, matte black turtleneck, leather gloves, vintage steel chronograph",
-        imageUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80",
-        fullBodyImageUrl: "https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&w=800&q=80",
+        confidence: 0.95,
+        verbalPacing: 0.65,
+        visualDescription: "Early 40s, poised aristocratic facial features, pale skin, piercing icy hazel eyes, slicked-back dark hair, micro-expressions of calculated detachment",
+        wardrobe: "Tailored charcoal wool trench coat with high structured lapels, matte black cashmere turtleneck, dark leather gloves, vintage Omega chronograph",
+        imageUrl: "/cinema/characters/elena_portrait.jpg",
+        fullBodyImageUrl: "/cinema/characters/elena_portrait.jpg",
       },
       {
         name: "Teo",
@@ -668,13 +708,16 @@ Exactly where they need to be.`,
         speechStyle: "casual, street-smart, impatient",
         subtextRatio: "low",
         actorComp: "Oscar Isaac",
+        castingReasoning: "Grounded street charisma with sudden physical presence and watchful eyes",
         objective: "Keep tunnel clear of transit police until extraction",
         dialsSummary: "Confidence 80% · Subtext 20%",
         quirks: ["Chews matchsticks", "Taps radio antenna against bulkhead"],
+        confidence: 0.8,
+        verbalPacing: 0.7,
         visualDescription: "Late 20s, observant gaze, athletic build, light scar across cheekbone, watchful posture",
-        wardrobe: "Weathered navy bomber jacket, heavy utility denim, combat boots, tactical earpiece",
-        imageUrl: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=800&q=80",
-        fullBodyImageUrl: "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=800&q=80",
+        wardrobe: "Weathered navy bomber jacket with utility sleeve pocket, heavy utility denim, combat boots, tactical spiral acoustic earpiece",
+        imageUrl: "/cinema/characters/teo_portrait.jpg",
+        fullBodyImageUrl: "/cinema/characters/teo_portrait.jpg",
       },
     ],
     initialEvents: [
@@ -690,25 +733,27 @@ Exactly where they need to be.`,
       {
         id: "take-vault-01",
         takeNumber: 1,
-        title: "The Vault — Take 01",
+        title: "The Vault — Take 01 (Master)",
         cameraMotion: "Slow Cinematic Dolly In",
         stylePreset: "35mm Anamorphic Film, 2.39:1 Scope",
         durationSec: 6,
         createdAt: 1725400000000,
         videoUrl: "/videos/vault_heist_take_01.mp4",
-        prompt: "Cinematic establishing shot of The Vault. Moody shadows, photoreal anamorphic lens, high dramatic tension.",
+        prompt: "Cinematic 2.39:1 anamorphic establishing push on Marcus kneeling over canvas gear bag before reinforced safe deposit boxes while Elena monitors glowing countdown timer.",
+        characterName: "Marcus & Elena",
         isMaster: true,
       },
       {
         id: "take-vault-02",
         takeNumber: 2,
-        title: "The Vault — Take 02",
-        cameraMotion: "Static Master Table View",
-        stylePreset: "Neo-Noir Cyberpunk, Sodium Vapor & Rain",
+        title: "The Van Perimeter — Take 02",
+        cameraMotion: "Handheld Surveillance Medium",
+        stylePreset: "Neo-Noir CRT Phosphor Glow",
         durationSec: 6,
         createdAt: 1725400300000,
-        videoUrl: "/videos/directors_suite_take_01.mp4",
-        prompt: "Static master surveillance angle of the syndicate operations table and monitoring bank.",
+        videoUrl: "/videos/vault_heist_take_02.mp4",
+        prompt: "Teo monitoring transit police scanner waveforms inside cramped tactical surveillance van with green CRT glow.",
+        characterName: "Teo",
         isMaster: false,
       },
     ],
@@ -721,6 +766,58 @@ Exactly where they need to be.`,
     coreSecret: "Elena swapped the physical security keys 10 minutes ago and is executing an unsanctioned secondary syndicate extraction.",
     primaryLocation: "Underground reinforced bank vault sub-level under emergency lighting",
     targetTerritories: ["US", "DE", "JP"],
+    locationClusters: [
+      {
+        cluster_id: "cluster-vault-core",
+        name: "Downtown Financial District & Sub-Level Hub",
+        region: "Los Angeles, CA",
+        category: "vault / commercial / tunnel",
+        scene_ids: ["vault-sc-01", "vault-sc-02", "vault-sc-03"],
+        candidate_id: "loc-vault-650-spring",
+        notes: "Consolidating Roadside Briefing, Van Staging, and Vault Breach within DTLA Historic Core saves 3 company moves and shared heavy generator rentals.",
+        estimated_savings: "$18,500 in transit, secondary basecamp parking, and multi-permit filing fees",
+      },
+      {
+        cluster_id: "cluster-occidental-precinct",
+        name: "Hollywood Soundstage Interrogation Hub",
+        region: "Hollywood, CA",
+        category: "soundstage / precinct",
+        scene_ids: ["vault-sc-04"],
+        candidate_id: "loc-occidental-soundstage",
+        notes: "Turnkey precinct interrogation standing set with two-way mirror eliminates custom construction costs.",
+        estimated_savings: "$12,000 in set construction and practical lighting rigging",
+      },
+    ],
+    scratchpadNotes: [
+      {
+        id: "note-vh-01",
+        title: "Fincher / Deakins Lighting Bible for Sub-Level Vault",
+        content: "Key visual references: Panic Room (2002) and The Social Network. Maintain a cold cyan emergency baseline (#0b132b) with sodium amber highlights (#e09f3e). Key Marcus with high-contrast rim lighting to exaggerate sweat and exhaustion on his brow. Keep Elena silhouetted against the glowing vault electronic timer.",
+        category: "concept",
+        createdAt: 1725400010000,
+      },
+      {
+        id: "note-vh-02",
+        title: "Elena's Micro-Tells: Chronograph Tap & Gaze Avoidance",
+        content: "Elena never looks directly at Marcus once the timer starts. She taps the casing of her Omega chronograph every 45 seconds—a calculated behavioral anchor keeping her calm while executing the syndicate extraction timetable. Instruct Florence Pugh comp to keep vocal volume at a whisper.",
+        category: "character",
+        createdAt: 1725400020000,
+      },
+      {
+        id: "note-vh-03",
+        title: "Marcus Breakdown Cadence at 00:34:00",
+        content: "At minute 34, Marcus transitions from kinetic burglar rhythm to sheer panic. He must physically dump the canvas gear bag onto the vault floor—letting tools, tension picks, and zip-ties spill with loud metallic impact. His breath should be audible between sentences.",
+        category: "dialogue",
+        createdAt: 1725400030000,
+      },
+      {
+        id: "note-vh-04",
+        title: "Pacing Shift: Roadside Diner to Vault Decompression",
+        content: "Scene 1 is slow, steady, 50mm locked-off conversational master. Scene 2 accelerates inside the surveillance van with vibrating handheld camera motion. Scene 3 inside the vault should feel like a vice tightening—every minute lost reduces breathing room.",
+        category: "scene",
+        createdAt: 1725400040000,
+      },
+    ],
     scenes: [
       {
         id: "vault-sc-01",
@@ -732,37 +829,73 @@ Exactly where they need to be.`,
         startSeconds: 12 * 60,
         durationSeconds: 4 * 60,
         location: "Roadside Diner Booth",
+        preview_image_url: "/cinema/scenes/vault_sc_01.jpg",
+        selectedLocationCandidateId: "loc-lacy-street-stage3",
         castPresent: ["Marcus", "Elena"],
         castRoles: {
           Marcus: "Anxious driver questioning security bypass and timetable",
           Elena: "Mastermind detailing the sub-level entry route",
         },
         screenplayText: `INT. ROADSIDE DINER - RAINY NIGHT
- 
+
 Rain lashes against greasy plate glass. Fluorescent tubes flicker with low electrical hums.
- 
+
 ELENA slides a folded blueprint across the laminate table, tapping a gloved finger against a red grease-pencil circle.
- 
+
 ELENA
 Sub-level four. The pneumatic locks disengage at midnight sharp. You grab the security bypass key from the staging locker.
- 
+
 MARCUS
 (wiping condensation off his coffee cup)
 And what about the automated tripwires? If the mainframe detects resistance, those blast doors slam shut in twenty seconds.
- 
+
 ELENA
 (voice calm, icy)
 There are no tripwires on the eastern duct, Marcus. Stick to the timetable, grab the lockboxes, and we walk out clean.
- 
+
 MARCUS
 We trust Teo on perimeter?
- 
+
 ELENA
 Teo knows his lane. Do you know yours?`,
         events: [
           { atSeconds: 12 * 60 + 30, characterName: "Marcus", eventType: "known_fact" },
           { atSeconds: 13 * 60, characterName: "Elena", eventType: "known_fact" },
           { atSeconds: 14 * 60, characterName: "Teo", eventType: "unaware_of" },
+        ],
+        sceneImages: [
+          {
+            id: "img-vsc01-1",
+            url: "/cinema/scenes/vault_sc_01.jpg",
+            prompt: "2.39:1 anamorphic still: Elena in dark wool trench coat sliding blueprint across laminate diner booth table to Marcus, neon rain-streaked window behind.",
+            createdAt: 1725400010000,
+            title: "Elena Blueprint Reveal",
+            source: "location",
+          },
+        ],
+        locationCandidates: [
+          {
+            candidate_id: "loc-lacy-street-stage3",
+            name: "Lacy Street Production Center — Stage 3 Standing Diner & Tunnels",
+            region: "Los Angeles, CA (DTLA / Chinatown)",
+            category: "soundstage / standing-set",
+            environment_type: "studio_stage",
+            preview_image_url: "/cinema/locations/loc_lacy_street.jpg",
+            rank_score: 93,
+            score_breakdown: { budget_fit: 0.94, creative_fit: 0.91, shootability: 0.97, consolidation_bonus: 0.9 },
+            estimated_cost: { day_rate: 5200, permit_fee: 750, currency: "USD", notes: "Includes stage manager and private staging parking lot" },
+            detailed_costs: { day_rate: 5200, permit_fee: 750, fire_or_police_monitor: 450, security_or_site_rep: 350, basecamp_parking: 300, cleaning_deposit: 500, crew_travel_zone: "Inside 30-Mile Studio Zone", total_comprehensive: 7550 },
+            stage_specs: { stage_type: "soundstage", grid_height: "22 ft clear to perms", square_footage: 6800, dimensions: "85' x 80' x 22'H", lighting_grid: "Pre-hung pipe grid on 4ft centers with distributed DMX", power_capacity: "1200A 3-Phase Camlock distribution panel", sound_rating: "NC-25 Sound Stage Certified", load_in_access: "12' x 14' Roll-up elephant door" },
+            local_economy: { studio_zone_status: "In-Zone (30-Mile TMZ)", tax_incentive: "California 25% qualified spend credit", nearby_vendors: ["Hollywood Rentals (3.1 mi)", "Wooden Nickel Lighting (4.5 mi)"], accommodations_and_crew_hub: "Direct access to I-5 and 110 freeway corridor; secure 50-vehicle basecamp" },
+            practical_notes: "Includes standing brick corridor and concrete service tunnel set pieces that can double for getaway escape route.",
+            reviews: [{ author: "Rachel Chen", role: "Production Designer", rating: 4.8, quote: "The roll-up door allows driving a real cargo van directly onto the stage floor for seamless van surveillance shots." }],
+            film_precedents: [{ film: "Drive (2011)", director: "Nicolas Winding Refn", why: "Low sodium-vapor lighting and gritty downtown warehouse texture" }],
+            pros: ["Drive-in vehicle access directly to stage", "Wild walls on tunnel sections allow optimal camera dolly tracks", "Ample 1200A power reduces generator expense"],
+            cons: ["Diner interior requires practical rain rig outside faux window", "Slight ambient train noise on track schedule"],
+            sources: [{ title: "Lacy Street Studio Specs", url: "https://www.lacystreet.com" }],
+            search_grounded: true,
+            shared_with_scenes: ["vault-sc-01", "vault-sc-02"],
+          },
         ],
       },
       {
@@ -775,38 +908,74 @@ Teo knows his lane. Do you know yours?`,
         startSeconds: 26 * 60,
         durationSeconds: 5 * 60,
         location: "Tech Surveillance Van",
+        preview_image_url: "/cinema/scenes/vault_sc_02.jpg",
+        selectedLocationCandidateId: "loc-lacy-street-stage3",
         castPresent: ["Marcus", "Teo"],
         castRoles: {
           Marcus: "Calibrating mag-drills with growing suspicion",
           Teo: "Monitoring transit police scanner frequencies",
         },
         screenplayText: `INT. TECH SURVEILLANCE VAN - NIGHT
- 
+
 Monitors glow green and monochrome. Radio static hiss fills the cramped cabin.
- 
+
 TEO taps a bent matchstick against his teeth, his eyes scanning the transit band waveform.
- 
+
 TEO
 Scanner is quiet. Transit patrol just passed Eighth Avenue. You've got an eighteen-minute window before shift change.
- 
+
 MARCUS zips his olive canvas vest, checking the mag-drills with nervous hands.
- 
+
 MARCUS
 Where's Elena?
- 
+
 TEO
 Stepped down the alley. On the satellite phone.
- 
+
 MARCUS
 (frowning)
 Who is she calling thirty minutes before a breach?
- 
+
 TEO
 She didn't tell me, driver. And you know better than to ask Elena about her friends.`,
         events: [
           { atSeconds: 26 * 60 + 30, characterName: "Marcus", eventType: "known_fact" },
           { atSeconds: 28 * 60, characterName: "Teo", eventType: "known_fact" },
           { atSeconds: 29 * 60, characterName: "Marcus", eventType: "unaware_of" },
+        ],
+        sceneImages: [
+          {
+            id: "img-vsc02-1",
+            url: "/cinema/scenes/vault_sc_02.jpg",
+            prompt: "2.39:1 anamorphic still: Teo chewing matchstick in driver seat of tactical surveillance van surrounded by green CRT monitors and police scanners.",
+            createdAt: 1725400020000,
+            title: "Teo Radio Surveillance",
+            source: "location",
+          },
+        ],
+        locationCandidates: [
+          {
+            candidate_id: "loc-lacy-street-stage3",
+            name: "Lacy Street Production Center — Stage 3 & Sub-Tunnels",
+            region: "Los Angeles, CA (DTLA / Chinatown)",
+            category: "soundstage / standing-set",
+            environment_type: "studio_stage",
+            preview_image_url: "/cinema/locations/loc_lacy_street.jpg",
+            rank_score: 93,
+            score_breakdown: { budget_fit: 0.94, creative_fit: 0.91, shootability: 0.97, consolidation_bonus: 0.9 },
+            estimated_cost: { day_rate: 5200, permit_fee: 750, currency: "USD", notes: "Includes stage manager and private staging parking lot" },
+            detailed_costs: { day_rate: 5200, permit_fee: 750, fire_or_police_monitor: 450, security_or_site_rep: 350, basecamp_parking: 300, cleaning_deposit: 500, crew_travel_zone: "Inside 30-Mile Studio Zone", total_comprehensive: 7550 },
+            stage_specs: { stage_type: "soundstage", grid_height: "22 ft clear to perms", square_footage: 6800, dimensions: "85' x 80' x 22'H", lighting_grid: "Pre-hung pipe grid on 4ft centers with distributed DMX", power_capacity: "1200A 3-Phase Camlock distribution panel", sound_rating: "NC-25 Sound Stage Certified", load_in_access: "12' x 14' Roll-up elephant door" },
+            local_economy: { studio_zone_status: "In-Zone (30-Mile TMZ)", tax_incentive: "California 25% qualified spend credit", nearby_vendors: ["Hollywood Rentals (3.1 mi)", "Wooden Nickel Lighting (4.5 mi)"], accommodations_and_crew_hub: "Direct access to I-5 and 110 freeway corridor; secure 50-vehicle basecamp" },
+            practical_notes: "Includes standing brick corridor and concrete service tunnel set pieces that double for getaway escape route.",
+            reviews: [{ author: "Rachel Chen", role: "Production Designer", rating: 4.8, quote: "The roll-up door allows driving a real cargo van directly onto the stage floor for seamless van surveillance shots." }],
+            film_precedents: [{ film: "Drive (2011)", director: "Nicolas Winding Refn", why: "Low sodium-vapor lighting and gritty downtown warehouse texture" }],
+            pros: ["Drive-in vehicle access directly to stage", "Wild walls on tunnel sections allow optimal camera dolly tracks", "Ample 1200A power reduces generator expense"],
+            cons: ["Requires set dressing and prop lockboxes", "Slight ambient train noise on track schedule"],
+            sources: [{ title: "Lacy Street Studio Specs", url: "https://www.lacystreet.com" }],
+            search_grounded: true,
+            shared_with_scenes: ["vault-sc-01", "vault-sc-02"],
+          },
         ],
       },
       {
@@ -819,42 +988,78 @@ She didn't tell me, driver. And you know better than to ask Elena about her frie
         startSeconds: 34 * 60,
         durationSeconds: 6 * 60,
         location: "Underground reinforced bank vault sub-level under emergency lighting",
+        preview_image_url: "/cinema/scenes/vault_sc_03.jpg",
+        selectedLocationCandidateId: "loc-vault-650-spring",
         castPresent: ["Marcus", "Elena"],
         castRoles: {
           Marcus: "Frantically tearing through bags for missing bypass keys",
           Elena: "Holding Marcus in place until syndicate extraction window arrives",
         },
         screenplayText: `INT. UNDERGROUND VAULT - NIGHT
- 
+
 Thick reinforced steel. Blue auxiliary emergency lights hum.
- 
+
 MARCUS (30s, nervous sweat soaking his collar) kneels before the primary lockboxes, hands frantically tearing through an olive canvas gear bag.
- 
+
 MARCUS
 They're not here. Elena. The bypass keys. They're not in the bag.
- 
+
 ELENA (40s, tailored dark coat, chillingly calm) stands over the electronic vault timer display. She doesn't turn around.
- 
+
 ELENA
 Check the side pouch, Marcus.
- 
+
 MARCUS
 I checked the pouch! I checked it twice! You were the last one at the service tunnel staging locker. Tell me you didn't leave them.
- 
+
 ELENA
 (turning slowly, stone-faced)
 We have six minutes until the atmospheric vents cycle. Panic won't unlock that steel door.
- 
+
 MARCUS
 (standing up, voice cracking)
 You're not answering me. Where are the keys, Elena?!
- 
+
 ELENA
 Exactly where they need to be.`,
         events: [
           { atSeconds: 34 * 60, characterName: "Marcus", eventType: "unaware_of" },
           { atSeconds: 34 * 60, characterName: "Elena", eventType: "known_fact" },
           { atSeconds: 52 * 60, characterName: "Marcus", eventType: "known_fact" },
+        ],
+        sceneImages: [
+          {
+            id: "img-vsc03-1",
+            url: "/cinema/scenes/vault_sc_03.jpg",
+            prompt: "2.39:1 anamorphic still: Marcus kneeling before safety deposit boxes with bag dumped on concrete floor, Elena standing cold over red electronic countdown timer.",
+            createdAt: 1725400030000,
+            title: "Vault Key Confrontation",
+            source: "location",
+          },
+        ],
+        locationCandidates: [
+          {
+            candidate_id: "loc-vault-650-spring",
+            name: "The Los Angeles Vault at 650 S Spring",
+            region: "Los Angeles, CA (Historic Core DTLA)",
+            category: "vault / commercial",
+            environment_type: "practical",
+            preview_image_url: "/cinema/locations/loc_la_vault.jpg",
+            rank_score: 96,
+            score_breakdown: { budget_fit: 0.92, creative_fit: 0.99, shootability: 0.95, consolidation_bonus: 0.98 },
+            estimated_cost: { day_rate: 6500, permit_fee: 850, currency: "USD", notes: "Standard 12-hour day rate including site representative" },
+            detailed_costs: { day_rate: 6500, permit_fee: 850, fire_or_police_monitor: 650, security_or_site_rep: 400, basecamp_parking: 600, cleaning_deposit: 750, crew_travel_zone: "Inside 30-Mile Studio Zone (Zero crew per diem)", total_comprehensive: 9750 },
+            stage_specs: { stage_type: "practical", grid_height: "16 ft subterranean vault ceiling", square_footage: 4200, power_capacity: "400A 3-Phase Camlock tie-in in utility room", sound_rating: "NC-20 Natural Subterranean Isolation (Zero street rumble)", load_in_access: "Freight elevator from alley loading dock (6,000 lb capacity)" },
+            local_economy: { studio_zone_status: "In-Zone (30-Mile TMZ)", tax_incentive: "California Film Commission 20-25% Independent Film Tax Credit", nearby_vendors: ["Panavision Hollywood (5.8 mi)", "Quixote Grip & Lighting (3.2 mi)", "Cinelease LA (2.4 mi)"], accommodations_and_crew_hub: "Ace Hotel DTLA and Proper Hotel within 4 blocks with dedicated production rates" },
+            practical_notes: "Original 1920s reinforced concrete and 18-ton steel vault door intact. Working emergency dial indicators and dual-combination lock mechanisms. Night filming allowed with standard FilmLA downtown rider.",
+            reviews: [{ author: "Marcus Vance", role: "Supervising Location Manager (Heat / The Town)", rating: 4.9, quote: "The heavy vault door is 100% authentic and balances on precision hinges. Perfect acoustics for dialogue; we recorded zero sound bleed from Spring Street." }],
+            film_precedents: [{ film: "Heat (1995)", director: "Michael Mann", why: "Contained architectural tension, cold metallic blue bounce, high procedural realism" }, { film: "Inside Man (2006)", director: "Spike Lee", why: "Heavy security geometry and confined psychological pressure" }],
+            pros: ["Original 18-ton circular bank vault blast door", "Acoustically soundproof subterranean basement", "Existing industrial conduit and emergency battery lighting", "Zero studio zone travel fees for IATSE crew"],
+            cons: ["Freight elevator only for heavy lighting gear", "Strict 65-person basement occupancy cap"],
+            sources: [{ title: "FilmLA Historic Financial District Registry", url: "https://www.filmla.com" }],
+            search_grounded: true,
+            shared_with_scenes: ["vault-sc-03"],
+          },
         ],
       },
       {
@@ -867,6 +1072,8 @@ Exactly where they need to be.`,
         startSeconds: 68 * 60,
         durationSeconds: 5 * 60,
         location: "Precinct Interrogation Room B",
+        preview_image_url: "/cinema/scenes/vault_sc_04.jpg",
+        selectedLocationCandidateId: "loc-occidental-soundstage",
         castPresent: ["Teo"],
         castRoles: {
           Teo: "Detained perimeter driver realizing Elena's double-cross",
@@ -894,6 +1101,40 @@ She was on the phone... in the alley. She never planned to pick him up. She let 
           { atSeconds: 68 * 60, characterName: "Teo", eventType: "location" },
           { atSeconds: 70 * 60, characterName: "Teo", eventType: "known_fact" },
         ],
+        sceneImages: [
+          {
+            id: "img-vsc04-1",
+            url: "/cinema/scenes/vault_sc_04.jpg",
+            prompt: "2.39:1 anamorphic still: Handcuffed suspect under harsh interrogation lights staring down at scratched steel table as truth of the double-cross dawns on his face.",
+            createdAt: 1725400040000,
+            title: "Precinct Interrogation Revelation",
+            source: "location",
+          },
+        ],
+        locationCandidates: [
+          {
+            candidate_id: "loc-occidental-soundstage",
+            name: "Occidental Studios — Stage A Standing Bank & Interrogation Set",
+            region: "Hollywood, CA",
+            category: "soundstage / built-set",
+            environment_type: "studio_stage",
+            preview_image_url: "/cinema/locations/loc_occidental.jpg",
+            rank_score: 90,
+            score_breakdown: { budget_fit: 0.88, creative_fit: 0.95, shootability: 0.94, consolidation_bonus: 0.85 },
+            estimated_cost: { day_rate: 7200, permit_fee: 650, currency: "USD", notes: "Full standing precinct interrogation room and bank lobby package" },
+            detailed_costs: { day_rate: 7200, permit_fee: 650, fire_or_police_monitor: 500, security_or_site_rep: 400, basecamp_parking: 450, cleaning_deposit: 600, crew_travel_zone: "Inside Hollywood Core (Zero travel fee)", total_comprehensive: 9800 },
+            stage_specs: { stage_type: "soundstage", grid_height: "26 ft grid with catwalks", square_footage: 8500, dimensions: "100' x 85' x 26'H", cyc_type: "blackout", lighting_grid: "Motorized chain hoists and pre-rigged space lights", power_capacity: "2400A 3-Phase master studio supply", sound_rating: "NC-20 Premier Soundstage Certified", load_in_access: "Double drive-in elephant doors (16' x 18')" },
+            local_economy: { studio_zone_status: "In-Zone Hollywood Core", tax_incentive: "California Film Credit Qualified Facility", nearby_vendors: ["ARRI Rental Burbank (7 mi)", "Mole-Richardson Hollywood (2 mi)"], accommodations_and_crew_hub: "Hollywood hotel district within 1.5 miles" },
+            practical_notes: "Permanent two-way mirror glass with observation room pre-rigged for precinct interrogation scene (Scene 04). Pre-lit overhead fluorescent fixtures on dimmer boards.",
+            reviews: [{ author: "David E. Miller", role: "Gaffer", rating: 4.9, quote: "The dimmer board is tied directly into every practical fixture on the interrogation room set, saving 2 hours of pre-lighting." }],
+            film_precedents: [{ film: "Se7en (1995)", director: "David Fincher", why: "Oppressive fluorescent interrogation atmosphere and claustrophobic green-tinted shadows" }],
+            pros: ["Turnkey interrogation room with authentic two-way mirror", "2400A studio power eliminates exterior generator permitting", "Dedicated hair/makeup suites and talent dressing rooms"],
+            cons: ["Higher base day rate than raw industrial warehouse"],
+            sources: [{ title: "Occidental Studios Catalog", url: "https://www.occidentalstudios.com" }],
+            search_grounded: true,
+            shared_with_scenes: ["vault-sc-04"],
+          },
+        ],
       },
     ],
     activeSceneId: "vault-sc-03",
@@ -910,6 +1151,15 @@ She was on the phone... in the alley. She never planned to pick him up. She let 
     sceneTitle: "Module 4 Airlock — Scene 02",
     sceneSummary:
       "Vance interrogates Engineer Ray as pressure drops. Ray insists he was in hydroponics, but the access log says otherwise.",
+    currency: "USD",
+    budget: 1_200_000,
+    budgetPerShootDayUsd: 120_000,
+    shootRegion: "Los Angeles, CA",
+    budgetCapPolicy: "advisory",
+    budgetAllocation: {
+      locationsPct: 18,
+      locationsAmount: 216_000,
+    },
     screenplayText: `INT. ORBITAL RESEARCH MODULE - ZERO GRAVITY
 
 Emergency amber sirens pulse in vacuum silence. Debris drifts through the corridor.
@@ -937,9 +1187,16 @@ Commander... what came through the vents wasn't air.`,
         speechStyle: "authoritative, military, blunt",
         subtextRatio: "low",
         actorComp: "Harrison Ford / Ed Harris",
+        castingReasoning: "Grounded gravitas and steely authority under catastrophic decompression",
         objective: "Isolate contaminated module and restore station pressure",
         dialsSummary: "Confidence 90% · Speed 70% · Subtext 30%",
         quirks: ["Constantly checks airlock pressure gauges", "Clipped military cadence"],
+        confidence: 0.9,
+        verbalPacing: 0.7,
+        visualDescription: "Early 50s, battle-hardened mission commander, piercing eyes, NASA/ESA deep space jumpsuit with mission insignia patch, intense authoritative presence",
+        wardrobe: "Charcoal pressurized astronaut jumpsuit with gold mission patch, tactical utility harness, magnetic boots, worn communications headset",
+        imageUrl: "/cinema/characters/vance_portrait.jpg",
+        fullBodyImageUrl: "/cinema/characters/vance_portrait.jpg",
       },
       {
         name: "Ray",
@@ -947,9 +1204,16 @@ Commander... what came through the vents wasn't air.`,
         speechStyle: "stammering, evasive, desperate",
         subtextRatio: "extreme",
         actorComp: "Paul Dano / Ben Whishaw",
+        castingReasoning: "Trembling vulnerability, high intellectual neurosis, hidden guilt",
         objective: "Conceal breach specimen until containment fails or crew evacuates",
         dialsSummary: "Confidence 25% · Speed 85% · Subtext 95%",
         quirks: ["Trembling hands gripped inside flight gloves", "Shallow hyperventilation"],
+        confidence: 0.25,
+        verbalPacing: 0.85,
+        visualDescription: "Mid-30s, terrified orbital engineer, sweat glistening on brow, wide dilated pupils, trembling fingers hovering over life-support console",
+        wardrobe: "Standard orbital engineer flight suit with thermal undershirt, unzipped collar, bio-monitor wristband with flashing red telemetry",
+        imageUrl: "/cinema/characters/ray_portrait.jpg",
+        fullBodyImageUrl: "/cinema/characters/ray_portrait.jpg",
       },
     ],
     initialEvents: [
@@ -964,14 +1228,28 @@ Commander... what came through the vents wasn't air.`,
       {
         id: "take-space-01",
         takeNumber: 1,
-        title: "Module 4 Airlock — Take 01",
-        cameraMotion: "Handheld Gritty Tension",
+        title: "Module 4 Airlock — Take 01 (Veo Zero-G Confrontation Master)",
+        cameraMotion: "Handheld Zero-G Drift",
         stylePreset: "70mm IMAX High-Contrast Master",
         durationSec: 6,
         createdAt: 1725400100000,
         videoUrl: "/videos/space_airlock_take_01.mp4",
-        prompt: "Emergency amber sirens pulse in zero gravity vacuum silence, debris drifting through module.",
+        prompt: "Cinematic medium two-shot in orbital research module under emergency decompression. Commander Vance in heavy tactical flight suit floats in zero gravity, grabbing a maintenance bulkhead as Specialist Ray stands rigid at the control terminal. Warning consoles pulse emergency amber. Deep space debris and venting ice crystals drift outside the reinforced viewing port.",
+        characterName: "Commander Vance & Specialist Ray",
         isMaster: true,
+      },
+      {
+        id: "take-space-02",
+        takeNumber: 2,
+        title: "Module 4 Airlock — Take 02 (Veo Native Generation)",
+        cameraMotion: "Slow Forward Dolly Push",
+        stylePreset: "Anamorphic Sci-Fi Noir",
+        durationSec: 6,
+        createdAt: 1725400150000,
+        videoUrl: "/videos/veo_1296a5b186b2.mp4",
+        prompt: "Emergency amber sirens pulse in zero gravity vacuum silence, debris drifting through module as Commander Vance confronts Specialist Ray.",
+        characterName: "Commander Vance & Specialist Ray",
+        isMaster: false,
       },
     ],
     narrativeFormat: "short",
@@ -983,6 +1261,41 @@ Commander... what came through the vents wasn't air.`,
     coreSecret: "Ray manually bypassed the quarantine protocol to conceal a classified bio-specimen extraction.",
     primaryLocation: "Orbital research module airlock corridor under zero gravity",
     targetTerritories: ["US", "KR", "DE"],
+    locationClusters: [
+      {
+        cluster_id: "cluster-space-volume",
+        name: "Virtual Production & Standing Sci-Fi Stage Hub",
+        region: "Los Angeles, CA",
+        category: "virtual_production / soundstage",
+        scene_ids: ["space-sc-01", "space-sc-02", "space-sc-03", "space-sc-04", "space-sc-05"],
+        candidate_id: "loc-barstow-volume",
+        notes: "Filming all orbital interiors on an LED Volume stage with pre-rendered Unreal Engine 5.4 backgrounds eliminates green-screen spill and reduces zero-g wire rig adjustments.",
+        estimated_savings: "$28,000 in compositing VFX and wire rig recalibration",
+      },
+    ],
+    scratchpadNotes: [
+      {
+        id: "note-space-01",
+        title: "Villeneuve Acoustic Vacuum Rules: Zero Sound in Exterior Space",
+        content: "Outside the orbital hull, absolute silence reigns. Inside Module 4, all sound is conducted mechanically through the metal bulkhead and the actors' magnetic boots. Sub-bass vibrations at 30Hz should pulse with the amber emergency beacon.",
+        category: "concept",
+        createdAt: 1725400110000,
+      },
+      {
+        id: "note-space-02",
+        title: "Ray's Contamination Progression (Subtext 95%)",
+        content: "Ray's left wrist is swollen beneath his glove from the specimen puncture. He never removes his left glove and keeps his left arm tucked tight against his chest. Vance notices the asymmetry at minute 14.",
+        category: "character",
+        createdAt: 1725400120000,
+      },
+      {
+        id: "note-space-03",
+        title: "The Biometric Override Discovery",
+        content: "Vance doesn't scream when he uncovers the access logs. He reads the alphanumeric timestamp with chilling military restraint: 'Zero-two-hundred hours. Ray, David J.' The horror comes from procedural certainty, not anger.",
+        category: "dialogue",
+        createdAt: 1725400130000,
+      },
+    ],
     scenes: [
       {
         id: "space-sc-01",
@@ -993,7 +1306,12 @@ Commander... what came through the vents wasn't air.`,
         startSeconds: 4 * 60,
         durationSeconds: 3 * 60,
         location: "Station Command Bridge",
+        preview_image_url: "/cinema/scenes/space_sc_01.jpg",
+        selectedLocationCandidateId: "loc-barstow-volume",
         castPresent: ["Vance"],
+        castRoles: {
+          Vance: "Commanding officer verifying sudden catastrophic telemetry anomaly",
+        },
         screenplayText: `INT. COMMAND BRIDGE - ZERO GRAVITY
 
 Red ambient alert banners scroll across the command canopy.
@@ -1012,6 +1330,44 @@ Who is logged in that section?
 
 AUTOMATED VOICE (V.O.)
 Senior Engineer Ray. Access granted two minutes prior.`,
+        events: [
+          { atSeconds: 4 * 60, characterName: "Vance", eventType: "known_fact" },
+          { atSeconds: 6 * 60, characterName: "Vance", eventType: "known_fact" },
+        ],
+        sceneImages: [
+          {
+            id: "img-ssc01-1",
+            url: "/cinema/scenes/space_sc_01.jpg",
+            prompt: "2.39:1 anamorphic still: Commander Vance floating before glowing red telemetry canopy looking out into deep space starfield.",
+            createdAt: 1725400110000,
+            title: "Command Bridge Telemetry Alert",
+            source: "location",
+          },
+        ],
+        locationCandidates: [
+          {
+            candidate_id: "loc-barstow-volume",
+            name: "Barstow Aerospace Volume — LED Virtual Production Stage",
+            region: "Los Angeles County, CA",
+            category: "virtual_production / led_volume",
+            environment_type: "virtual_production",
+            preview_image_url: "/cinema/locations/loc_barstow_volume.jpg",
+            rank_score: 97,
+            score_breakdown: { budget_fit: 0.91, creative_fit: 0.99, shootability: 0.98, consolidation_bonus: 0.98 },
+            estimated_cost: { day_rate: 9500, permit_fee: 550, currency: "USD", notes: "Includes volume engineer and Brompton SX40 LED processor operator" },
+            detailed_costs: { day_rate: 9500, permit_fee: 550, fire_or_police_monitor: 450, security_or_site_rep: 350, basecamp_parking: 400, cleaning_deposit: 600, crew_travel_zone: "Inside LA County Zone", total_comprehensive: 11850 },
+            stage_specs: { stage_type: "virtual_production", grid_height: "28 ft ceiling with motorized wire-flying rigs", square_footage: 7500, dimensions: "80' diameter horseshoe LED curve (22'H)", cyc_type: "led_volume", cyc_dimensions: "270-degree wraparound LED wall (ROE Visual Black Pearl 2.8mm)", lighting_grid: "DMX-controlled ambient LED ceiling panels", power_capacity: "1600A 3-Phase Camlock", sound_rating: "NC-22 Certified Soundstage", virtual_production_engine: "Unreal Engine 5.4 / Brompton SX40 / Disguise vx4" },
+            local_economy: { studio_zone_status: "In-Zone LA County", tax_incentive: "California 25% Film Tax Credit", nearby_vendors: ["Quixote Studios", "JL Fisher Dolly Rentals"], accommodations_and_crew_hub: "Valencia hotel corridor with crew parking" },
+            practical_notes: "Pre-loaded with photorealistic orbital low-Earth orbit and zero-gravity research station virtual assets.",
+            reviews: [{ author: "Kenji Sato", role: "VFX Supervisor (The Creator)", rating: 5.0, quote: "The in-camera lighting from the LED volume completely eliminates green reflections on astronaut visors." }],
+            film_precedents: [{ film: "First Man (2018)", director: "Damien Chazelle", why: "In-camera LED projection providing authentic cockpit reflections and claustrophobia" }],
+            pros: ["Zero green spill on shiny astronaut suits and glass visors", "Real-time parallax camera tracking with Mo-Sys StarTracker", "Integrated zero-g wire fly rigs pre-installed on perms"],
+            cons: ["Requires high-end technical stage operator on daily rate"],
+            sources: [{ title: "Barstow Volume Technical Specs", url: "https://www.barstowvirtual.com" }],
+            search_grounded: true,
+            shared_with_scenes: ["space-sc-01", "space-sc-02", "space-sc-03", "space-sc-04", "space-sc-05"],
+          },
+        ],
       },
       {
         id: "space-sc-02",
@@ -1023,7 +1379,13 @@ Senior Engineer Ray. Access granted two minutes prior.`,
         startSeconds: 12 * 60,
         durationSeconds: 4 * 60,
         location: "Orbital research module airlock corridor under zero gravity",
+        preview_image_url: "/cinema/scenes/space_sc_02.jpg",
+        selectedLocationCandidateId: "loc-barstow-volume",
         castPresent: ["Vance", "Ray"],
+        castRoles: {
+          Vance: "Interrogator cornering engineer while breathable atmosphere drops",
+          Ray: "Panicked engineer hiding specimen breach behind life-support readout",
+        },
         screenplayText: `INT. ORBITAL RESEARCH MODULE - ZERO GRAVITY
 
 Emergency amber sirens pulse in vacuum silence. Debris drifts through the corridor.
@@ -1044,6 +1406,180 @@ Biometric signature at zero-two-hundred: Ray, David J. Don't lie to me while oxy
 
 RAY
 Commander... what came through the vents wasn't air.`,
+        events: [
+          { atSeconds: 12 * 60, characterName: "Vance", eventType: "known_fact" },
+          { atSeconds: 14 * 60, characterName: "Ray", eventType: "known_fact" },
+          { atSeconds: 15 * 60, characterName: "Vance", eventType: "unaware_of" },
+        ],
+        sceneImages: [
+          {
+            id: "img-ssc02-1",
+            url: "/cinema/scenes/space_sc_02.jpg",
+            prompt: "2.39:1 anamorphic still: Commander Vance gripping yellow emergency bar screaming at Engineer Ray seated in life-support seat with floating sparks and orange warning HUD.",
+            createdAt: 1725400120000,
+            title: "Airlock Zero-G Confrontation",
+            source: "location",
+          },
+        ],
+        locationCandidates: [
+          {
+            candidate_id: "loc-barstow-volume",
+            name: "Barstow Aerospace Volume — LED Virtual Production Stage",
+            region: "Los Angeles County, CA",
+            category: "virtual_production / led_volume",
+            environment_type: "virtual_production",
+            preview_image_url: "/cinema/locations/loc_barstow_volume.jpg",
+            rank_score: 97,
+            score_breakdown: { budget_fit: 0.91, creative_fit: 0.99, shootability: 0.98, consolidation_bonus: 0.98 },
+            estimated_cost: { day_rate: 9500, permit_fee: 550, currency: "USD", notes: "Includes volume engineer and Brompton SX40 LED processor operator" },
+            detailed_costs: { day_rate: 9500, permit_fee: 550, fire_or_police_monitor: 450, security_or_site_rep: 350, basecamp_parking: 400, cleaning_deposit: 600, crew_travel_zone: "Inside LA County Zone", total_comprehensive: 11850 },
+            stage_specs: { stage_type: "virtual_production", grid_height: "28 ft ceiling with motorized wire-flying rigs", square_footage: 7500, dimensions: "80' diameter horseshoe LED curve (22'H)", cyc_type: "led_volume", cyc_dimensions: "270-degree wraparound LED wall", lighting_grid: "DMX-controlled ambient LED ceiling panels", power_capacity: "1600A 3-Phase Camlock", sound_rating: "NC-22 Certified Soundstage" },
+            local_economy: { studio_zone_status: "In-Zone LA County", tax_incentive: "California 25% Film Tax Credit", nearby_vendors: ["Quixote Studios", "JL Fisher Dolly Rentals"], accommodations_and_crew_hub: "Valencia hotel corridor with crew parking" },
+            practical_notes: "Physical airlock door mockup placed directly inside LED Volume curve.",
+            reviews: [{ author: "Kenji Sato", role: "VFX Supervisor", rating: 5.0, quote: "The interactive lighting from the amber strobe alerts reflected accurately across both suits." }],
+            film_precedents: [{ film: "Alien (1979)", director: "Ridley Scott", why: "Chamber horror in claustrophobic engineering corridors" }],
+            pros: ["Flawless interactive amber strobe lighting", "Physical airlock frame blends into digital background"],
+            cons: ["Stage booking requires 3-week lead time"],
+            sources: [{ title: "Barstow Volume Specs", url: "https://www.barstowvirtual.com" }],
+            search_grounded: true,
+            shared_with_scenes: ["space-sc-01", "space-sc-02"],
+          },
+        ],
+      },
+      {
+        id: "space-sc-03",
+        sceneNumber: 3,
+        title: "The Specimen Chamber",
+        slugline: "INT. HYDROPONICS & BIO-CONTAINMENT BAY - ZERO GRAVITY",
+        summary: "Vance forces Ray to open the containment chamber; they find the primary culture vessel shattered from the inside.",
+        startSeconds: 19 * 60,
+        durationSeconds: 4 * 60,
+        location: "Hydroponics Bio-Bay",
+        preview_image_url: "/cinema/scenes/space_sc_03.jpg",
+        selectedLocationCandidateId: "loc-barstow-volume",
+        castPresent: ["Vance", "Ray"],
+        castRoles: {
+          Vance: "Demanding inspection of bio-specimen seals",
+          Ray: "Shielding infected left arm while revealing broken container",
+        },
+        screenplayText: `INT. HYDROPONICS & BIO-CONTAINMENT BAY - ZERO GRAVITY
+
+Green ultraviolet growth lamps flicker erratically. Condensation spheres float through the humid air.
+
+Vance thrusts Ray forward toward the reinforced specimen vault.
+
+VANCE
+Key code, Ray. Punch it in.
+
+Ray enters a five-digit cipher with trembling fingers. The vault pneumatic hiss releases.
+
+Inside: the thick borosilicate containment flask is fractured. Amber fluid coats the rubber seal.
+
+VANCE
+Where is the sample?
+
+RAY
+(whispering, tears floating from his eyes)
+It didn't escape, Commander. It nested.`,
+        events: [
+          { atSeconds: 19 * 60, characterName: "Vance", eventType: "known_fact" },
+          { atSeconds: 21 * 60, characterName: "Ray", eventType: "known_fact" },
+        ],
+        sceneImages: [
+          {
+            id: "img-ssc03-1",
+            url: "/cinema/scenes/space_sc_03.jpg",
+            prompt: "2.39:1 anamorphic still: Shattered glass containment cylinder drifting in zero gravity amidst fluorescent green bioluminescence.",
+            createdAt: 1725400130000,
+            title: "Shattered Bio-Flask",
+            source: "location",
+          },
+        ],
+      },
+      {
+        id: "space-sc-04",
+        sceneNumber: 4,
+        title: "Quarantine Protocol Override",
+        slugline: "INT. STATION SERVICE SPINE - ZERO GRAVITY",
+        summary: "Vance races to seal the central bulkhead as station AI initiates automated containment lockdown.",
+        startSeconds: 28 * 60,
+        durationSeconds: 4 * 60,
+        location: "Station Service Spine",
+        preview_image_url: "/cinema/scenes/space_sc_04.jpg",
+        selectedLocationCandidateId: "loc-barstow-volume",
+        castPresent: ["Vance", "Ray"],
+        castRoles: {
+          Vance: "Fighting hydraulic door manual lever to quarantine module",
+          Ray: "Begging not to be sealed inside the dying sector",
+        },
+        screenplayText: `INT. STATION SERVICE SPINE - ZERO GRAVITY
+
+A massive steel bulkhead begins descending with hydraulic groans.
+
+Vance grabs the manual override lever, pulling with both hands.
+
+RAY
+(screaming through comms)
+Vance! You can't seal Module 4! The life support pumps will shut off!
+
+VANCE
+(teeth clenched, looking through reinforced glass port)
+The life support pumps are already venting organic compound into the main scrubber, Ray. You made your choice when you broke that seal.`,
+        events: [
+          { atSeconds: 28 * 60, characterName: "Vance", eventType: "known_fact" },
+          { atSeconds: 31 * 60, characterName: "Ray", eventType: "known_fact" },
+        ],
+        sceneImages: [
+          {
+            id: "img-ssc04-1",
+            url: "/cinema/scenes/space_sc_04.jpg",
+            prompt: "2.39:1 anamorphic still: Massive circular orbital station bulkhead slamming shut as emergency amber beacons flash.",
+            createdAt: 1725400140000,
+            title: "Bulkhead Quarantine Lockdown",
+            source: "location",
+          },
+        ],
+      },
+      {
+        id: "space-sc-05",
+        sceneNumber: 5,
+        title: "Atmospheric Purge",
+        slugline: "EXT. ORBITAL RESEARCH STATION - SPACE",
+        summary: "From outside, Module 4 vents crystalline frozen air into the void as Vance restores command bridge vacuum integrity.",
+        startSeconds: 36 * 60,
+        durationSeconds: 3 * 60,
+        location: "Station Exterior Orbit",
+        preview_image_url: "/cinema/scenes/space_sc_05.jpg",
+        selectedLocationCandidateId: "loc-barstow-volume",
+        castPresent: ["Vance"],
+        castRoles: {
+          Vance: "Watching module purge from bridge observation dome",
+        },
+        screenplayText: `EXT. ORBITAL RESEARCH STATION - SPACE
+
+Absolute, dead vacuum silence.
+
+Earth curves beneath the station, blue and razor-sharp against the black starfield.
+
+A plume of crystalline white oxygen blasts from the vents of Module 4, sparkling like frozen diamond dust before dissipating into infinite dark.
+
+Inside the observation cupola, Vance's helmet reflection stares out into the silence.
+
+VANCE (V.O.)
+Telemetry log entry: 0400. Module 4 purged. Quarantine maintained. Alone.`,
+        events: [
+          { atSeconds: 36 * 60, characterName: "Vance", eventType: "known_fact" },
+        ],
+        sceneImages: [
+          {
+            id: "img-ssc05-1",
+            url: "/cinema/scenes/space_sc_05.jpg",
+            prompt: "2.39:1 anamorphic IMAX still: Deep space orbital station venting crystalline frozen gas into the void of space over Earth horizon.",
+            createdAt: 1725400150000,
+            title: "Exterior Module 4 Purge",
+            source: "location",
+          },
+        ],
       },
     ],
     activeSceneId: "space-sc-02",
@@ -1068,6 +1604,37 @@ export function setActiveUser(userId: string | null, token: string | null = null
       try {
         localStorage.setItem("agentic_cinema_active_uid", userId);
         if (token) localStorage.setItem("agentic_cinema_active_token", token);
+
+        // Migrate guest custom projects to this user account if first time signing in
+        const migrationKey = `agentic_cinema_migrated_u_${userId}`;
+        if (!localStorage.getItem(migrationKey)) {
+          const guestProjectsRaw = localStorage.getItem("agentic_cinema_projects_v1");
+          if (guestProjectsRaw) {
+            try {
+              const guestProjects = JSON.parse(guestProjectsRaw);
+              if (Array.isArray(guestProjects)) {
+                const customGuestProjects = guestProjects
+                  .filter((p: ProjectData) => p.isCustom)
+                  .map((p: ProjectData) => ({ ...p, userId }));
+
+                if (customGuestProjects.length > 0) {
+                  const userKey = `agentic_cinema_projects_u_${userId}`;
+                  const existingUserRaw = localStorage.getItem(userKey);
+                  const existingUserProjects = existingUserRaw ? JSON.parse(existingUserRaw) : [];
+                  const existingIds = new Set((existingUserProjects || []).map((p: any) => p.id));
+                  const merged = [
+                    ...(existingUserProjects || []),
+                    ...customGuestProjects.filter((p) => !existingIds.has(p.id)),
+                  ];
+                  localStorage.setItem(userKey, JSON.stringify(merged));
+                }
+              }
+            } catch (e) {
+              console.warn("[ProjectStore] Error migrating guest projects:", e);
+            }
+          }
+          localStorage.setItem(migrationKey, "true");
+        }
       } catch {}
     } else {
       try {
@@ -1184,27 +1751,85 @@ export function ensureProjectScenes(project: ProjectData): ProjectData {
 }
 
 /**
- * Loads all projects from localStorage for the active account (merging with seed presets if blank).
+ * Explicitly populates the demo productions (SEED_PROJECTS) into the active account.
+ * Used when a user explicitly requests to explore demo productions.
+ */
+export function seedDemoProjects(): ProjectData[] {
+  if (typeof window === "undefined") return SEED_PROJECTS.map(ensureProjectScenes);
+  const key = getProjectsStorageKey();
+  const all = getAllProjects();
+  const existingIds = new Set(all.map((p) => p.id));
+  const newSeeds = SEED_PROJECTS.filter((s) => !existingIds.has(s.id));
+  const merged = [...all, ...newSeeds];
+  try {
+    localStorage.setItem(key, JSON.stringify(merged));
+  } catch (err) {
+    console.error("Failed to seed demo projects:", err);
+  }
+  return merged.map(ensureProjectScenes);
+}
+
+/**
+ * Loads all projects from localStorage for the active account.
+ * For authenticated accounts, does not auto-seed demo projects so the real empty state is reachable.
+ * For first-time anonymous visitors, seeds the demo projects once to permit exploratory preview.
  */
 export function getAllProjects(): ProjectData[] {
-  if (typeof window === "undefined") return SEED_PROJECTS.map(ensureProjectScenes);
+  if (typeof window === "undefined") return [];
   try {
-    const key = getProjectsStorageKey();
+    const uid = getActiveUserId();
+    const key = getProjectsStorageKey(uid);
     const raw = localStorage.getItem(key);
-    if (!raw) {
-      localStorage.setItem(key, JSON.stringify(SEED_PROJECTS));
-      return SEED_PROJECTS.map(ensureProjectScenes);
+
+    // If key hasn't been initialized yet
+    if (raw === null) {
+      if (!uid) {
+        // First-time guest visitor: seed once for exploratory demo
+        const hasInitializedGuest = localStorage.getItem("agentic_cinema_guest_seeded_v1");
+        if (!hasInitializedGuest) {
+          localStorage.setItem("agentic_cinema_guest_seeded_v1", "true");
+          localStorage.setItem(key, JSON.stringify(SEED_PROJECTS));
+          return SEED_PROJECTS.map(ensureProjectScenes);
+        }
+      }
+      // For authenticated users or returning guests who cleared projects, return empty list
+      localStorage.setItem(key, JSON.stringify([]));
+      return [];
     }
+
     const parsed = JSON.parse(raw) as ProjectData[];
-    // Ensure seed projects are accessible for exploration if list is completely empty
-    if (parsed.length === 0) {
-      localStorage.setItem(key, JSON.stringify(SEED_PROJECTS));
-      return SEED_PROJECTS.map(ensureProjectScenes);
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      return [];
     }
-    return parsed.map(ensureProjectScenes);
+
+    // Auto-update non-custom seed projects with enriched seed data if present
+    let needsResave = false;
+    const updated = parsed.map((p) => {
+      if (!p.isCustom) {
+        const seed = SEED_PROJECTS.find((s) => s.id === p.id);
+        if (
+          seed &&
+          (!p.locationClusters ||
+            p.locationClusters.length === 0 ||
+            !p.scenes?.[0]?.locationCandidates?.length ||
+            p.characters?.[0]?.imageUrl?.includes("unsplash") ||
+            (p.id === "deep-space-airlock" && (!p.videoTakes || p.videoTakes.length < 2)))
+        ) {
+          needsResave = true;
+          return seed;
+        }
+      }
+      return p;
+    });
+    if (needsResave) {
+      try {
+        localStorage.setItem(key, JSON.stringify(updated));
+      } catch {}
+    }
+    return updated.map(ensureProjectScenes);
   } catch (err) {
     console.error("Failed to load projects from localStorage:", err);
-    return SEED_PROJECTS.map(ensureProjectScenes);
+    return [];
   }
 }
 
@@ -1221,9 +1846,10 @@ export function getProjectById(id: string): ProjectData | null {
 
 /**
  * Saves or updates a project in localStorage (scoped to the account) and syncs with Supabase.
+ * Warns if localStorage quota is exceeded so data is not silently lost.
  */
-export function saveProject(project: ProjectData): void {
-  if (typeof window === "undefined") return;
+export function saveProject(project: ProjectData): boolean {
+  if (typeof window === "undefined") return false;
   try {
     const key = getProjectsStorageKey();
     const all = getAllProjects();
@@ -1239,21 +1865,46 @@ export function saveProject(project: ProjectData): void {
     } else {
       all.unshift(updatedProject);
     }
-    localStorage.setItem(key, JSON.stringify(all));
 
-    // Asynchronously sync with Supabase with authorization
-    fetch("/api/projects", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...getAuthHeaders(),
-      },
-      body: JSON.stringify(updatedProject),
-    }).catch((err) => {
-      console.warn("[ProjectStore] Background Supabase project sync warning:", err);
-    });
+    try {
+      localStorage.setItem(key, JSON.stringify(all));
+    } catch (storageErr: any) {
+      if (
+        storageErr?.name === "QuotaExceededError" ||
+        storageErr?.code === 22 ||
+        storageErr?.name === "NS_ERROR_DOM_QUOTA_REACHED"
+      ) {
+        console.warn("[ProjectStore] LocalStorage quota exceeded. Dispatching storage quota event.");
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("agentic_cinema_quota_exceeded", {
+              detail: {
+                message: "Local browser storage is full. Sign in or export takes to sync with cloud storage.",
+              },
+            })
+          );
+        }
+      }
+      return false;
+    }
+
+    // Asynchronously sync with Supabase only if user is authenticated
+    if (uid && getActiveAuthToken()) {
+      fetch("/api/projects", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify(updatedProject),
+      }).catch((err) => {
+        console.warn("[ProjectStore] Background Supabase project sync warning:", err);
+      });
+    }
+    return true;
   } catch (err) {
     console.error("Failed to save project:", err);
+    return false;
   }
 }
 
@@ -1656,77 +2307,30 @@ export function createNewProjectEntry(data: CreateProjectOptions): ProjectData {
   const locPct = data.budgetAllocation?.locationsPct ?? 15;
   const locBudget = data.budgetAllocation?.locationsAmount ?? Math.round(totalBudget * (locPct / 100));
 
+  const starterSceneSummary = data.logline
+    ? `Opening sequence establishing "${data.title}": ${data.logline.trim()}`
+    : `Opening sequence introducing ${c1} and establishing the production world.`;
+
+  const starterScreenplayText = `INT. ${locUpper} - DAY\n\n[ESTABLISHING SEQUENCE]\n\nThe world of "${data.title}" opens at ${loc}.\n\n${starterSceneSummary}\n\n${c1.toUpperCase()}\n[Scene dialogue to be developed in the Screenplay editor]`;
+
   const defaultScenes: FilmScene[] = [
     {
       id: `${newPid}-scene-01`,
       sceneNumber: 1,
-      title: "Opening Collision",
-      slugline: `INT. ${locUpper} - NIGHT`,
-      summary: `Inciting encounter at ${loc}. ${c1} and ${c2} clash over high-stakes operational assets.`,
+      title: "Scene 1: Establishing Beat",
+      slugline: `INT. ${locUpper} - DAY`,
+      summary: starterSceneSummary,
       startSeconds: 0,
-      durationSeconds: Math.round(totalRuntimeSec * 0.25),
+      durationSeconds: Math.round(totalRuntimeSec / Math.max(1, totalScenes)),
       location: loc,
       shootRegion: data.shootRegion || "Los Angeles, CA",
-      locationBudget: Math.round(locBudget / 4),
-      castPresent: [c1, c2],
+      locationBudget: locBudget,
+      castPresent: [c1, ...(c2 !== c1 ? [c2] : [])],
       castRoles: {
-        [c1]: "Executing high-stakes tactical mission",
-        [c2]: "Interrogating operational protocol violations",
+        [c1]: "Protagonist",
+        ...(c2 !== c1 ? { [c2]: "Counterpart" } : {}),
       },
-      screenplayText: `INT. ${locUpper} - NIGHT\n\nAtmospheric tension hangs heavy in the room. Low-frequency hum from secondary power generators.\n\n${c1.toUpperCase()}\nWe are already committed. There is no fallback plan.\n\n${c2.toUpperCase()}\n(stepping into the light)\nYou never intended to have one, did you?`,
-    },
-    {
-      id: `${newPid}-scene-02`,
-      sceneNumber: 2,
-      title: "Asymmetric Escalation",
-      slugline: `INT. ${locUpper} SERVICE VAULT - CONTINUOUS`,
-      summary: `${c1} uncovers unexpected countermeasures. ${c2} secures the perimeter and demands full transparency.`,
-      startSeconds: Math.round(totalRuntimeSec * 0.25),
-      durationSeconds: Math.round(totalRuntimeSec * 0.25),
-      location: loc,
-      shootRegion: data.shootRegion || "Los Angeles, CA",
-      locationBudget: Math.round(locBudget / 4),
-      castPresent: [c1, c2],
-      castRoles: {
-        [c1]: "Attempting emergency override",
-        [c2]: "Guarding escape route with drawn sidearm",
-      },
-      screenplayText: `INT. ${locUpper} SERVICE VAULT - CONTINUOUS\n\nSparks kick from an exposed relay box. Red emergency beacons pulse slowly.\n\n${c2.toUpperCase()}\nThe access codes expired two minutes ago.\n\n${c1.toUpperCase()}\nThen buy me three.`,
-    },
-    {
-      id: `${newPid}-scene-03`,
-      sceneNumber: 3,
-      title: "Point of No Return",
-      slugline: `EXT. ${locUpper} PERIMETER - NIGHT`,
-      summary: "The confrontation boils over as outside security forces converge. The core secret threatens to emerge.",
-      startSeconds: Math.round(totalRuntimeSec * 0.50),
-      durationSeconds: Math.round(totalRuntimeSec * 0.25),
-      location: `${loc} Perimeter`,
-      shootRegion: data.shootRegion || "Los Angeles, CA",
-      locationBudget: Math.round(locBudget / 4),
-      castPresent: [c1],
-      castRoles: {
-        [c1]: "Searching for compromised exfiltration route",
-      },
-      screenplayText: `EXT. ${locUpper} PERIMETER - NIGHT\n\nRain slicks the concrete. Distant siren wails cut through the night air.\n\n${c1.toUpperCase()}\n(into comms)\nClean extraction is blown. Moving to secondary rally point.`,
-    },
-    {
-      id: `${newPid}-scene-04`,
-      sceneNumber: 4,
-      title: "Climactic Confrontation",
-      slugline: `INT. ${locUpper} ARCHIVE CHAMBER - NIGHT`,
-      summary: "Final reckonings under atmospheric lighting. Truth is revealed as the clock expires.",
-      startSeconds: Math.round(totalRuntimeSec * 0.75),
-      durationSeconds: Math.round(totalRuntimeSec * 0.25),
-      location: `${loc} Archive Chamber`,
-      shootRegion: data.shootRegion || "Los Angeles, CA",
-      locationBudget: Math.round(locBudget / 4),
-      castPresent: [c1, c2],
-      castRoles: {
-        [c1]: "Facing final moral reckoning",
-        [c2]: "Delivering final ultimatum",
-      },
-      screenplayText: `INT. ${locUpper} ARCHIVE CHAMBER - NIGHT\n\nThe silence is deafening. A lone spotlight cuts across the dust particles.\n\n${c2.toUpperCase()}\nIt was never about the payload.\n\n${c1.toUpperCase()}\nIt was about who walked out alive.`,
+      screenplayText: starterScreenplayText,
     },
   ];
 
@@ -2147,8 +2751,174 @@ export function deleteVideoTake(projectId: string, takeId: string): void {
   saveProject(updatedProject);
 }
 
+/**
+ * Gets all saved score/music takes for a given project (and optionally scene).
+ */
+export function getScoreTakes(projectId: string, sceneId?: string): ScoreTake[] {
+  const project = getProjectById(projectId);
+  if (!project) return [];
+  if (sceneId && project.scenes) {
+    const scene = project.scenes.find((s) => s.id === sceneId);
+    if (scene && scene.scoreTakes && scene.scoreTakes.length > 0) {
+      return scene.scoreTakes;
+    }
+  }
+  return project.scoreTakes || [];
+}
+
+/**
+ * Saves a newly generated score take to the project/scene score vault.
+ */
+export function saveScoreTake(
+  projectId: string,
+  takeData: Omit<ScoreTake, "id" | "takeNumber" | "createdAt"> & { id?: string; takeNumber?: number; sceneId?: string }
+): ScoreTake {
+  const project = getProjectById(projectId);
+  const currentTakes = getScoreTakes(projectId, takeData.sceneId);
+  const nextNum = takeData.takeNumber || currentTakes.length + 1;
+
+  const newTake: ScoreTake = {
+    id: takeData.id || `score-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    sceneId: takeData.sceneId,
+    takeNumber: nextNum,
+    title: takeData.title || `Score Cue ${String(nextNum).padStart(2, "0")}`,
+    prompt: takeData.prompt,
+    durationMode: takeData.durationMode || "clip",
+    durationSec: takeData.durationSec || (takeData.durationMode === "pro" ? 180 : 30),
+    createdAt: Date.now(),
+    audioUrl: takeData.audioUrl,
+    lyricsText: takeData.lyricsText,
+    isMaster: takeData.isMaster ?? (currentTakes.length === 0),
+    scoreType: takeData.scoreType || "score",
+    conditioningImageUrl: takeData.conditioningImageUrl,
+    conditioningImageUrls: takeData.conditioningImageUrls,
+    responseModalities: takeData.responseModalities,
+    instruments: takeData.instruments,
+    dynamicArc: takeData.dynamicArc,
+    model: takeData.model,
+  };
+
+  if (!project) return newTake;
+
+  const updatedTakes = [newTake, ...currentTakes];
+  let updatedScenes = project.scenes;
+
+  if (takeData.sceneId && project.scenes) {
+    updatedScenes = project.scenes.map((s) => {
+      if (s.id === takeData.sceneId) {
+        return {
+          ...s,
+          activeScoreUrl: newTake.isMaster ? newTake.audioUrl : (s.activeScoreUrl || newTake.audioUrl),
+          scoreTakes: updatedTakes,
+        };
+      }
+      return s;
+    });
+  }
+
+  const updatedProject: ProjectData = {
+    ...project,
+    scenes: updatedScenes,
+    activeScoreUrl: newTake.isMaster ? newTake.audioUrl : (project.activeScoreUrl || newTake.audioUrl),
+    scoreTakes: updatedTakes,
+  };
+
+  saveProject(updatedProject);
+  return newTake;
+}
+
+/**
+ * Sets a specific score take as master for the project/scene.
+ */
+export function setMasterScoreTake(projectId: string, takeId: string, sceneId?: string): void {
+  const project = getProjectById(projectId);
+  if (!project) return;
+
+  const updateTakesList = (takes: ScoreTake[]) => {
+    let activeUrl: string | undefined;
+    const nextList = takes.map((t) => {
+      if (t.id === takeId) {
+        activeUrl = t.audioUrl;
+        return { ...t, isMaster: true };
+      }
+      return { ...t, isMaster: false };
+    });
+    return { nextList, activeUrl };
+  };
+
+  let updatedScenes = project.scenes;
+  let newActiveUrl = project.activeScoreUrl;
+
+  if (sceneId && project.scenes) {
+    updatedScenes = project.scenes.map((s) => {
+      if (s.id === sceneId && s.scoreTakes) {
+        const { nextList, activeUrl } = updateTakesList(s.scoreTakes);
+        return {
+          ...s,
+          scoreTakes: nextList,
+          activeScoreUrl: activeUrl || s.activeScoreUrl,
+        };
+      }
+      return s;
+    });
+  }
+
+  if (project.scoreTakes) {
+    const { nextList, activeUrl } = updateTakesList(project.scoreTakes);
+    newActiveUrl = activeUrl || newActiveUrl;
+    project.scoreTakes = nextList;
+  }
+
+  saveProject({
+    ...project,
+    scenes: updatedScenes,
+    activeScoreUrl: newActiveUrl,
+  });
+}
+
+/**
+ * Deletes a specific score take from the project/scene score vault.
+ */
+export function deleteScoreTake(projectId: string, takeId: string, sceneId?: string): void {
+  const project = getProjectById(projectId);
+  if (!project) return;
+
+  const filterTakes = (takes: ScoreTake[]) => takes.filter((t) => t.id !== takeId);
+
+  let updatedScenes = project.scenes;
+  let newActiveUrl = project.activeScoreUrl;
+
+  if (sceneId && project.scenes) {
+    updatedScenes = project.scenes.map((s) => {
+      if (s.id === sceneId && s.scoreTakes) {
+        const remaining = filterTakes(s.scoreTakes);
+        const wasActive = s.activeScoreUrl && s.scoreTakes.find((t) => t.id === takeId)?.audioUrl === s.activeScoreUrl;
+        return {
+          ...s,
+          scoreTakes: remaining,
+          activeScoreUrl: wasActive ? remaining[0]?.audioUrl : s.activeScoreUrl,
+        };
+      }
+      return s;
+    });
+  }
+
+  const remainingProjectTakes = filterTakes(project.scoreTakes || []);
+  if (newActiveUrl && !remainingProjectTakes.some((t) => t.audioUrl === newActiveUrl)) {
+    newActiveUrl = remainingProjectTakes[0]?.audioUrl;
+  }
+
+  saveProject({
+    ...project,
+    scenes: updatedScenes,
+    activeScoreUrl: newActiveUrl,
+    scoreTakes: remainingProjectTakes,
+  });
+}
+
 export interface NodeCallbacks {
   onOpenHotSeat?: (charName: string) => void;
+  onTuneVoice?: (charName: string) => void;
   onGenerateDraft?: () => void;
   onViewScript?: () => void;
   onOpenDeck?: (subTab: "blocking" | "tension" | "territory" | "stripboard") => void;
@@ -2156,6 +2926,68 @@ export interface NodeCallbacks {
   onOpenHeatmap?: () => void;
   onRunChemistry?: () => void;
   onTweakDials?: (charName: string, dials: { confidence: number; speed: number; subtext: number }) => void;
+  onOpenDossier?: (candidateId?: string) => void;
+}
+
+/**
+ * Re-attaches interactive callbacks to nodes deserialized from JSON storage.
+ * JSON serialization discards JS functions, so this restores all button actions.
+ */
+export function rehydrateNodeCallbacks(
+  nodes: Node[],
+  callbacks?: NodeCallbacks
+): Node[] {
+  if (!nodes || !Array.isArray(nodes) || !callbacks) return nodes || [];
+
+  return nodes.map((node) => {
+    const data = { ...(node.data || {}) } as Record<string, unknown>;
+
+    switch (node.type) {
+      case "characterCore": {
+        const charName = (data.name as string) || "Lead";
+        data.onOpenHotSeat = () => callbacks.onOpenHotSeat?.(charName);
+        data.onTuneVoice = () => callbacks.onTuneVoice?.(charName);
+        break;
+      }
+      case "scene": {
+        data.onGenerateDraft = callbacks.onGenerateDraft;
+        data.onViewScript = callbacks.onViewScript;
+        break;
+      }
+      case "script": {
+        data.onViewScript = callbacks.onViewScript;
+        break;
+      }
+      case "floorplan": {
+        data.onOpenDeck = () => callbacks.onOpenDeck?.("blocking");
+        break;
+      }
+      case "tensionCurve": {
+        data.onOpenDeck = () => callbacks.onOpenDeck?.("tension");
+        break;
+      }
+      case "tableRead": {
+        data.onOpenPlayer = callbacks.onOpenTableRead;
+        break;
+      }
+      case "market": {
+        data.onOpenHeatmap = callbacks.onOpenHeatmap;
+        break;
+      }
+      case "chemistry": {
+        data.onRunChemistry = callbacks.onRunChemistry;
+        break;
+      }
+      case "location": {
+        data.onOpenDossier = (candId?: string) => callbacks.onOpenDossier?.(candId);
+        break;
+      }
+      default:
+        break;
+    }
+
+    return { ...node, data };
+  });
 }
 
 /**
@@ -2278,6 +3110,7 @@ export function buildProjectNodesAndEdges(
         actorComp: char.actorComp || (idx === 0 ? "Lead Comp" : "Counter-Comp"),
         dialsSummary: char.dialsSummary || "Speed 75% · Subtext 85%",
         onOpenHotSeat: () => callbacks?.onOpenHotSeat?.(char.name),
+        onTuneVoice: () => callbacks?.onTuneVoice?.(char.name),
       },
     });
 
