@@ -36,6 +36,10 @@ import {
   RotateCcw,
   Unlink,
   AlertTriangle,
+  MapPin,
+  Building2,
+  DollarSign,
+  Check,
 } from "lucide-react";
 
 export type NodeState = "idle" | "generating" | "ready" | "stale" | "error";
@@ -1446,6 +1450,340 @@ export function MarketNode({ data, selected }: NodeProps & { data: MarketNodeDat
 }
 
 // -------------------------------------------------------------
+// 15. Location Scout & Concept Visual Node
+// -------------------------------------------------------------
+export interface LocationCandidateSummary {
+  candidate_id: string;
+  name: string;
+  region?: string;
+  category?: string;
+  day_rate?: number;
+  permit_fee?: number;
+  preview_image_url?: string;
+  preview_image_prompt?: string;
+  sound_rating?: string;
+}
+
+export interface LocationNodeData extends Record<string, unknown> {
+  name: string;
+  category?: string;
+  region?: string;
+  dayRate?: number;
+  permitFee?: number;
+  environmentType?: string;
+  isLocked?: boolean;
+  imageUrl?: string;
+  prompt?: string;
+  candidates?: LocationCandidateSummary[];
+  selectedCandidateId?: string;
+  onSelectCandidate?: (candidateId: string) => void;
+  onToggleLock?: () => void;
+  onOpenDossier?: (candidateId?: string) => void;
+}
+
+export function LocationNode({ id, data, selected }: NodeProps & { data: LocationNodeData }) {
+  const { updateNodeData } = useReactFlow();
+  const [candidates, setCandidates] = React.useState<LocationCandidateSummary[]>(
+    data.candidates || [
+      {
+        candidate_id: "c1",
+        name: data.name || "Industrial Vault Stage A",
+        region: data.region || "Brooklyn, NY",
+        category: data.category || "practical",
+        day_rate: data.dayRate || 3200,
+        permit_fee: data.permitFee || 450,
+        preview_image_url: data.imageUrl,
+        preview_image_prompt: data.prompt,
+      },
+    ]
+  );
+
+  const [activeCandId, setActiveCandId] = React.useState<string>(
+    data.selectedCandidateId || candidates[0]?.candidate_id || "c1"
+  );
+  const activeCand = candidates.find((c) => c.candidate_id === activeCandId) || candidates[0];
+
+  const [currentImage, setCurrentImage] = React.useState<string | undefined>(
+    activeCand?.preview_image_url || data.imageUrl || undefined
+  );
+  const [isLocked, setIsLocked] = React.useState<boolean>(Boolean(data.isLocked));
+  const [isRendering, setIsRendering] = React.useState<boolean>(false);
+
+  // Sync state if candidate changes
+  const handleSwitchCandidate = (candId: string) => {
+    setActiveCandId(candId);
+    const target = candidates.find((c) => c.candidate_id === candId);
+    if (target) {
+      if (target.preview_image_url) {
+        setCurrentImage(target.preview_image_url);
+      }
+      updateNodeData(id, {
+        selectedCandidateId: candId,
+        name: target.name,
+        region: target.region,
+        dayRate: target.day_rate,
+        permitFee: target.permit_fee,
+        imageUrl: target.preview_image_url || currentImage,
+      });
+      data.onSelectCandidate?.(candId);
+    }
+  };
+
+  const handleToggleLock = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const nextLocked = !isLocked;
+    setIsLocked(nextLocked);
+    updateNodeData(id, { isLocked: nextLocked });
+    data.onToggleLock?.();
+  };
+
+  const handleGenerateConceptLook = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isRendering) return;
+    setIsRendering(true);
+
+    const venueName = activeCand?.name || data.name || "Cinematic Location";
+    const regionName = activeCand?.region || data.region || "Metropolitan Backlot";
+    const basePrompt =
+      data.prompt ||
+      activeCand?.preview_image_prompt ||
+      `Cinematic 35mm anamorphic wide shot of ${venueName} in ${regionName}. Low-key volumetric lighting, atmospheric haze, industrial cinematic texture, photoreal, master cinematography.`;
+
+    try {
+      const res = await fetch("/api/media/image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: basePrompt,
+          aspect_ratio: "16:9",
+        }),
+      });
+
+      if (res.ok) {
+        const result = await res.json();
+        if (result.image_url) {
+          setCurrentImage(result.image_url);
+          // Also update candidate cache
+          setCandidates((prev) =>
+            prev.map((c) =>
+              c.candidate_id === activeCandId
+                ? { ...c, preview_image_url: result.image_url, preview_image_prompt: basePrompt }
+                : c
+            )
+          );
+          updateNodeData(id, {
+            imageUrl: result.image_url,
+            prompt: basePrompt,
+          });
+          notifyIfFallback(result, "Location Concept Look");
+          toast.add({
+            title: "Location Concept Generated",
+            description: `Rendered Imagen 3 concept frame for "${venueName}".`,
+            type: "success",
+          });
+        } else {
+          toast.add({ title: "Image generation failed", description: "No image URL returned.", type: "error" });
+        }
+      } else {
+        toast.add({ title: "Generation failed", description: `Server returned status ${res.status}`, type: "error" });
+      }
+    } catch (err) {
+      console.error("Location node image render error:", err);
+      toast.add({
+        title: "Image generation error",
+        description: err instanceof Error ? err.message : "Failed to connect to image service.",
+        type: "error",
+      });
+    } finally {
+      setIsRendering(false);
+    }
+  };
+
+  return (
+    <BlueprintNodeShell
+      kind="Physical Production"
+      title={activeCand?.name || data.name || "Location Scout"}
+      icon={MapPin}
+      colorScheme="amber"
+      selected={selected}
+      headerRight={
+        <button
+          type="button"
+          onClick={handleToggleLock}
+          className="text-muted-foreground hover:text-amber-400 transition-colors p-0.5 rounded cursor-pointer"
+          title={isLocked ? "Venue Locked for Shoot" : "Candidate Open (Click to Lock)"}
+        >
+          {isLocked ? <Lock className="h-3.5 w-3.5 text-amber-400" /> : <Unlock className="h-3.5 w-3.5" />}
+        </button>
+      }
+    >
+      <div className="relative flex flex-col gap-2 text-xs">
+        {/* Input Target Ports for Scene and Characters */}
+        <div className="absolute -left-6 top-2 flex flex-col gap-3">
+          <Handle
+            type="target"
+            position={Position.Left}
+            id="scene_in"
+            className={cn(handleBaseClass, "!bg-amber-400")}
+          />
+          <Handle
+            type="target"
+            position={Position.Left}
+            id="character_in"
+            className={cn(handleBaseClass, "!bg-purple-500")}
+          />
+        </div>
+
+        {/* Candidate Switcher Dropdown / Pills for Location Experimentation */}
+        {candidates.length > 1 && (
+          <div className="flex flex-col gap-1 rounded border border-amber-500/20 bg-amber-500/5 p-1.5">
+            <div className="flex items-center justify-between text-[10px] font-mono text-amber-400 font-bold">
+              <span>Scouted Candidates ({candidates.length})</span>
+              <span className="text-[9px] text-muted-foreground">Experiment &amp; Compare</span>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {candidates.map((c) => {
+                const isSelectedCand = c.candidate_id === activeCandId;
+                return (
+                  <button
+                    key={c.candidate_id}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSwitchCandidate(c.candidate_id);
+                    }}
+                    className={cn(
+                      "px-1.5 py-0.5 rounded text-[10px] font-mono truncate max-w-[130px] transition-all cursor-pointer",
+                      isSelectedCand
+                        ? "bg-amber-500 text-black font-bold shadow-xs"
+                        : "bg-secondary/70 hover:bg-secondary text-muted-foreground hover:text-foreground border border-border/50"
+                    )}
+                    title={`${c.name} (${c.region || "Base"})`}
+                  >
+                    {c.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Venue Telemetry Badges */}
+        <div className="grid grid-cols-2 gap-1 text-[10px] font-mono">
+          <div className="rounded bg-background/80 border border-border/60 px-1.5 py-0.5 text-muted-foreground truncate flex items-center gap-1">
+            <Building2 className="h-2.5 w-2.5 text-amber-400 shrink-0" />
+            <span className="truncate">{activeCand?.region || data.region || "Production Base"}</span>
+          </div>
+          <div className="rounded bg-background/80 border border-border/60 px-1.5 py-0.5 text-emerald-400 font-bold truncate flex items-center gap-1">
+            <DollarSign className="h-2.5 w-2.5 shrink-0" />
+            <span>
+              {activeCand?.day_rate || data.dayRate
+                ? `$${(activeCand?.day_rate || data.dayRate)!.toLocaleString()}/day`
+                : "Rate TBD"}
+            </span>
+          </div>
+        </div>
+
+        {/* Visual Concept Image Display with Imagen 3 generation */}
+        {currentImage ? (
+          <div className="group relative w-full overflow-hidden rounded-lg border border-amber-500/40 bg-black shadow-md">
+            <img
+              src={currentImage}
+              alt={activeCand?.name || data.name}
+              className="w-full h-28 object-cover transition-transform duration-300 group-hover:scale-105"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-transparent flex flex-col justify-end p-2 pointer-events-none">
+              <span className="text-[9px] font-mono uppercase tracking-wider text-amber-400 font-bold flex items-center gap-1">
+                <Sparkles className="h-2.5 w-2.5" /> Concept Look
+              </span>
+              <span className="text-[10px] text-white/90 truncate font-sans">
+                {activeCand?.name || data.name}
+              </span>
+            </div>
+
+            {/* Re-roll overlay button */}
+            <button
+              type="button"
+              onClick={handleGenerateConceptLook}
+              disabled={isRendering}
+              className="absolute top-1.5 right-1.5 flex items-center gap-1 rounded bg-black/75 hover:bg-black text-white px-1.5 py-0.5 text-[9px] font-mono opacity-80 group-hover:opacity-100 transition-opacity border border-white/20 cursor-pointer disabled:opacity-50"
+            >
+              <RotateCcw className={cn("h-2.5 w-2.5", isRendering && "animate-spin")} />
+              <span>{isRendering ? "Rendering..." : "Re-roll"}</span>
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-amber-500/30 bg-amber-500/5 p-3 text-center">
+            <ImageIcon className="h-5 w-5 text-amber-400/70" />
+            <span className="text-[10px] text-muted-foreground font-mono">No visual concept rendered yet</span>
+            <button
+              type="button"
+              onClick={handleGenerateConceptLook}
+              disabled={isRendering}
+              className="flex items-center gap-1 rounded bg-amber-500 text-black hover:bg-amber-400 px-2 py-1 text-[10px] font-semibold transition-colors cursor-pointer disabled:opacity-50"
+            >
+              <Sparkles className={cn("h-3 w-3", isRendering && "animate-spin")} />
+              <span>{isRendering ? "Rendering Look..." : "Generate Concept Look (Imagen 3)"}</span>
+            </button>
+          </div>
+        )}
+
+        {/* Action Controls Footer */}
+        <div className="mt-1 flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              data.onOpenDossier?.(activeCand?.candidate_id);
+            }}
+            className="flex-1 flex items-center justify-center gap-1 rounded bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 py-1 text-[10px] font-medium transition-colors border border-amber-500/30 cursor-pointer"
+          >
+            <FileText className="h-3 w-3" />
+            Specs Dossier &amp; Grid
+          </button>
+          <button
+            type="button"
+            onClick={handleToggleLock}
+            className={cn(
+              "flex items-center justify-center gap-1 rounded px-2 py-1 text-[10px] font-medium transition-colors cursor-pointer",
+              isLocked
+                ? "bg-amber-500 text-black font-semibold"
+                : "bg-secondary hover:bg-secondary/80 text-foreground"
+            )}
+            title={isLocked ? "Venue Locked" : "Click to Lock Venue"}
+          >
+            {isLocked ? <Check className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
+            <span>{isLocked ? "Locked" : "Lock"}</span>
+          </button>
+        </div>
+
+        {/* Output Ports: loc_out (amber) and visual_out (purple) */}
+        <div className="relative mt-1 flex items-center justify-between pt-1 border-t border-border/30">
+          <span className="text-[9px] font-mono text-muted-foreground">ports:</span>
+          <div className="flex items-center gap-3">
+            <span className="text-[9px] font-mono text-amber-400">loc_out →</span>
+            <span className="text-[9px] font-mono text-purple-400">visual_out →</span>
+          </div>
+
+          <Handle
+            type="source"
+            position={Position.Right}
+            id="loc_out"
+            className={cn(handleBaseClass, "!bg-amber-500 -right-5 !top-3")}
+          />
+          <Handle
+            type="source"
+            position={Position.Right}
+            id="visual_out"
+            className={cn(handleBaseClass, "!bg-purple-500 -right-5 !top-8")}
+          />
+        </div>
+      </div>
+    </BlueprintNodeShell>
+  );
+}
+
+// -------------------------------------------------------------
 // React Flow NodeTypes Registry
 // -------------------------------------------------------------
 export const nodeTypes = {
@@ -1463,4 +1801,6 @@ export const nodeTypes = {
   tensionCurve: TensionCurveNode,
   tableRead: TableReadNode,
   market: MarketNode,
+  location: LocationNode,
 };
+

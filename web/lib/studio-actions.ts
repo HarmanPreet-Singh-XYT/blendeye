@@ -46,7 +46,8 @@ export interface CreateNodeAction {
     | "floorplan"
     | "tensionCurve"
     | "tableRead"
-    | "market";
+    | "market"
+    | "location";
   title?: string;
   data?: Record<string, any>;
   position?: { x: number; y: number };

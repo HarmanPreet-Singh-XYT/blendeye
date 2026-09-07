@@ -312,17 +312,48 @@ function AuthPageContent() {
               </TabsTrigger>
             </TabsList>
 
+            {/* Direct Guest Access Banner */}
+            <div className="mb-4 p-2.5 rounded-lg border border-accent/30 bg-accent/10 flex items-center justify-between gap-2 text-xs">
+              <span className="text-muted-foreground text-[11px]">
+                Want to start immediately without email?
+              </span>
+              <Link
+                href={redirectParam}
+                className="font-semibold text-accent hover:underline flex items-center gap-1 shrink-0 text-xs"
+              >
+                <span>Continue as Guest →</span>
+              </Link>
+            </div>
+
             {errorMsg && (
-              <div className="mb-4 p-3 rounded-lg bg-destructive/15 border border-destructive/30 flex items-start gap-2 text-xs text-destructive">
-                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-                <span>{errorMsg}</span>
+              <div className="mb-4 p-3 rounded-lg bg-destructive/15 border border-destructive/30 flex flex-col gap-2 text-xs text-destructive">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>{errorMsg}</span>
+                </div>
+                {(errorMsg.toLowerCase().includes("email") || errorMsg.toLowerCase().includes("confirm")) && (
+                  <Link
+                    href={redirectParam}
+                    className="mt-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md bg-accent text-accent-foreground font-semibold text-xs hover:bg-accent/90 transition-colors w-full text-center"
+                  >
+                    <span>Continue to Studio Directly (Skip Confirmation) →</span>
+                  </Link>
+                )}
               </div>
             )}
 
             {successMsg && (
-              <div className="mb-4 p-3 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-start gap-2 text-xs text-emerald-300">
-                <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
-                <span>{successMsg}</span>
+              <div className="mb-4 p-3 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex flex-col gap-2 text-xs text-emerald-300">
+                <div className="flex items-start gap-2">
+                  <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>{successMsg}</span>
+                </div>
+                <Link
+                  href={redirectParam}
+                  className="mt-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md bg-emerald-600 text-white font-semibold text-xs hover:bg-emerald-500 transition-colors w-full text-center"
+                >
+                  <span>Skip Email Verification &amp; Enter Studio →</span>
+                </Link>
               </div>
             )}
 

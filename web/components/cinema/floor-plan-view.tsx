@@ -1838,8 +1838,8 @@ export function FloorPlanView({
 
                 <div className="relative z-20 flex items-center justify-between text-[9px] font-mono text-amber-400/90 drop-shadow">
                   <span className="flex items-center gap-1">
-                    <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-ping inline-block" />
-                    LIVE SIGHTLINE · {activeCam?.name ? activeCam.name.split("·")[0] : "Cam A"}
+                    {/* <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-ping inline-block" /> */}
+                    {activeCam?.name ? activeCam.name.split("·")[0] : "Cam A"}
                   </span>
                   <span>{activeCam?.focalLength ?? 35}mm · T1.5 · {activeCam?.fov ?? 54}° FOV</span>
                 </div>

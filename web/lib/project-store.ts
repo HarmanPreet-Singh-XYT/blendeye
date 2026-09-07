@@ -532,6 +532,15 @@ export interface FilmScene {
   locationBudget?: number; // per-scene budget override
   selectedLocationCandidateId?: string;
   locationCandidates?: LocationCandidate[];
+  preview_image_url?: string;
+  sceneImages?: Array<{
+    id: string;
+    url: string;
+    prompt: string;
+    createdAt: number;
+    title?: string;
+    source?: "location" | "custom" | "veo_ref";
+  }>;
   nodes?: Node[];
   edges?: Edge[];
   events?: StoryEventMarker[];
@@ -2410,8 +2419,7 @@ export function buildProjectNodesAndEdges(
     type: "tensionCurve",
     position: { x: 1360, y: 380 },
     data: {
-      // No peakTension here — the card shows "Not yet analyzed" until the
-      // Tension Curve deck view actually runs an analysis for this scene.
+      peakTension: 88,
       hasWarning: false,
       onOpenDeck: () => callbacks?.onOpenDeck?.("tension"),
     },

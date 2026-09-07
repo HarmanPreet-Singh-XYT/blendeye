@@ -47,6 +47,7 @@ import {
   LayoutGrid,
   History,
   Zap,
+  MapPin,
 } from "lucide-react";
 
 export interface StoryCanvasProps {
@@ -404,6 +405,17 @@ function StoryCanvas({
               {/* Category 4: Director Deck & Production */}
               <div className="flex flex-col gap-1 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-2">
                 <span className="text-[10px] font-mono uppercase text-emerald-400 font-bold">4. Director Suite</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onAddNode?.("location");
+                    setPaletteOpen(false);
+                  }}
+                  className="flex items-center gap-1.5 rounded p-1 text-[11px] text-left hover:bg-emerald-500/20 text-foreground transition-colors cursor-pointer"
+                >
+                  <MapPin className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                  <span>Location Scout</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => {

@@ -42,15 +42,21 @@ import {
   Clapperboard,
   User,
   Shirt,
+  MapPin,
+  Building2,
+  Image as ImageIcon,
+  Star,
 } from "lucide-react";
 import type { Node } from "@xyflow/react";
 import { cn } from "@/lib/utils";
-import type { ProjectCharacter } from "@/lib/project-store";
+import type { ProjectCharacter, FilmScene } from "@/lib/project-store";
 import { getVideoTakes, saveVideoTake, setMasterVideoTake, type VideoTake } from "@/lib/project-store";
 import {
   synthesizeCinemaPrompt,
   type NodeContribution,
 } from "@/lib/cinema-prompt-synthesizer";
+import { SceneScoutView } from "@/components/cinema/scene-scout-view";
+import { cleanCandidateName } from "@/components/cinema/location-board";
 
 interface GenerationStudioViewProps {
   projectId?: string;
@@ -64,6 +70,10 @@ interface GenerationStudioViewProps {
   onReturnToStudio?: () => void;
   initialCameraMotion?: string;
   initialPromptNote?: string;
+  scenes?: FilmScene[];
+  activeSceneId?: string;
+  onSelectScene?: (sceneId: string) => void;
+  onUpdateScene?: (updatedScene: FilmScene) => void;
 }
 
 interface CameraMotionOption {
@@ -133,8 +143,23 @@ export function GenerationStudioView({
   onReturnToStudio,
   initialCameraMotion,
   initialPromptNote,
+  scenes = [],
+  activeSceneId,
+  onSelectScene,
+  onUpdateScene,
 }: GenerationStudioViewProps) {
   const effectiveProjectId = projectId || "vault-heist-demo";
+
+  // Studio Mode: Veo Video Takes vs Dedicated Scene Scouting & Images
+  const [studioMode, setStudioMode] = React.useState<"video" | "scout">("video");
+  const [conditioningSource, setConditioningSource] = React.useState<"character" | "scene">("character");
+  const [activeSceneRefTitle, setActiveSceneRefTitle] = React.useState<string | null>(null);
+
+  const activeSceneObj =
+    scenes.find((s) => s.id === activeSceneId) ||
+    scenes.find((s) => s.title === sceneTitle) ||
+    scenes[0] ||
+    null;
 
   // Director Controls State
   const [activeTab, setActiveTab] = React.useState<"camera" | "dialogue" | "deliverables">("camera");
@@ -653,23 +678,63 @@ export function GenerationStudioView({
       <header className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-card/60 px-4">
         <div className="flex items-center gap-3 min-w-0">
           <div className="flex items-center gap-2">
-            <Clapperboard className="h-4 w-4 text-accent" />
-            <span className="font-heading font-semibold text-xs uppercase tracking-wider text-foreground">
-              Screening Room &amp; Dailies
+            {studioMode === "video" ? (
+              <Clapperboard className="h-4 w-4 text-purple-400 shrink-0" />
+            ) : (
+              <Compass className="h-4 w-4 text-amber-400 shrink-0" />
+            )}
+            <span className="font-heading font-semibold text-xs uppercase tracking-wider text-foreground whitespace-nowrap">
+              {studioMode === "video" ? "Screening Room & Dailies" : "Scene Scouting Studio"}
             </span>
             <span className="text-muted-foreground text-xs">·</span>
-            <span className="text-xs font-mono text-muted-foreground truncate max-w-[200px] sm:max-w-xs">
+            <span className="text-xs font-mono text-muted-foreground truncate max-w-[160px] sm:max-w-xs">
               {sceneTitle}
             </span>
           </div>
 
-          <Badge variant="outline" className="hidden sm:inline-flex border-accent/40 bg-accent/10 text-accent font-mono text-[10px]">
-            Google Veo 3.1
-          </Badge>
+          {studioMode === "video" ? (
+            <Badge variant="outline" className="hidden sm:inline-flex border-accent/40 bg-accent/10 text-accent font-mono text-[10px]">
+              Google Veo 3.1
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="hidden sm:inline-flex border-amber-500/40 bg-amber-500/10 text-amber-300 font-mono text-[10px]">
+              Imagen 3 Photoreal
+            </Badge>
+          )}
 
           <Badge variant="secondary" className="font-mono text-[10px]">
             {activeRatioConfig.label}
           </Badge>
+        </div>
+
+        {/* Mode Switcher: Video Takes vs Scene Scouting */}
+        <div className="flex items-center gap-1 rounded-lg border border-border/80 bg-secondary/50 p-0.5 shadow-xs">
+          <button
+            type="button"
+            onClick={() => setStudioMode("video")}
+            className={cn(
+              "px-3 py-1 rounded-md text-xs font-heading font-semibold transition-all flex items-center gap-1.5 cursor-pointer",
+              studioMode === "video"
+                ? "bg-purple-600 text-white shadow-xs"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Video className="h-3.5 w-3.5" />
+            <span>Veo 3.1 Video Takes</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setStudioMode("scout")}
+            className={cn(
+              "px-3 py-1 rounded-md text-xs font-heading font-semibold transition-all flex items-center gap-1.5 cursor-pointer",
+              studioMode === "scout"
+                ? "bg-amber-500 text-black shadow-xs font-bold"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <ImageIcon className="h-3.5 w-3.5" />
+            <span>Scene Scouting &amp; Lookbooks</span>
+          </button>
         </div>
 
         <div className="flex items-center gap-2">
@@ -685,33 +750,72 @@ export function GenerationStudioView({
             </Button>
           )}
 
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleExportPackage}
-            className="h-8 text-xs gap-1.5 border-border bg-secondary/30 hover:bg-secondary cursor-pointer"
-            title="Download Master JSON containing scene video, dialogue stems, and camera metadata"
-          >
-            <FolderDown className="h-3.5 w-3.5 text-accent" />
-            <span>{hasExportedPackage ? "Dailies Saved!" : "Export Dailies"}</span>
-          </Button>
+          {studioMode === "video" ? (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleExportPackage}
+                className="h-8 text-xs gap-1.5 border-border bg-secondary/30 hover:bg-secondary cursor-pointer"
+                title="Download Master JSON containing scene video, dialogue stems, and camera metadata"
+              >
+                <FolderDown className="h-3.5 w-3.5 text-accent" />
+                <span>{hasExportedPackage ? "Dailies Saved!" : "Export Dailies"}</span>
+              </Button>
 
-          <a
-            href={activeVideoUrl}
-            download={`${sceneTitle.replace(/\s+/g, "_")}_veo_master.mp4`}
-            target="_blank"
-            rel="noreferrer"
-          >
-            <Button size="sm" className="h-8 text-xs gap-1.5 cursor-pointer bg-primary text-primary-foreground hover:bg-primary/90">
-              <Download className="h-3.5 w-3.5" />
-              <span>Master MP4</span>
+              <a
+                href={activeVideoUrl}
+                download={`${sceneTitle.replace(/\s+/g, "_")}_veo_master.mp4`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <Button size="sm" className="h-8 text-xs gap-1.5 cursor-pointer bg-primary text-primary-foreground hover:bg-primary/90">
+                  <Download className="h-3.5 w-3.5" />
+                  <span>Master MP4</span>
+                </Button>
+              </a>
+            </>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setStudioMode("video")}
+              className="h-8 text-xs gap-1.5 border-purple-500/40 bg-purple-500/10 text-purple-200 hover:bg-purple-500/20 cursor-pointer"
+              title="Switch to Google Veo 3.1 Video Generator"
+            >
+              <Video className="h-3.5 w-3.5 text-purple-300" />
+              <span>Switch to Veo Takes</span>
             </Button>
-          </a>
+          )}
         </div>
       </header>
 
-      {/* Main 2-Column Director Workstation */}
-      <div className="flex flex-1 min-h-0 overflow-hidden">
+      {/* Main Content: Either Scene Scout Studio or Veo Video Workstation */}
+      {studioMode === "scout" ? (
+        <SceneScoutView
+          projectId={projectId}
+          scenes={scenes}
+          activeSceneId={activeSceneId}
+          onSelectScene={onSelectScene}
+          onUpdateScene={onUpdateScene}
+          onLinkToVeo={(imgUrl, promptInfo) => {
+            setActiveConditioningImage(imgUrl);
+            setActiveImageType(null);
+            setConditioningSource("scene");
+            setActiveSceneRefTitle(activeSceneObj?.title || "Scene Concept Look");
+            setStudioMode("video");
+            setActiveTab("camera");
+            setPrompt((prev) => `${prev} Based on scene visual concept reference.`);
+            toast.add({
+              title: "🎬 Linked to Google Veo 3.1",
+              description: "Scene image set as reference conditioning for video takes.",
+              type: "success",
+            });
+          }}
+        />
+      ) : (
+        /* Main 2-Column Director Workstation */
+        <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Left Side: Cinema Screening Bay & Dailies Reel (~65-70%) */}
         <main className="flex-1 flex flex-col min-w-0 bg-background/50 border-r border-border overflow-hidden">
           {/* Cinema Monitor Viewport Container */}
@@ -1020,180 +1124,323 @@ export function GenerationStudioView({
           {/* TAB 1: Camera Motion, Visual Prompt & Veo Dispatch */}
           {activeTab === "camera" && (
             <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
-              {/* Character Visual Conditioning Module */}
-              {characters && characters.length > 0 && (
-                <div className="flex flex-col gap-2 p-3 rounded-xl border border-purple-500/30 bg-purple-500/10 shadow-xs">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <User className="h-3.5 w-3.5 text-purple-400" />
-                      <SlateLabel>Character Visual Reference</SlateLabel>
-                    </div>
-                    <Badge variant="outline" className="text-[9px] font-mono border-purple-500/40 text-purple-300 py-0">
-                      Veo Conditioning
-                    </Badge>
+              {/* Visual Reference Conditioning Module (Character or Scene & Location Image) */}
+              <div className="flex flex-col gap-2 p-3 rounded-xl border border-purple-500/30 bg-purple-500/10 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Sparkles className="h-3.5 w-3.5 text-purple-400" />
+                    <SlateLabel>Veo Conditioning Reference</SlateLabel>
                   </div>
+                  <Badge variant="outline" className="text-[9px] font-mono border-purple-500/40 text-purple-300 py-0">
+                    {activeConditioningImage ? "Conditioned ✓" : "Text Only"}
+                  </Badge>
+                </div>
 
-                  {/* Character Selection Pills */}
-                  <div className="flex flex-wrap gap-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedCharacterName(null);
-                        runSynthesis(null);
-                      }}
-                      className={cn(
-                        "px-2 py-0.5 rounded-md text-[11px] font-mono transition-colors cursor-pointer",
-                        selectedCharacterName === null
-                          ? "bg-purple-600 text-white font-semibold shadow-xs"
-                          : "bg-card/80 border border-border text-muted-foreground hover:text-foreground"
-                      )}
-                    >
-                      Master Scene (Ensemble)
-                    </button>
-                    {characters.map((c, i) => (
+                {/* Segmented Controller: Character vs Scene & Location Image */}
+                <div className="flex items-center rounded-lg border border-purple-500/30 bg-background/50 p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setConditioningSource("character")}
+                    className={cn(
+                      "flex-1 py-1 rounded-md text-[11px] font-mono font-medium transition-colors flex items-center justify-center gap-1 cursor-pointer",
+                      conditioningSource === "character"
+                        ? "bg-purple-600 text-white shadow-xs font-semibold"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <User className="h-3 w-3" />
+                    <span>Character ({characters.length})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConditioningSource("scene")}
+                    className={cn(
+                      "flex-1 py-1 rounded-md text-[11px] font-mono font-medium transition-colors flex items-center justify-center gap-1 cursor-pointer",
+                      conditioningSource === "scene"
+                        ? "bg-amber-500 text-black shadow-xs font-bold"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <ImageIcon className="h-3 w-3" />
+                    <span>Scene / Location Look</span>
+                  </button>
+                </div>
+
+                {conditioningSource === "character" ? (
+                  <>
+                    {/* Character Selection Pills */}
+                    <div className="flex flex-wrap gap-1">
                       <button
-                        key={i}
                         type="button"
                         onClick={() => {
-                          setSelectedCharacterName(c.name);
-                          runSynthesis(c.name);
+                          setSelectedCharacterName(null);
+                          runSynthesis(null);
                         }}
                         className={cn(
-                          "px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors flex items-center gap-1.5 cursor-pointer",
-                          selectedCharacterName === c.name
+                          "px-2 py-0.5 rounded-md text-[11px] font-mono transition-colors cursor-pointer",
+                          selectedCharacterName === null
                             ? "bg-purple-600 text-white font-semibold shadow-xs"
                             : "bg-card/80 border border-border text-muted-foreground hover:text-foreground"
                         )}
                       >
-                        {c.imageUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={c.imageUrl}
-                            alt={c.name}
-                            className="h-3.5 w-3.5 rounded-full object-cover border border-white/40"
-                          />
-                        ) : (
-                          <span className="h-3.5 w-3.5 rounded-full bg-secondary flex items-center justify-center text-[8px] font-bold">
-                            {c.name.charAt(0)}
-                          </span>
-                        )}
-                        <span>{c.name}</span>
+                        Master Scene (Ensemble)
                       </button>
-                    ))}
-                  </div>
+                      {characters.map((c, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => {
+                            setSelectedCharacterName(c.name);
+                            runSynthesis(c.name);
+                          }}
+                          className={cn(
+                            "px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors flex items-center gap-1.5 cursor-pointer",
+                            selectedCharacterName === c.name
+                              ? "bg-purple-600 text-white font-semibold shadow-xs"
+                              : "bg-card/80 border border-border text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          {c.imageUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={c.imageUrl}
+                              alt={c.name}
+                              className="h-3.5 w-3.5 rounded-full object-cover border border-white/40"
+                            />
+                          ) : (
+                            <span className="h-3.5 w-3.5 rounded-full bg-secondary flex items-center justify-center text-[8px] font-bold">
+                              {c.name.charAt(0)}
+                            </span>
+                          )}
+                          <span>{c.name}</span>
+                        </button>
+                      ))}
+                    </div>
 
-                  {/* Connected Canvas Node Context Badges */}
-                  {activeNodeContributions.length > 0 && (
-                    <div className="pt-2 border-t border-purple-500/20 space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1 text-[10px] font-mono text-purple-300">
-                          <Layers className="h-3 w-3" />
-                          <span>Connected Canvas Nodes ({activeNodeContributions.length})</span>
+                    {/* Image Conditioning Controls (Face vs Body) */}
+                    {activeCharacter && (activeCharacter.imageUrl || activeCharacter.fullBodyImageUrl) && (
+                      <div className="p-2 rounded-lg border border-purple-500/30 bg-purple-950/20 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-mono uppercase text-purple-300 font-semibold flex items-center gap-1">
+                            <Sparkles className="h-3 w-3 text-accent" />
+                            <span>Character Image Conditioning</span>
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {activeConditioningImage && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={activeConditioningImage}
+                              alt="Conditioning reference"
+                              className="h-9 w-9 rounded-md object-cover border border-purple-400 shrink-0"
+                            />
+                          )}
+                          <div className="flex items-center gap-1 flex-1">
+                            {activeCharacter.imageUrl && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveConditioningImage(activeCharacter.imageUrl!);
+                                  setActiveImageType("face");
+                                  setActiveSceneRefTitle(null);
+                                }}
+                                className={`px-2 py-1 rounded text-[10px] font-mono flex-1 border cursor-pointer transition-colors ${
+                                  activeConditioningImage === activeCharacter.imageUrl
+                                    ? "bg-purple-600 border-purple-400 text-white font-semibold"
+                                    : "bg-card border-border text-muted-foreground hover:text-foreground"
+                                }`}
+                              >
+                                Face Image
+                              </button>
+                            )}
+                            {activeCharacter.fullBodyImageUrl && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveConditioningImage(activeCharacter.fullBodyImageUrl!);
+                                  setActiveImageType("body");
+                                  setActiveSceneRefTitle(null);
+                                }}
+                                className={`px-2 py-1 rounded text-[10px] font-mono flex-1 border cursor-pointer transition-colors ${
+                                  activeConditioningImage === activeCharacter.fullBodyImageUrl
+                                    ? "bg-purple-600 border-purple-400 text-white font-semibold"
+                                    : "bg-card border-border text-muted-foreground hover:text-foreground"
+                                }`}
+                              >
+                                Body Stance
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveConditioningImage(null);
+                                setActiveImageType(null);
+                                setActiveSceneRefTitle(null);
+                              }}
+                              className={`px-1.5 py-1 rounded text-[10px] font-mono border cursor-pointer transition-colors ${
+                                !activeConditioningImage
+                                  ? "bg-secondary border-border text-foreground font-semibold"
+                                  : "bg-card/40 border-border/60 text-muted-foreground hover:text-foreground"
+                              }`}
+                              title="Generate text-only without conditioning image"
+                            >
+                              Off
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  /* Scene & Location Image Conditioning */
+                  <div className="p-2 rounded-lg border border-amber-500/30 bg-amber-500/5 space-y-2">
+                    <div className="flex items-center justify-between text-[10px] font-mono">
+                      <span className="text-amber-400 font-semibold flex items-center gap-1">
+                        <MapPin className="h-3 w-3" />
+                        <span>Scene &amp; Venue Reference</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setStudioMode("scout")}
+                        className="text-amber-400 hover:underline flex items-center gap-0.5 cursor-pointer"
+                      >
+                        <span>+ Scout &amp; Gen Images</span>
+                      </button>
+                    </div>
+
+                    {/* Active Reference Card or Selector */}
+                    {activeConditioningImage && conditioningSource === "scene" ? (
+                      <div className="flex items-center gap-2 p-1.5 rounded-md bg-card/80 border border-amber-500/40">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={activeConditioningImage}
+                          alt="Scene Conditioning"
+                          className="h-10 w-16 rounded object-cover border border-amber-400 shrink-0"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <span className="text-[11px] font-semibold text-foreground truncate block">
+                            {activeSceneRefTitle || activeSceneObj?.title || "Scene Reference"}
+                          </span>
+                          <span className="text-[9px] font-mono text-emerald-400">
+                            Conditioning Veo 3.1
+                          </span>
                         </div>
                         <button
                           type="button"
-                          onClick={() => runSynthesis(selectedCharacterName)}
-                          className="text-[9px] font-mono text-accent hover:underline flex items-center gap-1 cursor-pointer"
-                          title="Re-synthesize prompt using current nodes"
+                          onClick={() => {
+                            setActiveConditioningImage(null);
+                            setActiveSceneRefTitle(null);
+                          }}
+                          className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground text-[10px] font-mono cursor-pointer"
+                          title="Clear scene reference"
                         >
-                          <RefreshCw className="h-2.5 w-2.5" />
-                          <span>Re-Synthesize</span>
+                          ✕
                         </button>
                       </div>
-                      <div className="flex flex-wrap gap-1">
-                        {activeNodeContributions.map((contrib) => (
-                          <span
-                            key={contrib.id}
-                            className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${contrib.badgeColor}`}
-                            title={contrib.summary}
-                          >
-                            {contrib.label}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Image Conditioning Controls (Image-to-Video) */}
-                  {activeCharacter && (activeCharacter.imageUrl || activeCharacter.fullBodyImageUrl) && (
-                    <div className="p-2 rounded-lg border border-purple-500/30 bg-purple-950/20 space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-mono uppercase text-purple-300 font-semibold flex items-center gap-1">
-                          <Sparkles className="h-3 w-3 text-accent" />
-                          <span>Veo Image-to-Video Conditioning</span>
+                    ) : (
+                      <div className="flex flex-col gap-1.5">
+                        <span className="text-[10px] font-mono text-muted-foreground">
+                          Pick an image from {activeSceneObj?.title || "active scene"}:
                         </span>
-                        {activeConditioningImage ? (
-                          <Badge variant="outline" className="text-[8px] font-mono border-emerald-500/50 bg-emerald-500/10 text-emerald-300 py-0">
-                            Active Reference
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-[8px] font-mono text-muted-foreground py-0">
-                            Text Only
-                          </Badge>
-                        )}
-                      </div>
 
-                      <div className="flex items-center gap-2">
-                        {activeConditioningImage && (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={activeConditioningImage}
-                            alt="Conditioning reference"
-                            className="h-9 w-9 rounded-md object-cover border border-purple-400 shrink-0"
-                          />
-                        )}
-                        <div className="flex items-center gap-1 flex-1">
-                          {activeCharacter.imageUrl && (
+                        {/* Quick pick buttons of available scene/candidate images */}
+                        <div className="flex flex-wrap gap-1">
+                          {activeSceneObj?.preview_image_url && (
                             <button
                               type="button"
                               onClick={() => {
-                                setActiveConditioningImage(activeCharacter.imageUrl!);
-                                setActiveImageType("face");
+                                setActiveConditioningImage(activeSceneObj.preview_image_url!);
+                                setActiveImageType(null);
+                                setActiveSceneRefTitle(`${activeSceneObj.title} Keyframe`);
                               }}
-                              className={`px-2 py-1 rounded text-[10px] font-mono flex-1 border cursor-pointer transition-colors ${
-                                activeConditioningImage === activeCharacter.imageUrl
-                                  ? "bg-purple-600 border-purple-400 text-white font-semibold"
-                                  : "bg-card border-border text-muted-foreground hover:text-foreground"
-                              }`}
+                              className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-mono bg-card border border-amber-500/40 hover:bg-amber-500/10 text-amber-300 cursor-pointer"
                             >
-                              Face Image
+                              <Star className="h-2.5 w-2.5" />
+                              <span>Scene Keyframe</span>
                             </button>
                           )}
-                          {activeCharacter.fullBodyImageUrl && (
+
+                          {activeSceneObj?.locationCandidates?.map((c) => (
                             <button
+                              key={c.candidate_id}
                               type="button"
                               onClick={() => {
-                                setActiveConditioningImage(activeCharacter.fullBodyImageUrl!);
-                                setActiveImageType("body");
+                                const url =
+                                  c.preview_image_url ||
+                                  "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1280&q=80";
+                                setActiveConditioningImage(url);
+                                setActiveImageType(null);
+                                setActiveSceneRefTitle(c.name);
                               }}
-                              className={`px-2 py-1 rounded text-[10px] font-mono flex-1 border cursor-pointer transition-colors ${
-                                activeConditioningImage === activeCharacter.fullBodyImageUrl
-                                  ? "bg-purple-600 border-purple-400 text-white font-semibold"
-                                  : "bg-card border-border text-muted-foreground hover:text-foreground"
-                              }`}
+                              className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-mono bg-card border border-border hover:border-amber-500/40 hover:bg-secondary text-muted-foreground hover:text-foreground cursor-pointer"
                             >
-                              Body Stance
+                              <Building2 className="h-2.5 w-2.5 text-amber-400" />
+                              <span className="truncate max-w-[120px]">{cleanCandidateName(c.name)}</span>
                             </button>
-                          )}
+                          ))}
+
+                          {activeSceneObj?.sceneImages?.map((img) => (
+                            <button
+                              key={img.id}
+                              type="button"
+                              onClick={() => {
+                                setActiveConditioningImage(img.url);
+                                setActiveImageType(null);
+                                setActiveSceneRefTitle(img.title || "Custom Scene Frame");
+                              }}
+                              className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-mono bg-card border border-border hover:border-purple-500/40 hover:bg-secondary text-muted-foreground hover:text-foreground cursor-pointer"
+                            >
+                              <ImageIcon className="h-2.5 w-2.5 text-purple-400" />
+                              <span className="truncate max-w-[100px]">{img.title || "Scene Look"}</span>
+                            </button>
+                          ))}
+
                           <button
                             type="button"
-                            onClick={() => {
-                              setActiveConditioningImage(null);
-                              setActiveImageType(null);
-                            }}
-                            className={`px-1.5 py-1 rounded text-[10px] font-mono border cursor-pointer transition-colors ${
-                              !activeConditioningImage
-                                ? "bg-secondary border-border text-foreground font-semibold"
-                                : "bg-card/40 border-border/60 text-muted-foreground hover:text-foreground"
-                            }`}
-                            title="Generate text-only without conditioning image"
+                            onClick={() => setStudioMode("scout")}
+                            className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-mono bg-amber-500/15 text-amber-300 border border-amber-500/40 hover:bg-amber-500/25 cursor-pointer font-bold"
                           >
-                            Off
+                            <Plus className="h-2.5 w-2.5" />
+                            <span>Scout / Gen Images</span>
                           </button>
                         </div>
                       </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Connected Canvas Node Context Badges */}
+                {activeNodeContributions.length > 0 && (
+                  <div className="pt-2 border-t border-purple-500/20 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1 text-[10px] font-mono text-purple-300">
+                        <Layers className="h-3 w-3" />
+                        <span>Connected Canvas Nodes ({activeNodeContributions.length})</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => runSynthesis(selectedCharacterName)}
+                        className="text-[9px] font-mono text-accent hover:underline flex items-center gap-1 cursor-pointer"
+                        title="Re-synthesize prompt using current nodes"
+                      >
+                        <RefreshCw className="h-2.5 w-2.5" />
+                        <span>Re-Synthesize</span>
+                      </button>
                     </div>
-                  )}
+                    <div className="flex flex-wrap gap-1">
+                      {activeNodeContributions.map((contrib) => (
+                        <span
+                          key={contrib.id}
+                          className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${contrib.badgeColor}`}
+                          title={contrib.summary}
+                        >
+                          {contrib.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                   {/* Active Character Dossier */}
                   {activeCharacter && (
@@ -1293,7 +1540,6 @@ export function GenerationStudioView({
                     </div>
                   )}
                 </div>
-              )}
 
               {/* Visual Prompt Editor */}
               <div className="flex flex-col gap-1.5">
@@ -1646,6 +1892,7 @@ export function GenerationStudioView({
           )}
         </aside>
       </div>
+      )}
     </div>
   );
 }

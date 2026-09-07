@@ -5,6 +5,7 @@ import { SlateLabel } from "@/components/cinema/slate-label";
 import { Badge } from "@/components/ui/badge";
 import { Activity, TrendingUp, AlertTriangle } from "lucide-react";
 import { formatTimecode, type StoryEventMarker } from "@/components/cinema/timeline-scrubber";
+import { cn } from "@/lib/utils";
 
 interface TensionBeat {
   timeSeconds: number;
@@ -24,6 +25,7 @@ interface TensionCurveViewProps {
   sceneTitle?: string;
   scenePlacementSeconds?: number;
   sceneDurationSeconds?: number;
+  initialScope?: "macro" | "scene";
 }
 
 export function TensionCurveView({
@@ -36,12 +38,14 @@ export function TensionCurveView({
   sceneTitle,
   scenePlacementSeconds,
   sceneDurationSeconds,
+  initialScope = "macro",
 }: TensionCurveViewProps) {
+  const [viewScope, setViewScope] = React.useState<"macro" | "scene">(initialScope);
   const [activeCurveMode, setActiveCurveMode] = React.useState<string>("macro");
 
-  const isSceneMode = Boolean(sceneDurationSeconds && sceneDurationSeconds > 0);
+  const isSceneMode = viewScope === "scene";
   const sceneStart = scenePlacementSeconds ?? 0;
-  const totalDuration = isSceneMode ? sceneDurationSeconds! : (90 * 60);
+  const totalDuration = isSceneMode ? (sceneDurationSeconds || 240) : (90 * 60);
 
   // Dynamic narrative curve beats
   const defaultBeats: TensionBeat[] = React.useMemo(() => {
@@ -168,7 +172,7 @@ export function TensionCurveView({
       { timeSeconds: 76 * 60, tensionScore: 98, title: "Critical Climax", description: "Final confrontation before time runs out", characterFocus: charA },
       { timeSeconds: 90 * 60, tensionScore: 30, title: "Resolution", description: "Sole survivor / final escape resolution", characterFocus: charB },
     ];
-  }, [projectId, characters, events]);
+  }, [projectId, characters, events, isSceneMode, totalDuration, sceneStart]);
 
   // Responsive container observer
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -273,50 +277,90 @@ export function TensionCurveView({
   return (
     <div className={`flex flex-col rounded-xl border border-border bg-card p-4 space-y-4 ${className ?? ""}`}>
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-border pb-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
         <div className="space-y-0.5">
           <div className="flex items-center gap-2">
-            <Activity className="h-4 w-4 text-accent" />
+            <Activity className="h-4 w-4 text-rose-400" />
             <SlateLabel>
               {isSceneMode
                 ? `Scene Dramatic Tension & Beat Pacing ${sceneTitle ? `· ${sceneTitle}` : ""}`
-                : "Dramatic Tension & Pacing Curve"}
+                : "Full 3-Act Narrative Tension Curve (90:00 Movie Arc)"}
             </SlateLabel>
+            <Badge variant="outline" className="text-[10px] font-mono border-rose-500/30 text-rose-300">
+              {isSceneMode ? "4 Scene Beats" : "3 Acts (Exposition · Conflict · Climax)"}
+            </Badge>
           </div>
           <span className="text-xs text-muted-foreground">
             {isSceneMode
               ? `Scene-level micro-pacing curve across 4 dramatic beat phases (+00:00 to +${formatTimecode(totalDuration)})`
-              : "Non-linear pacing analysis indexed against 3-act story structure"}
+              : "Non-linear pacing analysis indexed against 3-act story structure with active scene placement"}
           </span>
         </div>
 
-        {/* Dynamic Character View Mode Switcher */}
-        <div className="flex items-center gap-1 rounded-lg border border-border bg-secondary/40 p-1 text-[11px]">
-          <button
-            type="button"
-            onClick={() => setActiveCurveMode("macro")}
-            className={`px-2 py-0.5 rounded transition-all ${
-              activeCurveMode === "macro"
-                ? "bg-card text-foreground font-semibold shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {isSceneMode ? "Scene Tension" : "Macro Tension"}
-          </button>
-          {characters.slice(0, 3).map((char) => (
+        {/* Scope & Character View Mode Switcher */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* 3-Act vs Scene Scope Switcher */}
+          <div className="flex items-center gap-1 rounded-lg border border-border bg-secondary/50 p-1 text-[11px]">
             <button
-              key={char.name}
               type="button"
-              onClick={() => setActiveCurveMode(char.name.toLowerCase())}
-              className={`px-2 py-0.5 rounded transition-all ${
-                activeCurveMode === char.name.toLowerCase()
-                  ? "bg-accent/20 text-accent font-semibold shadow-sm"
+              onClick={() => setViewScope("macro")}
+              className={cn(
+                "px-2.5 py-1 rounded transition-all font-medium flex items-center gap-1.5 cursor-pointer",
+                !isSceneMode
+                  ? "bg-rose-500/20 text-rose-300 font-semibold border border-rose-500/40 shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
-              }`}
+              )}
             >
-              {char.name} POV
+              <span>Full 3-Act Arc</span>
+              <span className="text-[9px] font-mono opacity-80">(90m)</span>
             </button>
-          ))}
+            <button
+              type="button"
+              onClick={() => setViewScope("scene")}
+              className={cn(
+                "px-2.5 py-1 rounded transition-all font-medium flex items-center gap-1.5 cursor-pointer",
+                isSceneMode
+                  ? "bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/40 shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <span>Scene Micro-Pacing</span>
+              <span className="text-[9px] font-mono opacity-80">
+                (+{formatTimecode(sceneDurationSeconds || 240)})
+              </span>
+            </button>
+          </div>
+
+          {/* Dynamic Character View Mode Switcher */}
+          <div className="flex items-center gap-1 rounded-lg border border-border bg-secondary/40 p-1 text-[11px]">
+            <button
+              type="button"
+              onClick={() => setActiveCurveMode("macro")}
+              className={cn(
+                "px-2 py-0.5 rounded transition-all cursor-pointer",
+                activeCurveMode === "macro"
+                  ? "bg-card text-foreground font-semibold shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Master EKG
+            </button>
+            {characters.slice(0, 3).map((char) => (
+              <button
+                key={char.name}
+                type="button"
+                onClick={() => setActiveCurveMode(char.name.toLowerCase())}
+                className={cn(
+                  "px-2 py-0.5 rounded transition-all cursor-pointer",
+                  activeCurveMode === char.name.toLowerCase()
+                    ? "bg-accent/20 text-accent font-semibold shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {char.name} POV
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -385,6 +429,31 @@ export function TensionCurveView({
                 fill="currentColor"
                 className="text-foreground/[0.015]"
               />
+              {/* Highlight Active Scene Window on 3-Act Timeline */}
+              {Boolean(sceneDurationSeconds && sceneDurationSeconds > 0) && (
+                <g>
+                  <rect
+                    x={paddingX + (sceneStart / totalDuration) * plotWidth}
+                    y={paddingY}
+                    width={Math.max(8, ((sceneDurationSeconds || 240) / totalDuration) * plotWidth)}
+                    height={plotHeight}
+                    fill="#f43f5e"
+                    fillOpacity="0.16"
+                    stroke="#f43f5e"
+                    strokeWidth="1.5"
+                    strokeDasharray="3 3"
+                    className="pointer-events-none"
+                  />
+                  <text
+                    x={paddingX + (sceneStart / totalDuration) * plotWidth + Math.max(8, ((sceneDurationSeconds || 240) / totalDuration) * plotWidth) / 2}
+                    y={svgHeight - paddingY - 8}
+                    textAnchor="middle"
+                    className="fill-rose-400 font-mono text-[9px] font-bold select-none pointer-events-none"
+                  >
+                    ◀ Current Scene ▶
+                  </text>
+                </g>
+              )}
             </>
           )}
 

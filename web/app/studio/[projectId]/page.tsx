@@ -46,6 +46,7 @@ import { ClickHouseToolboxDialog } from "@/components/cinema/clickhouse-toolbox-
 import { AudioStudioView } from "@/components/cinema/audio-studio-view";
 import { VeoVideoDialog } from "@/components/cinema/veo-video-dialog";
 import { GenerationStudioView } from "@/components/cinema/generation-studio-view";
+import { LocationDossierDialog } from "@/components/cinema/location-dossier-dialog";
 import { DirectorLookbookDialog } from "@/components/cinema/director-lookbook-dialog";
 import { CharacterLabDialog } from "@/components/cinema/character-lab-dialog";
 import { ScratchpadDialog } from "@/components/cinema/scratchpad-dialog";
@@ -240,6 +241,8 @@ export default function StudioPage() {
 
   const [projectSettingsOpen, setProjectSettingsOpen] = React.useState(false);
   const [sceneSettingsOpen, setSceneSettingsOpen] = React.useState(false);
+  const [dossierCandidate, setDossierCandidate] = React.useState<any>(null);
+  const [dossierOpen, setDossierOpen] = React.useState<boolean>(false);
 
   // Slates list for navigation
   const [allProjects, setAllProjects] = React.useState<ProjectData[]>([]);
@@ -672,6 +675,9 @@ export default function StudioPage() {
   const handleUpdateNodeDataRef = React.useRef<
     (nodeId: string, newData: Record<string, unknown>) => void
   >(null);
+  const setViewModeRef = React.useRef<
+    (mode: "split" | "canvas-only" | "dock-only") => void
+  >(null);
 
   // Dynamic Blueprint Node Callbacks
   const nodeCallbacks: NodeCallbacks = React.useMemo(
@@ -693,6 +699,7 @@ export default function StudioPage() {
         } else {
           setMainTab("planning");
           setDeckSubTab(subTab as DeckSubTab);
+          setViewModeRef.current?.("split");
         }
       },
       onOpenTableRead: () => {
@@ -1500,6 +1507,10 @@ export default function StudioPage() {
     [topPanelRef, bottomPanelRef, inspectorPanelRef]
   );
 
+  React.useEffect(() => {
+    setViewModeRef.current = setViewMode;
+  }, [setViewMode]);
+
   const toggleSidebar = React.useCallback(() => {
     const panel = inspectorPanelRef.current;
     if (!panel) {
@@ -1520,17 +1531,23 @@ export default function StudioPage() {
   // Two-way synchronization between inspector edits and project state
   const handleUpdateNodeData = React.useCallback(
     (nodeId: string, newData: Record<string, unknown>) => {
-      setNodes((nds) =>
-        nds.map((n) => {
-          if (n.id === nodeId) {
-            return { ...n, data: { ...n.data, ...newData } };
-          }
-          return n;
-        })
-      );
-      setSelectedNode((prev) =>
-        prev && prev.id === nodeId ? { ...prev, data: { ...prev.data, ...newData } } : prev
-      );
+      setNodes((nds) => {
+        const target = nds.find((n) => n.id === nodeId);
+        if (!target) return nds;
+        const hasChange = Object.entries(newData).some(
+          ([key, val]) => target.data?.[key] !== val
+        );
+        if (!hasChange) return nds;
+        return nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, ...newData } } : n));
+      });
+      setSelectedNode((prev) => {
+        if (!prev || prev.id !== nodeId) return prev;
+        const hasChange = Object.entries(newData).some(
+          ([key, val]) => (prev.data as Record<string, unknown>)?.[key] !== val
+        );
+        if (!hasChange) return prev;
+        return { ...prev, data: { ...prev.data, ...newData } };
+      });
 
       // Two-way synchronization with Project State
       if (nodeId.startsWith("node-core-")) {
@@ -1884,6 +1901,7 @@ export default function StudioPage() {
           type: "tensionCurve",
           position: pos,
           data: {
+            peakTension: 88,
             actCount: 3,
             currentSeconds: timeSeconds,
             onOpenDeck: () => {
@@ -1920,6 +1938,81 @@ export default function StudioPage() {
           },
         };
         break;
+      case "location": {
+        const curScene = scenes.find((s) => s.id === activeSceneId) || scenes[0];
+        const sceneCandidates = curScene?.locationCandidates || [];
+        const lockedCand = sceneCandidates.find((c) => c.candidate_id === curScene?.selectedLocationCandidateId);
+        const venueName = lockedCand?.name || curScene?.location || "Industrial Vault Stage A";
+        const regionName = lockedCand?.region || curScene?.shootRegion || "Brooklyn, NY";
+        const dayRate = lockedCand?.estimated_cost?.day_rate || 3200;
+        const permitFee = lockedCand?.estimated_cost?.permit_fee || 450;
+        const candSummaries = sceneCandidates.length > 0
+          ? sceneCandidates.map((c) => ({
+              candidate_id: c.candidate_id,
+              name: c.name,
+              region: c.region,
+              category: c.category,
+              day_rate: c.estimated_cost?.day_rate,
+              permit_fee: c.estimated_cost?.permit_fee,
+              preview_image_url: c.preview_image_url,
+              preview_image_prompt: c.preview_image_prompt,
+              sound_rating: c.stage_specs?.sound_rating,
+            }))
+          : [
+              {
+                candidate_id: "c1",
+                name: venueName,
+                region: regionName,
+                category: "practical",
+                day_rate: dayRate,
+                permit_fee: permitFee,
+              },
+            ];
+
+        newNode = {
+          id,
+          type: "location",
+          position: pos,
+          data: {
+            name: venueName,
+            region: regionName,
+            dayRate,
+            permitFee,
+            isLocked: Boolean(lockedCand),
+            imageUrl: lockedCand?.preview_image_url || curScene?.preview_image_url,
+            candidates: candSummaries,
+            selectedCandidateId: lockedCand?.candidate_id || candSummaries[0]?.candidate_id,
+            onOpenDossier: (candId?: string) => {
+              const matched = sceneCandidates.find((c) => c.candidate_id === candId) || sceneCandidates[0] || (lockedCand as any);
+              if (matched) {
+                setDossierCandidate(matched);
+                setDossierOpen(true);
+              }
+            },
+            onToggleLock: () => {
+              const isCurrentlyLocked = curScene?.selectedLocationCandidateId !== undefined;
+              const nextSelectedId = isCurrentlyLocked
+                ? undefined
+                : (lockedCand?.candidate_id || sceneCandidates[0]?.candidate_id);
+              const updatedScene = {
+                ...curScene,
+                selectedLocationCandidateId: nextSelectedId,
+              };
+              const nextScenes = scenes.map((s) => (s.id === curScene.id ? updatedScene : s));
+              setScenes(nextScenes);
+              saveCurrentProject({ scenes: nextScenes });
+              toast.add({
+                title: isCurrentlyLocked ? "Venue Unlocked" : "Venue Locked",
+                description: isCurrentlyLocked
+                  ? `Unlocked location for Scene ${curScene.sceneNumber}.`
+                  : `Locked "${venueName}" for Scene ${curScene.sceneNumber}.`,
+                type: "success",
+              });
+            },
+          },
+        };
+        break;
+      }
       default:
         return;
     }
@@ -2729,6 +2822,7 @@ export default function StudioPage() {
                   sceneTitle={scenes.find((s) => s.id === activeSceneId)?.title || sceneTitle}
                   scenePlacementSeconds={scenePlacementSeconds}
                   sceneDurationSeconds={sceneDurationSeconds}
+                  initialScope="macro"
                 />
               )}
             </div>
@@ -2975,6 +3069,31 @@ export default function StudioPage() {
             onReturnToStudio={() => setMainTab("planning")}
             initialCameraMotion={stagedCameraMotion}
             initialPromptNote={stagedPromptNote}
+            scenes={scenes}
+            activeSceneId={activeSceneId}
+            onSelectScene={(scId) => {
+              setActiveSceneId(scId);
+              const target = scenes.find((s) => s.id === scId);
+              if (target) {
+                setSceneTitle(target.title);
+                setSceneSummary(target.summary);
+                if (target.screenplayText) setScreenplayText(target.screenplayText);
+              }
+            }}
+            onUpdateScene={(updated) => {
+              const nextScenes = scenes.map((s) => (s.id === updated.id ? updated : s));
+              setScenes(nextScenes);
+              saveCurrentProject({
+                scenes: nextScenes,
+                ...(updated.id === activeSceneId
+                  ? {
+                      sceneTitle: updated.title,
+                      sceneSummary: updated.summary,
+                      screenplayText: updated.screenplayText || screenplayText,
+                    }
+                  : {}),
+              });
+            }}
           />
         )}
 
@@ -3218,6 +3337,44 @@ export default function StudioPage() {
         projectTitle={projectTitle}
         characters={characters}
         screenplayText={screenplayText}
+      />
+
+      {/* Physical Production Location Dossier Dialog */}
+      <LocationDossierDialog
+        candidate={dossierCandidate}
+        isOpen={dossierOpen}
+        onClose={() => setDossierOpen(false)}
+        scene={scenes.find((s) => s.id === activeSceneId) || scenes[0]}
+        currency={(initialProject.currency as any) || "USD"}
+        isLocked={Boolean(
+          dossierCandidate &&
+            scenes.find((s) => s.id === activeSceneId)?.selectedLocationCandidateId === dossierCandidate.candidate_id
+        )}
+        onLockCandidate={(cand) => {
+          const cur = scenes.find((s) => s.id === activeSceneId) || scenes[0];
+          if (cur) {
+            const updated = {
+              ...cur,
+              selectedLocationCandidateId: cand.candidate_id,
+              location: cand.name,
+            };
+            const nextScenes = scenes.map((s) => (s.id === cur.id ? updated : s));
+            setScenes(nextScenes);
+            saveCurrentProject({ scenes: nextScenes });
+          }
+        }}
+        onUnlockCandidate={() => {
+          const cur = scenes.find((s) => s.id === activeSceneId) || scenes[0];
+          if (cur) {
+            const updated = {
+              ...cur,
+              selectedLocationCandidateId: undefined,
+            };
+            const nextScenes = scenes.map((s) => (s.id === cur.id ? updated : s));
+            setScenes(nextScenes);
+            saveCurrentProject({ scenes: nextScenes });
+          }
+        }}
       />
 
       {/* Continuity & Plot-Hole Auditor Modal (ClickHouse Knowledge Firewalls) */}
