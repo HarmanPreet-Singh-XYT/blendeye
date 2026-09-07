@@ -200,10 +200,18 @@ async def execute_showrunner_directive(body: ExecuteDirectiveRequest) -> Execute
             script_text = (s.get('screenplayText') or "").strip()
             script_snip = (script_text[:280] + "...") if len(script_text) > 280 else (script_text or "(No script drafted)")
             script_snip = script_snip.replace('\n', ' ')
+            candidates = s.get('locationCandidates') or []
+            selected_id = s.get('selectedLocationCandidateId')
+            locked_cand = next((c for c in candidates if c.get('candidate_id') == selected_id), None)
+            if locked_cand:
+                rate = locked_cand.get('estimated_cost', {}).get('day_rate', 0)
+                loc_desc = f"Locked: \"{locked_cand.get('name')}\" (${rate}/day in {locked_cand.get('region', 'Base')})"
+            else:
+                loc_desc = f"Setting: \"{s.get('location', 'TBD')}\" (Region: {s.get('shootRegion', 'Base')}, Budget: ${s.get('locationBudget', 'Default')}, Candidates: {len(candidates)})"
             scenes_lines.append(
-                f"  - Scene {sc_num}: \"{s.get('title', 'Scene')}\" ({s.get('slugline', '')}) | Cast: {', '.join(s.get('castPresent', [])) or 'None'} | Stakes: {s.get('summary', 'N/A')}{' [CURRENT ACTIVE SCENE]' if is_active else ''}\n    Script snippet: \"{script_snip}\""
+                f"  - Scene {sc_num}: \"{s.get('title', 'Scene')}\" ({s.get('slugline', '')}) | Location: {loc_desc} | Cast: {', '.join(s.get('castPresent', [])) or 'None'} | Stakes: {s.get('summary', 'N/A')}{' [CURRENT ACTIVE SCENE]' if is_active else ''}\n    Script snippet: \"{script_snip}\""
             )
-        scenes_summary = "Sequence Reel (with script excerpts):\n" + "\n".join(scenes_lines)
+        scenes_summary = "Sequence Reel (with locations & script excerpts):\n" + "\n".join(scenes_lines)
 
     events_summary = ""
     if body.events:
@@ -241,6 +249,12 @@ AVAILABLE ACTIONS YOU CAN EMIT IN "actions":
 21. {{"type": "create_story_event", "atSeconds": 120, "characterName": "Elena", "eventType": "known_fact"|"unaware_of"|"location"|"objective"}}
 22. {{"type": "delete_story_event", "identifier": 120 (atSeconds) | "Elena" | "objective"}}
 23. {{"type": "replace_story_event", "identifier": 120, "replacement": {{"atSeconds": 150, "characterName": "Elena", "eventType": "objective"}}}}
+24. {{"type": "lock_location", "sceneIdentifier": 2, "locationName": "Venue Name", "candidateId": "optional-id"}}
+25. {{"type": "unlock_location", "sceneIdentifier": 2}}
+26. {{"type": "set_scene_location", "sceneIdentifier": 2, "location": "New Location Setting", "shootRegion": "City/Region", "locationBudget": 15000}}
+27. {{"type": "add_location_candidate", "sceneIdentifier": 2, "candidate": {{"name": "Venue Name", "category": "practical"|"studio"|"historic", "region": "City/State", "day_rate": 2500, "permit_fee": 400, "film_precedent": "Title", "auto_lock": True}}}}
+28. {{"type": "set_location_budget", "sceneIdentifier": 2, "budget": 12000, "locationsPct": 20}}
+29. {{"type": "set_shoot_region", "shootRegion": "London, UK" | "New York, NY", "sceneIdentifier": 2}}
 
 PROJECT CONTEXT:
 Title: {body.project_title or "Untitled"}

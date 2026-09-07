@@ -23,7 +23,13 @@ export type StudioActionType =
   | "update_scene"
   | "create_story_event"
   | "delete_story_event"
-  | "replace_story_event";
+  | "replace_story_event"
+  | "lock_location"
+  | "unlock_location"
+  | "set_scene_location"
+  | "add_location_candidate"
+  | "set_location_budget"
+  | "set_shoot_region";
 
 export interface CreateNodeAction {
   type: "create_node";
@@ -204,6 +210,58 @@ export interface ReplaceStoryEventAction {
   };
 }
 
+export interface LockLocationAction {
+  type: "lock_location";
+  sceneIdentifier: number | string;
+  candidateId?: string;
+  locationName?: string;
+}
+
+export interface UnlockLocationAction {
+  type: "unlock_location";
+  sceneIdentifier: number | string;
+}
+
+export interface SetSceneLocationAction {
+  type: "set_scene_location";
+  sceneIdentifier: number | string;
+  location: string;
+  shootRegion?: string;
+  locationBudget?: number;
+}
+
+export interface AddLocationCandidateAction {
+  type: "add_location_candidate";
+  sceneIdentifier: number | string;
+  candidate: {
+    name: string;
+    category?: string;
+    region?: string;
+    day_rate?: number;
+    permit_fee?: number;
+    film_precedent?: string;
+    director?: string;
+    why?: string;
+    practical_notes?: string;
+    environment_type?: "practical" | "studio_stage" | "green_screen" | "virtual_production";
+    stage_specs?: Record<string, any>;
+    auto_lock?: boolean;
+  };
+}
+
+export interface SetLocationBudgetAction {
+  type: "set_location_budget";
+  sceneIdentifier?: number | string;
+  budget?: number;
+  locationsPct?: number;
+}
+
+export interface SetShootRegionAction {
+  type: "set_shoot_region";
+  shootRegion: string;
+  sceneIdentifier?: number | string;
+}
+
 export type StudioAction =
   | CreateNodeAction
   | DeleteNodeAction
@@ -227,7 +285,13 @@ export type StudioAction =
   | UpdateSceneAction
   | CreateStoryEventAction
   | DeleteStoryEventAction
-  | ReplaceStoryEventAction;
+  | ReplaceStoryEventAction
+  | LockLocationAction
+  | UnlockLocationAction
+  | SetSceneLocationAction
+  | AddLocationCandidateAction
+  | SetLocationBudgetAction
+  | SetShootRegionAction;
 
 export interface CitedPrecedent {
   genre: string;

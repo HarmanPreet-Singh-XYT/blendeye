@@ -501,6 +501,183 @@ function applyShowrunnerActionsToProject(
         }
         break;
       }
+      case "lock_location": {
+        const currentScenes: FilmScene[] = [...(currentProj.scenes || [])];
+        const ident = String(action.sceneIdentifier).toLowerCase().trim();
+        const numIdent = parseInt(ident, 10);
+        const targetIdx = currentScenes.findIndex((s, idx) => {
+          if (!isNaN(numIdent) && (s.sceneNumber === numIdent || idx + 1 === numIdent)) return true;
+          if (s.id.toLowerCase() === ident) return true;
+          if (s.title.toLowerCase().includes(ident)) return true;
+          return false;
+        });
+        if (targetIdx !== -1) {
+          const sc = currentScenes[targetIdx];
+          const candId = action.candidateId;
+          const locName = action.locationName?.trim();
+          let matchedCand = sc.locationCandidates?.find((c) => {
+            if (candId && c.candidate_id === candId) return true;
+            if (locName && c.name.toLowerCase().includes(locName.toLowerCase())) return true;
+            return false;
+          });
+          if (matchedCand) {
+            currentScenes[targetIdx] = {
+              ...sc,
+              selectedLocationCandidateId: matchedCand.candidate_id,
+              location: matchedCand.name,
+            };
+            currentProj.scenes = currentScenes;
+            modifiedFields.push(`Locked Location: "${matchedCand.name}" for Scene ${sc.sceneNumber}`);
+          }
+        }
+        break;
+      }
+      case "unlock_location": {
+        const currentScenes: FilmScene[] = [...(currentProj.scenes || [])];
+        const ident = String(action.sceneIdentifier).toLowerCase().trim();
+        const numIdent = parseInt(ident, 10);
+        const targetIdx = currentScenes.findIndex((s, idx) => {
+          if (!isNaN(numIdent) && (s.sceneNumber === numIdent || idx + 1 === numIdent)) return true;
+          if (s.id.toLowerCase() === ident) return true;
+          if (s.title.toLowerCase().includes(ident)) return true;
+          return false;
+        });
+        if (targetIdx !== -1) {
+          currentScenes[targetIdx] = {
+            ...currentScenes[targetIdx],
+            selectedLocationCandidateId: undefined,
+          };
+          currentProj.scenes = currentScenes;
+          modifiedFields.push(`Unlocked Location for Scene ${currentScenes[targetIdx].sceneNumber}`);
+        }
+        break;
+      }
+      case "set_scene_location": {
+        const currentScenes: FilmScene[] = [...(currentProj.scenes || [])];
+        const ident = String(action.sceneIdentifier).toLowerCase().trim();
+        const numIdent = parseInt(ident, 10);
+        const targetIdx = currentScenes.findIndex((s, idx) => {
+          if (!isNaN(numIdent) && (s.sceneNumber === numIdent || idx + 1 === numIdent)) return true;
+          if (s.id.toLowerCase() === ident) return true;
+          if (s.title.toLowerCase().includes(ident)) return true;
+          return false;
+        });
+        if (targetIdx !== -1) {
+          currentScenes[targetIdx] = {
+            ...currentScenes[targetIdx],
+            location: action.location || currentScenes[targetIdx].location,
+            shootRegion: action.shootRegion !== undefined ? action.shootRegion : currentScenes[targetIdx].shootRegion,
+            locationBudget: typeof action.locationBudget === "number" ? action.locationBudget : currentScenes[targetIdx].locationBudget,
+          };
+          currentProj.scenes = currentScenes;
+          modifiedFields.push(`Updated Location for Scene ${currentScenes[targetIdx].sceneNumber}: "${action.location}"`);
+        }
+        break;
+      }
+      case "add_location_candidate": {
+        const currentScenes: FilmScene[] = [...(currentProj.scenes || [])];
+        const ident = String(action.sceneIdentifier).toLowerCase().trim();
+        const numIdent = parseInt(ident, 10);
+        const targetIdx = currentScenes.findIndex((s, idx) => {
+          if (!isNaN(numIdent) && (s.sceneNumber === numIdent || idx + 1 === numIdent)) return true;
+          if (s.id.toLowerCase() === ident) return true;
+          if (s.title.toLowerCase().includes(ident)) return true;
+          return false;
+        });
+        if (targetIdx !== -1) {
+          const sc = currentScenes[targetIdx];
+          const cand = action.candidate;
+          const candId = `cand-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
+          const newCand = {
+            candidate_id: candId,
+            name: cand.name || "Custom Scouted Venue",
+            category: cand.category || "practical",
+            region: cand.region || sc.shootRegion || currentProj.shootRegion || "Production Base",
+            rank_score: 0.93,
+            score_breakdown: { budget_fit: 0.9, creative_fit: 0.94, shootability: 0.92, consolidation_bonus: 0.85 },
+            estimated_cost: {
+              day_rate: cand.day_rate || 2500,
+              permit_fee: cand.permit_fee || 400,
+              currency: currentProj.currency || "USD",
+              notes: cand.practical_notes || "Configured via Showrunner Directive.",
+            },
+            film_precedents: cand.film_precedent ? [{ film: cand.film_precedent, director: cand.director || "Director Comp", why: cand.why || "Cinematic visual precedent" }] : [],
+            practical_notes: cand.practical_notes || "Production venue added by Showrunner AI.",
+            sources: [],
+            search_grounded: false,
+            environment_type: cand.environment_type || "practical",
+            stage_specs: cand.stage_specs,
+            shared_with_scenes: [sc.id],
+          };
+          const autoLock = cand.auto_lock ?? true;
+          currentScenes[targetIdx] = {
+            ...sc,
+            locationCandidates: [newCand, ...(sc.locationCandidates || [])],
+            selectedLocationCandidateId: autoLock ? candId : sc.selectedLocationCandidateId,
+            location: autoLock ? newCand.name : sc.location,
+          };
+          currentProj.scenes = currentScenes;
+          modifiedFields.push(`Added Location: "${newCand.name}" to Scene ${sc.sceneNumber}`);
+        }
+        break;
+      }
+      case "set_location_budget": {
+        if (action.sceneIdentifier !== undefined) {
+          const currentScenes: FilmScene[] = [...(currentProj.scenes || [])];
+          const ident = String(action.sceneIdentifier).toLowerCase().trim();
+          const numIdent = parseInt(ident, 10);
+          const targetIdx = currentScenes.findIndex((s, idx) => {
+            if (!isNaN(numIdent) && (s.sceneNumber === numIdent || idx + 1 === numIdent)) return true;
+            if (s.id.toLowerCase() === ident) return true;
+            if (s.title.toLowerCase().includes(ident)) return true;
+            return false;
+          });
+          if (targetIdx !== -1) {
+            currentScenes[targetIdx] = {
+              ...currentScenes[targetIdx],
+              locationBudget: typeof action.budget === "number" ? action.budget : currentScenes[targetIdx].locationBudget,
+            };
+            currentProj.scenes = currentScenes;
+            modifiedFields.push(`Set Scene ${currentScenes[targetIdx].sceneNumber} Budget: $${action.budget?.toLocaleString()}`);
+          }
+        }
+        if (typeof action.locationsPct === "number") {
+          currentProj.budgetAllocation = {
+            ...(currentProj.budgetAllocation || { locationsPct: 15 }),
+            locationsPct: action.locationsPct,
+          };
+          modifiedFields.push(`Project Location Allocation: ${action.locationsPct}%`);
+        }
+        break;
+      }
+      case "set_shoot_region": {
+        const region = action.shootRegion?.trim();
+        if (region) {
+          if (action.sceneIdentifier !== undefined) {
+            const currentScenes: FilmScene[] = [...(currentProj.scenes || [])];
+            const ident = String(action.sceneIdentifier).toLowerCase().trim();
+            const numIdent = parseInt(ident, 10);
+            const targetIdx = currentScenes.findIndex((s, idx) => {
+              if (!isNaN(numIdent) && (s.sceneNumber === numIdent || idx + 1 === numIdent)) return true;
+              if (s.id.toLowerCase() === ident) return true;
+              if (s.title.toLowerCase().includes(ident)) return true;
+              return false;
+            });
+            if (targetIdx !== -1) {
+              currentScenes[targetIdx] = {
+                ...currentScenes[targetIdx],
+                shootRegion: region,
+              };
+              currentProj.scenes = currentScenes;
+              modifiedFields.push(`Scene ${currentScenes[targetIdx].sceneNumber} Shoot Region: "${region}"`);
+            }
+          } else {
+            currentProj.shootRegion = region;
+            modifiedFields.push(`Production Shoot Region: "${region}"`);
+          }
+        }
+        break;
+      }
     }
   }
 

@@ -153,12 +153,14 @@ import {
   SEED_PROJECTS,
 } from "@/lib/project-store";
 import { ProjectTimeframeDialog } from "@/components/cinema/project-timeframe-dialog";
+import { SceneLocationDock } from "@/components/cinema/scene-location-dock";
+import { cleanCandidateName } from "@/components/cinema/location-board";
 
 export const PRESET_SCENARIOS = SEED_PROJECTS;
 
 type MainStudioTab = "planning" | "simulation" | "generation" | "showrunner";
 type SimulationSubTab = "audio" | "hotseat" | "chemistry";
-type DeckSubTab = "blocking" | "tension";
+type DeckSubTab = "blocking" | "location" | "tension";
 
 export default function StudioPage() {
   const params = useParams();
@@ -2559,6 +2561,26 @@ export default function StudioPage() {
 
                 <button
                   type="button"
+                  onClick={() => setDeckSubTab("location")}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer",
+                    deckSubTab === "location"
+                      ? "bg-accent text-accent-foreground shadow-xs"
+                      : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  )}
+                >
+                  <MapPin className="h-3.5 w-3.5 text-amber-400" />
+                  <span>Scene Location &amp; Scout</span>
+                  {(() => {
+                    const currentScene = scenes.find((s) => s.id === activeSceneId);
+                    return currentScene?.selectedLocationCandidateId ? (
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                    ) : null;
+                  })()}
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => setDeckSubTab("tension")}
                   className={cn(
                     "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer",
@@ -2654,6 +2676,49 @@ export default function StudioPage() {
                   onSendToVeo={handleSendStagingToVeo}
                 />
               )}
+              {deckSubTab === "location" && (() => {
+                const currentScene = scenes.find((s) => s.id === activeSceneId);
+                if (!currentScene) {
+                  return (
+                    <div className="p-8 text-center text-xs text-muted-foreground">
+                      No active scene selected.
+                    </div>
+                  );
+                }
+                const currentProjData: ProjectData = {
+                  ...(getProjectById(projectId) || initialProject),
+                  id: projectId,
+                  title: projectTitle,
+                  genre: genre,
+                  premise: premiseInput,
+                  scenes: scenes,
+                  characters: characters,
+                  shootRegion: initialProject.shootRegion || "Los Angeles, CA",
+                  currency: initialProject.currency || "USD",
+                  budget: initialProject.budget,
+                  budgetAllocation: initialProject.budgetAllocation,
+                };
+                return (
+                  <SceneLocationDock
+                    project={currentProjData}
+                    scene={currentScene}
+                    onUpdateScene={(updated) => {
+                      const nextScenes = scenes.map((s) => (s.id === updated.id ? updated : s));
+                      setScenes(nextScenes);
+                      if (updated.location) {
+                        setPrimaryLocation(updated.location);
+                      }
+                      saveCurrentProject({
+                        scenes: nextScenes,
+                        primaryLocation: updated.location || primaryLocation,
+                      });
+                    }}
+                    onUpdateProject={(upd) => {
+                      saveCurrentProject(upd);
+                    }}
+                  />
+                );
+              })()}
               {deckSubTab === "tension" && (
                 <TensionCurveView
                   currentTimeSeconds={timeSeconds}

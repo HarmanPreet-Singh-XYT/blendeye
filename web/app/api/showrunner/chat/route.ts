@@ -95,8 +95,13 @@ export async function POST(req: NextRequest) {
       const scenesContext = scenesList.length > 0
         ? scenesList
             .map(
-              (s: any, idx: number) =>
-                `- Scene ${s.sceneNumber || idx + 1}: "${s.title || "Scene"}" (${s.slugline || ""}) | Cast: ${(s.castPresent || []).join(", ") || "None"} | Stakes: ${s.summary || "N/A"}${s.id === body.activeSceneId ? " [CURRENT ACTIVE SCENE]" : ""}`
+              (s: any, idx: number) => {
+                const locked = s.locationCandidates?.find((c: any) => c.candidate_id === s.selectedLocationCandidateId);
+                const locInfo = locked
+                  ? `[Locked Location: "${locked.name}" ($${(locked.estimated_cost?.day_rate || 0).toLocaleString()}/day, ${locked.region || s.shootRegion || "Production Base"})]`
+                  : `[Setting: "${s.location || "TBD"}", Region: ${s.shootRegion || body.shootRegion || "Base"}, Budget: $${s.locationBudget ? s.locationBudget.toLocaleString() : "Default"}]`;
+                return `- Scene ${s.sceneNumber || idx + 1}: "${s.title || "Scene"}" (${s.slugline || ""}) | Cast: ${(s.castPresent || []).join(", ") || "None"} | Stakes: ${s.summary || "N/A"} | ${locInfo}${s.id === body.activeSceneId ? " [CURRENT ACTIVE SCENE]" : ""}`;
+              }
             )
             .join("\n")
         : "";
@@ -106,8 +111,9 @@ ACTIVE PRODUCTION SLATE:
 Title: ${body.projectTitle || "Untitled Project"}
 Premise / Logline: ${body.logline || "In ideation"}
 Genre: ${body.genre || "Drama / Thriller"}
+Production Base Shoot Region: ${body.shootRegion || "Los Angeles, CA"}
 Characters: ${characters.length > 0 ? characters.join(", ") : "Ensemble"}
-${scenesContext ? `\nMULTI-SCENE SEQUENCE REEL:\n${scenesContext}\n` : ""}
+${scenesContext ? `\nMULTI-SCENE SEQUENCE REEL (WITH LOCATIONS & BUDGETS):\n${scenesContext}\n` : ""}
 ${precedentsContext ? `\nGROUNDING BENCHMARKS:\n${precedentsContext}\n` : ""}
 ${body.screenplayText ? `\nCURRENT SCRIPT EXCERPT:\n${body.screenplayText.slice(0, 1000)}\n` : ""}
 `;

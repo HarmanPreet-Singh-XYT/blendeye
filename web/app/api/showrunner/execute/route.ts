@@ -31,6 +31,12 @@ AVAILABLE ACTIONS YOU CAN EMIT IN "actions":
 21. {"type": "create_story_event", "atSeconds": 120, "characterName": "Elena", "eventType": "known_fact"|"unaware_of"|"location"|"objective"}
 22. {"type": "delete_story_event", "identifier": 120 (atSeconds) | "Elena" | "objective"}
 23. {"type": "replace_story_event", "identifier": 120, "replacement": {"atSeconds": 150, "characterName": "Elena", "eventType": "objective"}}
+24. {"type": "lock_location", "sceneIdentifier": 2 (sceneNumber) | "scene-id" | "Scene Title", "locationName": "Venue Name", "candidateId": "optional-candidate-id"}
+25. {"type": "unlock_location", "sceneIdentifier": 2 (sceneNumber) | "scene-id"}
+26. {"type": "set_scene_location", "sceneIdentifier": 2, "location": "New Location Setting", "shootRegion": "City/Region", "locationBudget": 12000}
+27. {"type": "add_location_candidate", "sceneIdentifier": 2, "candidate": {"name": "Venue Name", "category": "practical"|"warehouse"|"rooftop"|"vault"|"studio"|"historic", "region": "City/State", "day_rate": 2500, "permit_fee": 400, "film_precedent": "Movie Title", "director": "Director Name", "why": "Why it fits", "practical_notes": "...", "environment_type": "practical"|"studio_stage"|"green_screen", "auto_lock": true}}
+28. {"type": "set_location_budget", "sceneIdentifier": optional 2, "budget": 15000, "locationsPct": 20}
+29. {"type": "set_shoot_region", "shootRegion": "New York, NY" | "London, UK" | "Los Angeles, CA", "sceneIdentifier": optional 2}
 
 OUTPUT FORMAT:
 You MUST respond with a single, valid, raw JSON object matching:
@@ -114,7 +120,11 @@ export async function POST(req: NextRequest) {
             (s: any, idx: number) => {
               const scriptText = (s.screenplayText || "").trim();
               const scriptSnip = scriptText.length > 250 ? scriptText.slice(0, 250) + "..." : (scriptText || "(No script drafted)");
-              return `  - Scene ${s.sceneNumber || idx + 1}: "${s.title || "Scene"}" (${s.slugline || ""}) | Duration: ${s.durationSeconds || 120}s | Cast: ${(s.castPresent || []).join(", ") || "None"} | Stakes: ${s.summary || "N/A"}${s.id === project.activeSceneId ? " [CURRENT ACTIVE SCENE]" : ""}\n    Script snippet: "${scriptSnip.replace(/\n/g, ' ')}"`;
+              const locked = s.locationCandidates?.find((c: any) => c.candidate_id === s.selectedLocationCandidateId);
+              const locInfo = locked
+                ? `Locked Venue: "${locked.name}" ($${(locked.estimated_cost?.day_rate || 0).toLocaleString()}/day, ${locked.region || s.shootRegion || "Production Base"})`
+                : `Setting: "${s.location || "TBD"}" (Region: ${s.shootRegion || project.shootRegion || "Base"}, Budget: $${s.locationBudget ? s.locationBudget.toLocaleString() : "Default"}, Scouted Candidates: ${s.locationCandidates?.length || 0})`;
+              return `  - Scene ${s.sceneNumber || idx + 1}: "${s.title || "Scene"}" (${s.slugline || ""}) | Duration: ${s.durationSeconds || 120}s | Cast: ${(s.castPresent || []).join(", ") || "None"} | Stakes: ${s.summary || "N/A"}${s.id === project.activeSceneId ? " [CURRENT ACTIVE SCENE]" : ""}\n    Location: ${locInfo}\n    Script snippet: "${scriptSnip.replace(/\n/g, ' ')}"`;
             }
           )
           .join("\n")
@@ -134,10 +144,12 @@ CURRENT PROJECT CONTEXT:
 - Genre: ${project.genre || "Drama"}
 - Premise: ${project.premise || "N/A"}
 - Director Style: ${project.directorStyle || "Cinematic"}
+- Production Base Shoot Region: ${project.shootRegion || "Los Angeles, CA"}
+- Budget & Allocation: $${(project.budget || 250000).toLocaleString()} (Locations: ${project.budgetAllocation?.locationsPct ?? 15}%)
 - Active Scene Title: ${project.sceneTitle || "Scene 01"}
 - Active Scene Stakes: ${project.sceneSummary || "N/A"}
 - Characters: ${(project.characters || []).map((c: any) => `${c.name} (${c.archetype}, ${c.role})`).join(", ") || "None"}
-- Multi-Scene Sequence Reel (with script snippets):
+- Multi-Scene Sequence Reel (with locations & script snippets):
 ${scenesContext}
 - Timeline Story Beats:
 ${eventsContext}

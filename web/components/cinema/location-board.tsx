@@ -84,7 +84,7 @@ interface QAMessage {
 }
 
 // Clean helper to strip redundant "City, State — " prefix from location names
-function cleanCandidateName(name: string): string {
+export function cleanCandidateName(name: string): string {
   if (!name) return "";
   const parts = name.split(" — ");
   if (parts.length > 1 && parts[0].length < 30) {
@@ -352,7 +352,7 @@ export const STUDIO_STAGE_TEMPLATES: StudioStageTemplate[] = [
   },
 ];
 
-function synthesizeLocationVisualPrompt(
+export function synthesizeLocationVisualPrompt(
   candidate: LocationCandidate,
   scene?: FilmScene,
   stylePresetName?: string,
@@ -454,6 +454,19 @@ export function LocationBoard({
   );
   const [customSetNotes, setCustomSetNotes] = React.useState(STUDIO_STAGE_TEMPLATES[0].description);
   const [autoLockStudioSet, setAutoLockStudioSet] = React.useState(true);
+
+  // Custom Location Modal State
+  const [isAddCustomLocationOpen, setIsAddCustomLocationOpen] = React.useState(false);
+  const [customLocName, setCustomLocName] = React.useState("");
+  const [customLocCategory, setCustomLocCategory] = React.useState("practical");
+  const [customLocRegion, setCustomLocRegion] = React.useState("");
+  const [customLocDayRate, setCustomLocDayRate] = React.useState("2000");
+  const [customLocPermitFee, setCustomLocPermitFee] = React.useState("300");
+  const [customLocFilmPrecedent, setCustomLocFilmPrecedent] = React.useState("");
+  const [customLocDirector, setCustomLocDirector] = React.useState("");
+  const [customLocWhy, setCustomLocWhy] = React.useState("");
+  const [customLocPracticalNotes, setCustomLocPracticalNotes] = React.useState("");
+  const [customLocAutoLock, setCustomLocAutoLock] = React.useState(true);
 
   // Candidate Comparison Modal State
   const [comparingCandidateIds, setComparingCandidateIds] = React.useState<string[]>([]);
@@ -1097,6 +1110,104 @@ export function LocationBoard({
     });
   };
 
+  // Add Custom Location Candidate to Selected Scene
+  const handleAddCustomLocation = () => {
+    if (!selectedScene) return;
+
+    const trimmedName = customLocName.trim();
+    if (!trimmedName) {
+      toast.add({
+        title: "Location Name Required",
+        description: "Please enter a location name or venue title.",
+        type: "error",
+      });
+      return;
+    }
+
+    const candId = `custom-loc-${Date.now()}`;
+    const dayRateNum = Number(customLocDayRate) || 2000;
+    const permitFeeNum = Number(customLocPermitFee) || 300;
+    const regionVal =
+      customLocRegion.trim() || selectedScene.shootRegion || productionBase;
+
+    const effectiveSceneBudget =
+      selectedScene.locationBudget ||
+      Math.max(1000, Math.round(totalLocationBudget / Math.max(1, scenes.length)));
+
+    const newCand: LocationCandidate = {
+      candidate_id: candId,
+      name: trimmedName,
+      region: regionVal,
+      category: customLocCategory.trim().toLowerCase() || "practical",
+      environment_type: "practical",
+      rank_score: 0.92,
+      score_breakdown: {
+        budget_fit: dayRateNum <= effectiveSceneBudget ? 0.95 : 0.75,
+        creative_fit: 0.92,
+        shootability: 0.9,
+        consolidation_bonus: 0.85,
+      },
+      estimated_cost: {
+        day_rate: dayRateNum,
+        permit_fee: permitFeeNum,
+        currency: currency,
+        notes: `Custom scouted venue in ${regionVal}.`,
+      },
+      shared_with_scenes: [selectedScene.id],
+      film_precedents: customLocFilmPrecedent.trim()
+        ? [
+            {
+              film: customLocFilmPrecedent.trim(),
+              director: customLocDirector.trim() || "Director Comp",
+              why: customLocWhy.trim() || "Atmospheric visual and staging reference",
+            },
+          ]
+        : [],
+      practical_notes: customLocPracticalNotes.trim() || "User-added production location.",
+      sources: [],
+      search_grounded: false,
+    };
+
+    const updatedScenes: FilmScene[] = scenes.map((s) => {
+      if (s.id === selectedScene.id) {
+        const existing = s.locationCandidates || [];
+        const shouldLock = customLocAutoLock || !s.selectedLocationCandidateId;
+        return {
+          ...s,
+          locationCandidates: [newCand, ...existing],
+          selectedLocationCandidateId: shouldLock ? candId : s.selectedLocationCandidateId,
+          location: shouldLock ? trimmedName : s.location,
+        };
+      }
+      return s;
+    });
+
+    const updated: ProjectData = {
+      ...currentProject,
+      scenes: updatedScenes,
+      updatedAt: Date.now(),
+    };
+
+    setCurrentProject(updated);
+    saveProject(updated);
+    onUpdateProject?.(updated);
+
+    setIsAddCustomLocationOpen(false);
+    setCustomLocName("");
+    setCustomLocFilmPrecedent("");
+    setCustomLocDirector("");
+    setCustomLocWhy("");
+    setCustomLocPracticalNotes("");
+
+    toast.add({
+      title: "Location Added",
+      description: `Added "${trimmedName}" to Scene ${selectedScene.sceneNumber}${
+        customLocAutoLock ? " and set as active location." : "."
+      }`,
+      type: "success",
+    });
+  };
+
   // Quick edit scene region / budget
   const handleSaveSceneQuickEdit = () => {
     if (!editingScene) return;
@@ -1525,6 +1636,23 @@ export function LocationBoard({
             <span>+ Studio / Cyc Set</span>
           </Button>
 
+          {/* Add Custom Location Button */}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              if (selectedScene) {
+                setCustomLocRegion(selectedScene.shootRegion || productionBase);
+              }
+              setIsAddCustomLocationOpen(true);
+            }}
+            className="h-8 text-xs font-semibold gap-1.5 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10 bg-secondary/20 cursor-pointer shadow-xs whitespace-nowrap shrink-0 px-3"
+            title="Manually add a custom location candidate to this scene"
+          >
+            <Plus className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+            <span>+ Add Location</span>
+          </Button>
+
           {/* Scout Real-World Locations Button */}
           <Button
             size="sm"
@@ -1925,18 +2053,32 @@ export function LocationBoard({
                       })}
                     </div>
 
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setCustomStudioRegion(selectedScene.shootRegion || productionBase);
-                        setIsAddStudioModalOpen(true);
-                      }}
-                      className="h-6 text-[10px] px-2.5 gap-1 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10 shrink-0 font-semibold cursor-pointer ml-auto"
-                    >
-                      <Plus className="h-2.5 w-2.5" />
-                      <span>+ Custom Studio/Cyc</span>
-                    </Button>
+                    <div className="flex items-center gap-1.5 ml-auto">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setCustomLocRegion(selectedScene.shootRegion || productionBase);
+                          setIsAddCustomLocationOpen(true);
+                        }}
+                        className="h-6 text-[10px] px-2.5 gap-1 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10 shrink-0 font-semibold cursor-pointer"
+                      >
+                        <Plus className="h-2.5 w-2.5" />
+                        <span>+ Add Location</span>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setCustomStudioRegion(selectedScene.shootRegion || productionBase);
+                          setIsAddStudioModalOpen(true);
+                        }}
+                        className="h-6 text-[10px] px-2.5 gap-1 border-border text-muted-foreground hover:text-foreground shrink-0 font-semibold cursor-pointer"
+                      >
+                        <Plus className="h-2.5 w-2.5" />
+                        <span>+ Studio/Cyc</span>
+                      </Button>
+                    </div>
                   </div>
                 )}
 
@@ -2024,13 +2166,26 @@ export function LocationBoard({
                         size="sm"
                         variant="outline"
                         onClick={() => {
-                          setCustomStudioRegion(selectedScene.shootRegion || productionBase);
-                          setIsAddStudioModalOpen(true);
+                          setCustomLocRegion(selectedScene.shootRegion || productionBase);
+                          setIsAddCustomLocationOpen(true);
                         }}
                         className="text-xs gap-1.5 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10 cursor-pointer"
                       >
                         <Plus className="h-3 w-3" />
-                        <span>+ Add Studio / Green Screen</span>
+                        <span>+ Add Location</span>
+                      </Button>
+
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setCustomStudioRegion(selectedScene.shootRegion || productionBase);
+                          setIsAddStudioModalOpen(true);
+                        }}
+                        className="text-xs gap-1.5 border-border hover:bg-secondary/40 cursor-pointer"
+                      >
+                        <Layers className="h-3 w-3" />
+                        <span>+ Studio Stage</span>
                       </Button>
                     </div>
                   </div>
@@ -3797,6 +3952,178 @@ export function LocationBoard({
             >
               <Plus className="h-3.5 w-3.5" />
               <span>Add Stage to Scene {selectedScene?.sceneNumber}</span>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── ADD CUSTOM LOCATION MODAL ── */}
+      <Dialog open={isAddCustomLocationOpen} onOpenChange={setIsAddCustomLocationOpen}>
+        <DialogContent className="sm:max-w-md bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-bold flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-emerald-400" />
+              <span>Add Custom Location to Scene {selectedScene?.sceneNumber}</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Manually add a specific venue, practical location, or scouted site to this scene&apos;s candidate shortlist.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 pt-2">
+            {/* Location Name */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-mono uppercase text-muted-foreground block">
+                Venue / Location Name *
+              </label>
+              <Input
+                value={customLocName}
+                onChange={(e) => setCustomLocName(e.target.value)}
+                placeholder="e.g. The Bradbury Building, Los Angeles"
+                className="h-8 text-xs bg-background"
+                autoFocus
+              />
+            </div>
+
+            {/* Category & Region */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <label className="text-[10px] font-mono uppercase text-muted-foreground block">
+                  Category
+                </label>
+                <select
+                  value={customLocCategory}
+                  onChange={(e) => setCustomLocCategory(e.target.value)}
+                  className="w-full h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground cursor-pointer"
+                >
+                  <option value="warehouse">Warehouse / Industrial</option>
+                  <option value="rooftop">Rooftop / Skyline</option>
+                  <option value="vault">Vault / Secure Room</option>
+                  <option value="subterranean">Subterranean / Bunker</option>
+                  <option value="residential">Residential / Apartment</option>
+                  <option value="diner">Diner / Restaurant</option>
+                  <option value="office">Office / Corporate</option>
+                  <option value="exterior-street">Exterior Street / Alley</option>
+                  <option value="transit">Transit / Station / Subway</option>
+                  <option value="park">Park / Waterfront</option>
+                  <option value="historic">Historic / Landmark</option>
+                  <option value="practical">Other Practical Venue</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-mono uppercase text-muted-foreground block">
+                  Region / City
+                </label>
+                <Input
+                  value={customLocRegion}
+                  onChange={(e) => setCustomLocRegion(e.target.value)}
+                  placeholder={selectedScene?.shootRegion || productionBase}
+                  className="h-8 text-xs bg-background"
+                />
+              </div>
+            </div>
+
+            {/* Costs */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <label className="text-[10px] font-mono uppercase text-muted-foreground block">
+                  Estimated Day Rate ({currency})
+                </label>
+                <Input
+                  type="number"
+                  value={customLocDayRate}
+                  onChange={(e) => setCustomLocDayRate(e.target.value)}
+                  placeholder="2000"
+                  className="h-8 text-xs font-mono bg-background"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-mono uppercase text-muted-foreground block">
+                  Permit Fee ({currency})
+                </label>
+                <Input
+                  type="number"
+                  value={customLocPermitFee}
+                  onChange={(e) => setCustomLocPermitFee(e.target.value)}
+                  placeholder="300"
+                  className="h-8 text-xs font-mono bg-background"
+                />
+              </div>
+            </div>
+
+            {/* Optional Precedent */}
+            <div className="space-y-1 pt-1 border-t border-border/50">
+              <label className="text-[10px] font-mono uppercase text-muted-foreground block">
+                Cinematic Precedent (Optional)
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  value={customLocFilmPrecedent}
+                  onChange={(e) => setCustomLocFilmPrecedent(e.target.value)}
+                  placeholder="Film Title (e.g. Heat)"
+                  className="h-8 text-xs bg-background"
+                />
+                <Input
+                  value={customLocDirector}
+                  onChange={(e) => setCustomLocDirector(e.target.value)}
+                  placeholder="Director (e.g. Michael Mann)"
+                  className="h-8 text-xs bg-background"
+                />
+              </div>
+              <Input
+                value={customLocWhy}
+                onChange={(e) => setCustomLocWhy(e.target.value)}
+                placeholder="Why it works (e.g. Strong architectural sightlines)"
+                className="h-8 text-xs bg-background mt-1"
+              />
+            </div>
+
+            {/* Practical Notes */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-mono uppercase text-muted-foreground block">
+                Practical Logistics &amp; Constraints (Optional)
+              </label>
+              <Input
+                value={customLocPracticalNotes}
+                onChange={(e) => setCustomLocPracticalNotes(e.target.value)}
+                placeholder="e.g. Loading dock on alley; night access only"
+                className="h-8 text-xs bg-background"
+              />
+            </div>
+
+            {/* Auto Lock Checkbox */}
+            <div className="flex items-center gap-2 pt-1">
+              <input
+                type="checkbox"
+                id="boardAutoLockCheck"
+                checked={customLocAutoLock}
+                onChange={(e) => setCustomLocAutoLock(e.target.checked)}
+                className="rounded border-border h-3.5 w-3.5 text-accent cursor-pointer"
+              />
+              <label htmlFor="boardAutoLockCheck" className="text-[11px] text-foreground cursor-pointer select-none">
+                Immediately lock this as the active location for Scene {selectedScene?.sceneNumber}
+              </label>
+            </div>
+          </div>
+
+          <DialogFooter className="pt-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setIsAddCustomLocationOpen(false)}
+              className="h-8 text-xs cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleAddCustomLocation}
+              disabled={!customLocName.trim()}
+              className="h-8 text-xs font-semibold bg-accent text-accent-foreground hover:bg-accent/90 cursor-pointer"
+            >
+              Add Location to Scene
             </Button>
           </DialogFooter>
         </DialogContent>

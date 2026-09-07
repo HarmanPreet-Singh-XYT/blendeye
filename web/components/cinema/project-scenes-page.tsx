@@ -28,6 +28,10 @@ import {
   ExternalLink,
   Pencil,
   Settings2,
+  DollarSign,
+  Building2,
+  Camera,
+  CheckCircle2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -36,7 +40,8 @@ import { CreateSceneDialog } from "@/components/cinema/create-scene-dialog";
 import { EditProjectDialog } from "@/components/cinema/edit-project-dialog";
 import { BridgeSceneDialog } from "@/components/cinema/bridge-scene-dialog";
 import { StripboardView } from "@/components/cinema/stripboard-view";
-import { LocationBoard } from "@/components/cinema/location-board";
+import { LocationBoard, cleanCandidateName } from "@/components/cinema/location-board";
+import { LocationDossierDialog } from "@/components/cinema/location-dossier-dialog";
 import { TerritoryHeatmapView } from "@/components/cinema/territory-heatmap-view";
 import { ShowrunnerChat, type ExtendedShowrunnerMessage } from "@/components/cinema/showrunner-chat";
 import { SequenceTimelineView } from "@/components/cinema/sequence-timeline-view";
@@ -47,7 +52,9 @@ import {
   type ProjectData,
   type FilmScene,
   type ProjectCharacter,
+  type LocationCandidate,
   saveProject,
+  formatCurrency,
 } from "@/lib/project-store";
 import { cn } from "@/lib/utils";
 
@@ -84,6 +91,7 @@ export function ProjectScenesPage({
   const [sceneToEdit, setSceneToEdit] = React.useState<FilmScene | null>(null);
   const [isGeneratingBridge, setIsGeneratingBridge] = React.useState<number | null>(null);
   const [bridgeDialogIndex, setBridgeDialogIndex] = React.useState<number | null>(null);
+  const [dossierState, setDossierState] = React.useState<{ candidate: LocationCandidate; scene: FilmScene } | null>(null);
 
   // Sync state if project changes
   React.useEffect(() => {
@@ -1006,6 +1014,121 @@ export function ProjectScenesPage({
                           </p>
                         </div>
 
+                        {/* Production Details: Location, Budget, Shoot Region & Keyframe */}
+                        {(() => {
+                          const lockedCandidate = scene.locationCandidates?.find(
+                            (c) => c.candidate_id === scene.selectedLocationCandidateId
+                          );
+                          const currency = currentProject.currency || "USD";
+                          const defaultBudget = Math.round(
+                            (((currentProject.budgetAllocation?.locationsPct ?? 15) / 100) *
+                              (currentProject.budget || 250000)) /
+                              Math.max(1, scenes.length)
+                          );
+                          const effectiveBudget =
+                            scene.locationBudget !== undefined ? scene.locationBudget : defaultBudget;
+
+                          return (
+                            <div className="flex flex-wrap items-center justify-between gap-3 p-2.5 rounded-lg bg-secondary/35 border border-border/70 text-xs">
+                              <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+                                {/* Location Setting & Locked Candidate */}
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <MapPin className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                                  {lockedCandidate ? (
+                                    <>
+                                      <span
+                                        onClick={() => setDossierState({ candidate: lockedCandidate, scene })}
+                                        className="text-[11px] font-semibold text-foreground cursor-pointer hover:text-accent hover:underline transition-colors"
+                                        title="Click to view complete production dossier, acoustics & specs"
+                                      >
+                                        {cleanCandidateName(lockedCandidate.name)}
+                                      </span>
+                                      <Badge
+                                        variant="outline"
+                                        onClick={() => setDossierState({ candidate: lockedCandidate, scene })}
+                                        className="text-[9px] py-0 px-1 border-emerald-500/40 bg-emerald-500/10 text-emerald-300 font-mono flex items-center gap-0.5 cursor-pointer hover:bg-emerald-500/20"
+                                        title="Click to view venue specs"
+                                      >
+                                        <CheckCircle2 className="h-2.5 w-2.5 text-emerald-400" />
+                                        Locked (${(lockedCandidate.estimated_cost?.day_rate || 0).toLocaleString()}/day)
+                                      </Badge>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => setDossierState({ candidate: lockedCandidate, scene })}
+                                        className="h-5 px-1.5 text-[10px] gap-1 font-semibold text-accent hover:bg-accent/15 rounded cursor-pointer"
+                                        title="Inspect acoustic isolation, electrical Camlock power, permit fees, and film precedents"
+                                      >
+                                        <FileText className="h-2.5 w-2.5" />
+                                        <span>Venue Specs</span>
+                                      </Button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span className="text-[11px] font-semibold text-foreground">
+                                        {scene.location || "Set Location"}
+                                      </span>
+                                      <Badge variant="outline" className="text-[9px] py-0 px-1 text-muted-foreground font-mono">
+                                        Not Locked
+                                      </Badge>
+                                      {scene.locationCandidates && scene.locationCandidates.length > 0 && (
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          onClick={() => {
+                                            if (scene.locationCandidates && scene.locationCandidates[0]) {
+                                              setDossierState({ candidate: scene.locationCandidates[0], scene });
+                                            }
+                                          }}
+                                          className="h-5 px-1.5 text-[10px] gap-1 font-semibold text-muted-foreground hover:text-accent rounded cursor-pointer"
+                                          title="View candidate venue specs"
+                                        >
+                                          <FileText className="h-2.5 w-2.5" />
+                                          <span>{scene.locationCandidates.length} Options</span>
+                                        </Button>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+
+                                {/* Shoot Region */}
+                                <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                                  <span className="font-mono text-[10px] uppercase text-muted-foreground/80">Region:</span>
+                                  <span className="text-foreground font-medium">
+                                    {scene.shootRegion || currentProject.shootRegion || "Production Base"}
+                                  </span>
+                                </div>
+
+                                {/* Location Budget */}
+                                <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                                  <span className="font-mono text-[10px] uppercase text-muted-foreground/80">Budget:</span>
+                                  <span className="text-emerald-400 font-mono font-semibold">
+                                    {formatCurrency(effectiveBudget, currency)}
+                                  </span>
+                                  {scene.locationBudget !== undefined && (
+                                    <span className="text-[9px] text-muted-foreground font-mono">(override)</span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Right: Keyframe thumbnail or preview */}
+                              {lockedCandidate?.preview_image_url && (
+                                <div
+                                  onClick={() => setDossierState({ candidate: lockedCandidate, scene })}
+                                  className="h-8 w-14 rounded overflow-hidden border border-border/80 bg-black shrink-0 relative shadow-2xs cursor-pointer group hover:ring-1 hover:ring-accent"
+                                  title="Click to view 16:9 visual concept look and specs"
+                                >
+                                  <img
+                                    src={lockedCandidate.preview_image_url}
+                                    alt="Keyframe"
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+
                         {/* Characters Present & Specific Scene Roles */}
                         {scene.castPresent && scene.castPresent.length > 0 && (
                           <div className="space-y-2 pt-1 border-t border-border/40">
@@ -1338,6 +1461,37 @@ export function ProjectScenesPage({
         isGenerating={isGeneratingBridge !== null}
         onGenerateAI={handleGenerateBridgeAI}
         onInsertBlank={handleInsertBlankBridge}
+      />
+
+      {/* Location Production Dossier & Specs Dialog */}
+      <LocationDossierDialog
+        candidate={dossierState?.candidate || null}
+        isOpen={Boolean(dossierState)}
+        onClose={() => setDossierState(null)}
+        currency={currentProject.currency || "USD"}
+        scene={dossierState?.scene}
+        isLocked={
+          dossierState
+            ? dossierState.scene.selectedLocationCandidateId === dossierState.candidate.candidate_id
+            : false
+        }
+        onLockCandidate={(cand) => {
+          if (!dossierState) return;
+          const updatedScene: FilmScene = {
+            ...dossierState.scene,
+            selectedLocationCandidateId: cand.candidate_id,
+            location: cleanCandidateName(cand.name),
+          };
+          handleUpdateScene(updatedScene, false);
+        }}
+        onUnlockCandidate={() => {
+          if (!dossierState) return;
+          const updatedScene: FilmScene = {
+            ...dossierState.scene,
+            selectedLocationCandidateId: undefined,
+          };
+          handleUpdateScene(updatedScene, false);
+        }}
       />
     </div>
   );
