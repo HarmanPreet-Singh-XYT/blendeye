@@ -362,6 +362,156 @@ export const GENRE_OPTIONS: GenreOption[] = [
   },
 ];
 
+export type SupportedCurrency = "USD" | "EUR" | "GBP" | "CAD" | "AUD" | "JPY";
+export type BudgetCapPolicy = "advisory" | "hard_block";
+
+export interface FilmPrecedent {
+  film: string;
+  director: string;
+  why: string;
+}
+
+export interface ScoreBreakdown {
+  budget_fit: number;
+  creative_fit: number;
+  shootability: number;
+  consolidation_bonus: number;
+}
+
+export interface EstimatedCost {
+  day_rate: number;
+  permit_fee: number;
+  currency: SupportedCurrency;
+  notes?: string;
+}
+
+export interface LocationSource {
+  title: string;
+  url: string;
+}
+
+export interface DetailedCostItem {
+  day_rate: number;
+  permit_fee: number;
+  fire_or_police_monitor?: number;
+  security_or_site_rep?: number;
+  basecamp_parking?: number;
+  cleaning_deposit?: number;
+  crew_travel_zone?: string;
+  total_comprehensive?: number;
+}
+
+export interface FilmmakerReview {
+  author: string;
+  role: string;
+  rating: number;
+  date?: string;
+  quote: string;
+  project_type?: string;
+}
+
+export interface LocalProductionEconomy {
+  studio_zone_status: string;
+  tax_incentive?: string;
+  nearby_vendors?: string[];
+  accommodations_and_crew_hub?: string;
+}
+
+export type StageType =
+  | "practical"
+  | "soundstage"
+  | "greenscreen_cyc"
+  | "bluescreen_cyc"
+  | "virtual_production"
+  | "custom_build";
+
+export interface StageSpecs {
+  stage_type: StageType;
+  grid_height?: string; // e.g. "24 ft clearance to lighting perms"
+  square_footage?: number; // e.g. 4500
+  dimensions?: string; // e.g. "60' x 45' x 24'H"
+  cyc_type?: "none" | "green_screen" | "blue_screen" | "white_cyc" | "blackout" | "led_volume";
+  cyc_dimensions?: string; // e.g. "3-wall infinite green cyc (45'W x 35'D x 20'H)"
+  lighting_grid?: string; // e.g. "Motorized DMX truss with pre-hung Arri SkyPanel space lights"
+  power_capacity?: string; // e.g. "1200A 3-Phase Camlock distribution"
+  sound_rating?: string; // e.g. "NC-25 Sound Isolated (Certified Soundstage)"
+  load_in_access?: string; // e.g. "14' x 16' Elephant Door with drive-in vehicle ramp"
+  paint_or_restoration_fee?: number; // e.g. 500 (chroma green fresh coat / restoration fee)
+  virtual_production_engine?: string; // e.g. "Unreal Engine 5.4 / Brompton SX40 / Disguise vx4"
+  custom_set_notes?: string;
+}
+
+export interface LocationCandidate {
+  candidate_id: string;
+  name: string;
+  region: string;
+  category: string;
+  rank_score: number;
+  score_breakdown: ScoreBreakdown;
+  estimated_cost: EstimatedCost;
+  shared_with_scenes: string[];
+  film_precedents: FilmPrecedent[];
+  practical_notes: string;
+  sources: LocationSource[];
+  search_grounded: boolean;
+
+  // In-depth production parameters
+  pros?: string[];
+  cons?: string[];
+  reviews?: FilmmakerReview[];
+  detailed_costs?: DetailedCostItem;
+  local_economy?: LocalProductionEconomy;
+  sound_and_acoustics?: string;
+  power_specs?: string;
+
+  // Studio & Green Screen Stage Specifications
+  stage_specs?: StageSpecs;
+  environment_type?: "practical" | "studio_stage" | "green_screen" | "virtual_production" | "custom_build";
+
+  // Cinematic Scene Visual Preview Keyframe
+  preview_image_url?: string;
+  preview_image_prompt?: string;
+  preview_style_preset?: string;
+  preview_camera_framing?: string;
+}
+
+export interface LocationCluster {
+  cluster_id: string;
+  name: string;
+  region: string;
+  category: string;
+  scene_ids: string[];
+  candidate_id: string;
+  notes: string;
+  estimated_savings?: string;
+}
+
+export interface ProjectBudgetAllocation {
+  locationsPct: number;
+  locationsAmount?: number;
+  [key: string]: unknown;
+}
+
+export const CURRENCY_SYMBOLS: Record<SupportedCurrency, string> = {
+  USD: "$",
+  EUR: "€",
+  GBP: "£",
+  CAD: "CA$",
+  AUD: "A$",
+  JPY: "¥",
+};
+
+export function formatCurrency(amount: number, currency: SupportedCurrency = "USD"): string {
+  const sym = CURRENCY_SYMBOLS[currency] || "$";
+  if (amount >= 1_000_000) {
+    return `${sym}${(amount / 1_000_000).toFixed(1)}M`;
+  }
+  if (amount >= 1_000) {
+    return `${sym}${(amount / 1_000).toFixed(0)}K`;
+  }
+  return `${sym}${Math.round(amount).toLocaleString()}`;
+}
+
 export interface FilmScene {
   id: string;
   sceneNumber: number;
@@ -378,6 +528,10 @@ export interface FilmScene {
   coreSecret?: string;
   floorPlanPreset?: string;
   isBridge?: boolean;
+  shootRegion?: string; // per-scene regional/location override
+  locationBudget?: number; // per-scene budget override
+  selectedLocationCandidateId?: string;
+  locationCandidates?: LocationCandidate[];
   nodes?: Node[];
   edges?: Edge[];
   events?: StoryEventMarker[];
@@ -405,6 +559,13 @@ export interface ProjectData {
   directorStyle?: string;
   coreSecret?: string;
   primaryLocation?: string;
+  shootRegion?: string; // production base city / region (e.g. "Los Angeles, CA")
+  currency?: SupportedCurrency;
+  budget?: number; // total production budget
+  budgetPerShootDayUsd?: number; // day rate in project currency
+  budgetAllocation?: ProjectBudgetAllocation;
+  budgetCapPolicy?: BudgetCapPolicy; // "advisory" | "hard_block"
+  locationClusters?: LocationCluster[];
   targetTerritories?: string[];
   povScripts?: Record<string, string>; // characterName -> POV script
   scratchpadNotes?: ScratchpadNote[];
@@ -427,6 +588,15 @@ export const SEED_PROJECTS: ProjectData[] = [
     sceneTitle: "The Vault — Scene 04",
     sceneSummary:
       "Marcus searches his vest for the sub-level keys. Elena refuses to make eye contact while Teo watches the perimeter corridor.",
+    currency: "USD",
+    budget: 850_000,
+    budgetPerShootDayUsd: 85_000,
+    shootRegion: "Los Angeles, CA",
+    budgetCapPolicy: "advisory",
+    budgetAllocation: {
+      locationsPct: 15,
+      locationsAmount: 127_500,
+    },
     screenplayText: `INT. UNDERGROUND VAULT - NIGHT
 
 Thick reinforced steel. Blue auxiliary emergency lights hum.
@@ -1415,6 +1585,12 @@ export interface CreateProjectOptions {
   directorStyle?: string;
   coreSecret?: string;
   primaryLocation?: string;
+  shootRegion?: string;
+  currency?: SupportedCurrency;
+  budget?: number;
+  budgetPerShootDayUsd?: number;
+  budgetAllocation?: ProjectBudgetAllocation;
+  budgetCapPolicy?: BudgetCapPolicy;
   targetTerritories?: string[];
   customCharacters?: ProjectCharacter[];
   narrativeFormat?: NarrativeFormat;
@@ -1467,69 +1643,81 @@ export function createNewProjectEntry(data: CreateProjectOptions): ProjectData {
   const c2 = initialChars[1]?.name || "Counterpart";
   const totalRuntimeSec = runtimeMins * 60;
 
+  const totalBudget = data.budget ?? 850_000;
+  const locPct = data.budgetAllocation?.locationsPct ?? 15;
+  const locBudget = data.budgetAllocation?.locationsAmount ?? Math.round(totalBudget * (locPct / 100));
+
   const defaultScenes: FilmScene[] = [
     {
-      id: `${newPid}-sc-01`,
+      id: `${newPid}-scene-01`,
       sceneNumber: 1,
-      title: `Rendezvous at ${loc}`,
+      title: "Opening Collision",
       slugline: `INT. ${locUpper} - NIGHT`,
-      summary: `${c1} initiates the operation. High stakes unfold as ${data.logline.trim()}`,
+      summary: `Inciting encounter at ${loc}. ${c1} and ${c2} clash over high-stakes operational assets.`,
+      startSeconds: 0,
+      durationSeconds: Math.round(totalRuntimeSec * 0.25),
       location: loc,
-      startSeconds: Math.round(totalRuntimeSec * 0.08),
-      durationSeconds: 240,
-      castPresent: initialChars.slice(0, 2).map((c) => c.name),
+      shootRegion: data.shootRegion || "Los Angeles, CA",
+      locationBudget: Math.round(locBudget / 4),
+      castPresent: [c1, c2],
       castRoles: {
-        [c1]: `Drive the objective: ${data.logline.trim().slice(0, 80)}`,
-        [c2]: "Establish operational perimeter and verify the timeline",
+        [c1]: "Executing high-stakes tactical mission",
+        [c2]: "Interrogating operational protocol violations",
       },
-      screenplayText: `INT. ${locUpper} - NIGHT\n\nRain washes down the reinforced glass panes. The room sits under cool amber shadows.\n\n${c1.toUpperCase()}\nWe stick to the timetable. No variations.\n\n${c2.toUpperCase()}\nAnd if the security relay doesn't cycle on mark?\n\n${c1.toUpperCase()}\nIt will. As long as you hold your position.`,
+      screenplayText: `INT. ${locUpper} - NIGHT\n\nAtmospheric tension hangs heavy in the room. Low-frequency hum from secondary power generators.\n\n${c1.toUpperCase()}\nWe are already committed. There is no fallback plan.\n\n${c2.toUpperCase()}\n(stepping into the light)\nYou never intended to have one, did you?`,
     },
     {
-      id: `${newPid}-sc-02`,
+      id: `${newPid}-scene-02`,
       sceneNumber: 2,
-      title: "The Covert Breach & Asymmetric Shift",
-      slugline: `INT. ${locUpper} RESTRICTED ACCESS - NIGHT`,
-      summary: `Midpoint tension escalates. ${data.coreSecret ? `The hidden secret (${data.coreSecret}) creates friction.` : "Discrepancies in the intel threaten to compromise the entire mission."}`,
-      location: `${loc} - Restricted Sector`,
-      startSeconds: Math.round(totalRuntimeSec * 0.42),
-      durationSeconds: 300,
-      castPresent: initialChars.map((c) => c.name),
+      title: "Asymmetric Escalation",
+      slugline: `INT. ${locUpper} SERVICE VAULT - CONTINUOUS`,
+      summary: `${c1} uncovers unexpected countermeasures. ${c2} secures the perimeter and demands full transparency.`,
+      startSeconds: Math.round(totalRuntimeSec * 0.25),
+      durationSeconds: Math.round(totalRuntimeSec * 0.25),
+      location: loc,
+      shootRegion: data.shootRegion || "Los Angeles, CA",
+      locationBudget: Math.round(locBudget / 4),
+      castPresent: [c1, c2],
       castRoles: {
-        [c1]: "Bypassing the primary security barrier under escalating clock pressure",
-        [c2]: data.coreSecret ? `Guarding the truth regarding: ${data.coreSecret}` : "Monitoring external security feeds and raising alarm",
+        [c1]: "Attempting emergency override",
+        [c2]: "Guarding escape route with drawn sidearm",
       },
-      screenplayText: `INT. ${locUpper} RESTRICTED ACCESS - NIGHT\n\nRed emergency strobes illuminate polished metal corridors.\n\n${c2.toUpperCase()}\n(low, urgent whisper)\nThe telemetry is wrong. Someone altered the cipher before we touched the terminal.\n\n${c1.toUpperCase()}\nKeep moving. We don't turn back now.`,
+      screenplayText: `INT. ${locUpper} SERVICE VAULT - CONTINUOUS\n\nSparks kick from an exposed relay box. Red emergency beacons pulse slowly.\n\n${c2.toUpperCase()}\nThe access codes expired two minutes ago.\n\n${c1.toUpperCase()}\nThen buy me three.`,
     },
     {
-      id: `${newPid}-sc-03`,
+      id: `${newPid}-scene-03`,
       sceneNumber: 3,
-      title: "Point of No Return: Central Confrontation",
-      slugline: `INT. ${locUpper} INNER SANCTUM - NIGHT`,
-      summary: "The mission reaches crisis. The team confronts the ultimate consequence of their choices.",
-      location: `${loc} - Inner Sanctum`,
-      startSeconds: Math.round(totalRuntimeSec * 0.72),
-      durationSeconds: 360,
-      castPresent: initialChars.slice(0, 2).map((c) => c.name),
-      castRoles: {
-        [c1]: "Executing the decisive maneuver to secure the asset",
-        [c2]: "Forcing a confrontation over the concealed motive",
-      },
-      screenplayText: `INT. ${locUpper} INNER SANCTUM - NIGHT\n\nHydraulic blast doors slam shut, sealing the perimeter. Klaxons howl.\n\n${c2.toUpperCase()}\nYou knew this was a one-way trip.\n\n${c1.toUpperCase()}\n(eyes steady, weapon drawn)\nI knew what the objective required. Step aside.`,
-    },
-    {
-      id: `${newPid}-sc-04`,
-      sceneNumber: 4,
-      title: "Extraction & Reckoning",
-      slugline: "EXT. PERIMETER EXTRACTION POINT - DAWN",
-      summary: "Dawn breaks over the aftermath. The truth is revealed and the cost of the operation is tallied.",
-      location: "Perimeter Extraction Point",
-      startSeconds: Math.round(totalRuntimeSec * 0.88),
-      durationSeconds: 240,
+      title: "Point of No Return",
+      slugline: `EXT. ${locUpper} PERIMETER - NIGHT`,
+      summary: "The confrontation boils over as outside security forces converge. The core secret threatens to emerge.",
+      startSeconds: Math.round(totalRuntimeSec * 0.50),
+      durationSeconds: Math.round(totalRuntimeSec * 0.25),
+      location: `${loc} Perimeter`,
+      shootRegion: data.shootRegion || "Los Angeles, CA",
+      locationBudget: Math.round(locBudget / 4),
       castPresent: [c1],
       castRoles: {
-        [c1]: "Securing extraction transport while absorbing the moral gravity of what took place",
+        [c1]: "Searching for compromised exfiltration route",
       },
-      screenplayText: `EXT. PERIMETER EXTRACTION POINT - DAWN\n\nMorning fog rolls across the gray tarmac. Sirens echo in the far distance.\n\nAn unmarked transport idles at the boundary line. ${c1.toUpperCase()} steps forward, holding the hard drive case. Pauses. Glances back at the skyline one last time before stepping into the shadows.`,
+      screenplayText: `EXT. ${locUpper} PERIMETER - NIGHT\n\nRain slicks the concrete. Distant siren wails cut through the night air.\n\n${c1.toUpperCase()}\n(into comms)\nClean extraction is blown. Moving to secondary rally point.`,
+    },
+    {
+      id: `${newPid}-scene-04`,
+      sceneNumber: 4,
+      title: "Climactic Confrontation",
+      slugline: `INT. ${locUpper} ARCHIVE CHAMBER - NIGHT`,
+      summary: "Final reckonings under atmospheric lighting. Truth is revealed as the clock expires.",
+      startSeconds: Math.round(totalRuntimeSec * 0.75),
+      durationSeconds: Math.round(totalRuntimeSec * 0.25),
+      location: `${loc} Archive Chamber`,
+      shootRegion: data.shootRegion || "Los Angeles, CA",
+      locationBudget: Math.round(locBudget / 4),
+      castPresent: [c1, c2],
+      castRoles: {
+        [c1]: "Facing final moral reckoning",
+        [c2]: "Delivering final ultimatum",
+      },
+      screenplayText: `INT. ${locUpper} ARCHIVE CHAMBER - NIGHT\n\nThe silence is deafening. A lone spotlight cuts across the dust particles.\n\n${c2.toUpperCase()}\nIt was never about the payload.\n\n${c1.toUpperCase()}\nIt was about who walked out alive.`,
     },
   ];
 
@@ -1552,6 +1740,15 @@ export function createNewProjectEntry(data: CreateProjectOptions): ProjectData {
     directorStyle: data.directorStyle,
     coreSecret: data.coreSecret,
     primaryLocation: data.primaryLocation,
+    shootRegion: data.shootRegion || "Los Angeles, CA",
+    currency: data.currency || "USD",
+    budget: totalBudget,
+    budgetPerShootDayUsd: data.budgetPerShootDayUsd ?? 85_000,
+    budgetAllocation: data.budgetAllocation || {
+      locationsPct: locPct,
+      locationsAmount: locBudget,
+    },
+    budgetCapPolicy: data.budgetCapPolicy || "advisory",
     targetTerritories: data.targetTerritories,
     povScripts: {},
     scratchpadNotes: [],
@@ -1596,6 +1793,12 @@ export function updateProjectTimeframe(
     directorStyle?: string;
     coreSecret?: string;
     primaryLocation?: string;
+    shootRegion?: string;
+    currency?: SupportedCurrency;
+    budget?: number;
+    budgetPerShootDayUsd?: number;
+    budgetAllocation?: ProjectBudgetAllocation;
+    budgetCapPolicy?: BudgetCapPolicy;
     targetTerritories?: string[];
     genre?: string;
   }
@@ -1611,6 +1814,12 @@ export function updateProjectTimeframe(
     directorStyle: updates.directorStyle !== undefined ? updates.directorStyle : proj.directorStyle,
     coreSecret: updates.coreSecret !== undefined ? updates.coreSecret : proj.coreSecret,
     primaryLocation: updates.primaryLocation !== undefined ? updates.primaryLocation : proj.primaryLocation,
+    shootRegion: updates.shootRegion !== undefined ? updates.shootRegion : proj.shootRegion,
+    currency: updates.currency !== undefined ? updates.currency : proj.currency,
+    budget: updates.budget !== undefined ? updates.budget : proj.budget,
+    budgetPerShootDayUsd: updates.budgetPerShootDayUsd !== undefined ? updates.budgetPerShootDayUsd : proj.budgetPerShootDayUsd,
+    budgetAllocation: updates.budgetAllocation !== undefined ? updates.budgetAllocation : proj.budgetAllocation,
+    budgetCapPolicy: updates.budgetCapPolicy !== undefined ? updates.budgetCapPolicy : proj.budgetCapPolicy,
     targetTerritories: updates.targetTerritories !== undefined ? updates.targetTerritories : proj.targetTerritories,
     genre: updates.genre !== undefined ? updates.genre : proj.genre,
     updatedAt: Date.now(),

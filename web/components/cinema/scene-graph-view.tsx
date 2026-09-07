@@ -42,6 +42,7 @@ import {
   RefreshCw,
   Scissors,
   MousePointerClick,
+  Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -389,6 +390,7 @@ interface SceneGraphCanvasProps {
   onDeleteScene: (sceneId: string) => void;
   onAddScene: () => void;
   onQuickAddScene?: (pos?: { x: number; y: number }) => void;
+  onEditScene?: (scene: FilmScene) => void;
   characters?: Array<{ name: string }>;
   projectTitle: string;
 }
@@ -405,6 +407,7 @@ function SceneGraphCanvas({
   onDeleteScene,
   onAddScene,
   onQuickAddScene,
+  onEditScene,
   characters = [],
   projectTitle,
 }: SceneGraphCanvasProps) {
@@ -866,6 +869,18 @@ function SceneGraphCanvas({
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
 
+            {onEditScene && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onEditScene(selectedScene)}
+                className="h-8 px-2.5 text-xs font-semibold gap-1.5 border-border hover:border-accent hover:text-accent shadow-2xs"
+              >
+                <Pencil className="h-3 w-3" />
+                <span>Edit Scene</span>
+              </Button>
+            )}
+
             <Button
               size="sm"
               onClick={() => onOpenSceneStudio(selectedScene.id)}
@@ -894,6 +909,7 @@ export interface SceneGraphViewProps {
   onDeleteScene: (sceneId: string) => void;
   onAddScene: () => void;
   onQuickAddScene?: (pos?: { x: number; y: number }) => void;
+  onEditScene?: (scene: FilmScene) => void;
   characters?: Array<{ name: string }>;
   projectTitle: string;
 }

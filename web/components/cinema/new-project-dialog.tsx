@@ -34,14 +34,22 @@ import {
   Clock,
   Timer,
   Milestone,
+  DollarSign,
+  ShieldAlert,
+  Navigation,
 } from "lucide-react";
 import {
   type ProjectCharacter,
   type NarrativeFormat,
   type GenreOption,
+  type SupportedCurrency,
+  type BudgetCapPolicy,
+  type ProjectBudgetAllocation,
   GENRE_OPTIONS,
   synthesizeDynamicCharacters,
   NARRATIVE_FORMATS,
+  CURRENCY_SYMBOLS,
+  formatCurrency,
 } from "@/lib/project-store";
 import { useAuth } from "@/lib/auth-context";
 import { toast } from "@/components/ui/toast";
@@ -55,6 +63,12 @@ export interface NewProjectFormData {
   directorStyle?: string;
   coreSecret?: string;
   primaryLocation?: string;
+  shootRegion?: string;
+  currency?: SupportedCurrency;
+  budget?: number;
+  budgetPerShootDayUsd?: number;
+  budgetAllocation?: ProjectBudgetAllocation;
+  budgetCapPolicy?: BudgetCapPolicy;
   targetTerritories?: string[];
   customCharacters?: ProjectCharacter[];
   narrativeFormat?: NarrativeFormat;
@@ -287,6 +301,12 @@ export function NewProjectDialog({
   const [coreSecret, setCoreSecret] = React.useState(
     "Elena swapped the physical security keys 10 minutes ago and is executing an unsanctioned secondary syndicate extraction."
   );
+  const [shootRegion, setShootRegion] = React.useState("Los Angeles, CA");
+  const [currency, setCurrency] = React.useState<SupportedCurrency>("USD");
+  const [budget, setBudget] = React.useState<number>(850_000);
+  const [budgetPerShootDay, setBudgetPerShootDay] = React.useState<number>(85_000);
+  const [locationsPct, setLocationsPct] = React.useState<number>(15);
+  const [budgetCapPolicy, setBudgetCapPolicy] = React.useState<BudgetCapPolicy>("advisory");
 
   // Step 4: Audience & Distribution
   const [selectedTerritories, setSelectedTerritories] = React.useState<string[]>([
@@ -383,6 +403,10 @@ export function NewProjectDialog({
     e.preventDefault();
     if (!title.trim() || !logline.trim() || isSubmitting) return;
 
+    const totalBudget = Number(budget) || 850_000;
+    const locPct = Number(locationsPct) || 15;
+    const locAmount = Math.round(totalBudget * (locPct / 100));
+
     onSubmit({
       title: title.trim(),
       logline: logline.trim(),
@@ -390,6 +414,15 @@ export function NewProjectDialog({
       directorStyle,
       coreSecret,
       primaryLocation,
+      shootRegion: shootRegion.trim() || "Los Angeles, CA",
+      currency,
+      budget: totalBudget,
+      budgetPerShootDayUsd: Number(budgetPerShootDay) || 85_000,
+      budgetAllocation: {
+        locationsPct: locPct,
+        locationsAmount: locAmount,
+      },
+      budgetCapPolicy,
       targetTerritories: selectedTerritories,
       customCharacters: charactersList,
       characters: charactersList.map((c) => `${c.name} (${c.role || c.archetype})`).join(", "),
@@ -1298,6 +1331,170 @@ export function NewProjectDialog({
                   <p className="text-[11px]">
                     • <strong className="text-foreground">{charactersList[1]?.name || "Foil"}</strong>: Actively manipulating dialogue to prevent discovery.
                   </p>
+                </div>
+              </div>
+
+              {/* Bottom Row: Production Logistics, Financials & Budget Cap Policy (12 cols) */}
+              <div className="lg:col-span-12 rounded-xl border border-border/80 bg-secondary/10 p-4 space-y-4">
+                <div className="flex items-center justify-between border-b border-border/50 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="h-4 w-4 text-emerald-400" />
+                    <span className="text-xs font-bold text-foreground">
+                      Production Base, Financial Logistics &amp; Budget Cap Policy
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-mono text-muted-foreground">
+                    Real-World Location Grounding
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
+                  {/* Shoot Region / Base */}
+                  <div className="sm:col-span-4 space-y-1.5">
+                    <label className="text-[10px] font-mono uppercase text-muted-foreground block flex items-center gap-1">
+                      <Navigation className="h-3 w-3 text-accent" />
+                      Production Base (City / Region)
+                    </label>
+                    <Input
+                      value={shootRegion}
+                      onChange={(e) => setShootRegion(e.target.value)}
+                      placeholder="e.g. Los Angeles, CA or London, UK"
+                      className="text-xs h-8 bg-background"
+                    />
+                    <div className="flex flex-wrap gap-1 pt-1">
+                      {["Los Angeles, CA", "London, UK", "New York, NY", "Vancouver, BC"].map((c) => (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => setShootRegion(c)}
+                          className={`text-[9px] px-1.5 py-0.5 rounded border transition-colors cursor-pointer ${
+                            shootRegion === c
+                              ? "border-accent bg-accent/20 text-accent font-semibold"
+                              : "border-border text-muted-foreground hover:bg-secondary/60"
+                          }`}
+                        >
+                          {c}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Currency */}
+                  <div className="sm:col-span-2 space-y-1.5">
+                    <label className="text-[10px] font-mono uppercase text-muted-foreground block">
+                      Currency
+                    </label>
+                    <select
+                      value={currency}
+                      onChange={(e) => setCurrency(e.target.value as SupportedCurrency)}
+                      className="h-8 w-full rounded border border-border bg-background px-2 text-xs text-foreground focus:outline-none"
+                    >
+                      <option value="USD">USD ($)</option>
+                      <option value="EUR">EUR (€)</option>
+                      <option value="GBP">GBP (£)</option>
+                      <option value="CAD">CAD (CA$)</option>
+                      <option value="AUD">AUD (A$)</option>
+                      <option value="JPY">JPY (¥)</option>
+                    </select>
+                  </div>
+
+                  {/* Total Budget */}
+                  <div className="sm:col-span-3 space-y-1.5">
+                    <label className="text-[10px] font-mono uppercase text-muted-foreground block">
+                      Total Production Budget
+                    </label>
+                    <Input
+                      type="number"
+                      min={5000}
+                      step={5000}
+                      value={budget}
+                      onChange={(e) => setBudget(Number(e.target.value) || 0)}
+                      className="text-xs h-8 bg-background font-mono"
+                    />
+                  </div>
+
+                  {/* Day Rate */}
+                  <div className="sm:col-span-3 space-y-1.5">
+                    <label className="text-[10px] font-mono uppercase text-muted-foreground block">
+                      Budget Per Shoot Day
+                    </label>
+                    <Input
+                      type="number"
+                      min={500}
+                      step={1000}
+                      value={budgetPerShootDay}
+                      onChange={(e) => setBudgetPerShootDay(Number(e.target.value) || 0)}
+                      className="text-xs h-8 bg-background font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center pt-2 border-t border-border/40">
+                  {/* Location Allocation % */}
+                  <div className="sm:col-span-6 space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-[10px] font-mono uppercase text-muted-foreground">
+                        Location Allocation: {locationsPct}%
+                      </span>
+                      <span className="font-mono font-bold text-emerald-400">
+                        {formatCurrency(Math.round(budget * (locationsPct / 100)), currency)} earmarked
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={5}
+                      max={50}
+                      step={1}
+                      value={locationsPct}
+                      onChange={(e) => setLocationsPct(Number(e.target.value))}
+                      className="w-full accent-emerald-500 cursor-pointer"
+                    />
+                  </div>
+
+                  {/* Cap Policy */}
+                  <div className="sm:col-span-6 space-y-1.5">
+                    <label className="text-[10px] font-mono uppercase text-muted-foreground block flex items-center gap-1">
+                      <ShieldAlert className="h-3 w-3 text-accent" />
+                      Budget Cap Policy
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setBudgetCapPolicy("advisory")}
+                        className={`p-2 rounded-lg border text-left transition-all cursor-pointer ${
+                          budgetCapPolicy === "advisory"
+                            ? "border-emerald-500 bg-emerald-500/10 text-foreground font-semibold"
+                            : "border-border bg-background text-muted-foreground hover:border-emerald-500/40"
+                        }`}
+                      >
+                        <div className="text-[11px] flex items-center justify-between">
+                          <span>Advisory Warning</span>
+                          <span className="text-[9px] text-emerald-400">Flexible</span>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground block truncate">
+                          Alerts on overages
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setBudgetCapPolicy("hard_block")}
+                        className={`p-2 rounded-lg border text-left transition-all cursor-pointer ${
+                          budgetCapPolicy === "hard_block"
+                            ? "border-rose-500 bg-rose-500/10 text-foreground font-semibold"
+                            : "border-border bg-background text-muted-foreground hover:border-rose-500/40"
+                        }`}
+                      >
+                        <div className="text-[11px] flex items-center justify-between">
+                          <span>Hard Block</span>
+                          <span className="text-[9px] text-rose-400">Strict</span>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground block truncate">
+                          Blocks over-budget picks
+                        </span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

@@ -18,6 +18,7 @@ from app.routers import (
     continuity,
     fusion,
     hot_seat,
+    location_research,
     location_scout,
     market_viability,
     media,
@@ -76,6 +77,7 @@ app.include_router(fusion.router)
 app.include_router(character_lab.router)
 app.include_router(style_extractor.router)
 app.include_router(location_scout.router)
+app.include_router(location_research.router)
 app.include_router(shotlist.router)
 app.include_router(market_viability.router)
 app.include_router(production.router)

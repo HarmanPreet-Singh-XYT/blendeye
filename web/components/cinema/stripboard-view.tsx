@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { DollarSign, Calendar, Layers, Sparkles, RefreshCw, Flame } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { notifyIfFallback } from "@/lib/fallback-notice";
-import type { FilmScene } from "@/lib/project-store";
+import { type FilmScene, type SupportedCurrency, getProjectById, formatCurrency } from "@/lib/project-store";
 import type { SceneProductionBreakdown, StripboardBreakdownResponse } from "@/lib/agent-service";
 
 interface StripboardScene {
@@ -31,6 +31,41 @@ interface StripboardViewProps {
   scenes?: FilmScene[];
   className?: string;
   projectId?: string;
+  budgetPerShootDay?: number;
+  currency?: SupportedCurrency;
+}
+
+interface CachedStripboard {
+  breakdown: Record<string, SceneProductionBreakdown>;
+  productionSummary: string;
+  fingerprint: string;
+}
+
+const stripboardCache = new Map<string, CachedStripboard>();
+
+function getCachedStripboard(projectId: string): CachedStripboard | null {
+  const inMem = stripboardCache.get(projectId);
+  if (inMem) return inMem;
+  if (typeof window !== "undefined") {
+    try {
+      const raw = sessionStorage.getItem(`stripboard_${projectId}`);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        stripboardCache.set(projectId, parsed);
+        return parsed;
+      }
+    } catch {}
+  }
+  return null;
+}
+
+function setCachedStripboard(projectId: string, data: CachedStripboard) {
+  stripboardCache.set(projectId, data);
+  if (typeof window !== "undefined") {
+    try {
+      sessionStorage.setItem(`stripboard_${projectId}`, JSON.stringify(data));
+    } catch {}
+  }
 }
 
 export function StripboardView({
@@ -40,9 +75,17 @@ export function StripboardView({
   scenes = [],
   className,
   projectId = "vault-heist-demo",
+  budgetPerShootDay,
+  currency,
 }: StripboardViewProps) {
-  const [aiBreakdown, setAiBreakdown] = React.useState<Record<string, SceneProductionBreakdown>>({});
-  const [productionSummary, setProductionSummary] = React.useState<string>("");
+  const [aiBreakdown, setAiBreakdown] = React.useState<Record<string, SceneProductionBreakdown>>(() => {
+    const cached = getCachedStripboard(projectId);
+    return cached ? cached.breakdown : {};
+  });
+  const [productionSummary, setProductionSummary] = React.useState<string>(() => {
+    const cached = getCachedStripboard(projectId);
+    return cached ? cached.productionSummary : "";
+  });
   const [isAuditing, setIsAuditing] = React.useState(false);
 
   const strips: StripboardScene[] = React.useMemo(() => {
@@ -263,8 +306,12 @@ export function StripboardView({
     ];
   }, [projectId, projectTitle, screenplayText, characters, scenes]);
 
+  const fingerprint = React.useMemo(() => {
+    return strips.map((s) => `${s.sceneNumber}:${s.location}:${s.pages}:${s.stuntsOrFX}`).join("|");
+  }, [strips]);
+
   // Trigger Gemini production breakdown audit
-  const handleAuditProduction = React.useCallback(async () => {
+  const handleAuditProduction = React.useCallback(async (isManual: boolean = false) => {
     if (isAuditing || strips.length === 0) return;
     setIsAuditing(true);
     try {
@@ -305,31 +352,49 @@ export function StripboardView({
         if (data.production_summary) {
           setProductionSummary(data.production_summary);
         }
-        notifyIfFallback(data, "Stripboard Logistics Breakdown");
-        toast.add({
-          title: "Shooting Logistics Audited",
-          description: `Analyzed stunts, atmospheric FX, and VFX tiers across ${strips.length} scenes.`,
-          type: "success",
+        setCachedStripboard(projectId, {
+          breakdown: map,
+          productionSummary: data.production_summary || "",
+          fingerprint,
         });
+        notifyIfFallback(data, "Stripboard Logistics Breakdown");
+        if (isManual) {
+          toast.add({
+            title: "Shooting Logistics Audited",
+            description: `Analyzed stunts, atmospheric FX, and VFX tiers across ${strips.length} scenes.`,
+            type: "success",
+          });
+        }
       }
     } catch (err) {
       console.error("Failed to audit production:", err);
-      toast.add({
-        title: "Production Audit Failed",
-        description: "Could not reach stripboard breakdown service.",
-        type: "error",
-      });
+      if (isManual) {
+        toast.add({
+          title: "Production Audit Failed",
+          description: "Could not reach stripboard breakdown service.",
+          type: "error",
+        });
+      }
     } finally {
       setIsAuditing(false);
     }
-  }, [isAuditing, strips, projectTitle, screenplayText]);
+  }, [isAuditing, strips, projectTitle, screenplayText, projectId, fingerprint]);
 
   React.useEffect(() => {
+    const cached = getCachedStripboard(projectId);
+    const hasValidCache = cached && cached.fingerprint === fingerprint && Object.keys(cached.breakdown).length > 0;
+    if (hasValidCache) {
+      if (Object.keys(aiBreakdown).length === 0) {
+        setAiBreakdown(cached.breakdown);
+        setProductionSummary(cached.productionSummary);
+      }
+      return;
+    }
     if (strips.length > 0 && Object.keys(aiBreakdown).length === 0 && !isAuditing) {
-      handleAuditProduction();
+      handleAuditProduction(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [strips.length]);
+  }, [strips.length, projectId, fingerprint]);
 
   const castRoster = React.useMemo(() => {
     return characters.map((c, idx) => ({ id: idx + 1, name: c.name }));
@@ -350,12 +415,12 @@ export function StripboardView({
     return sum + Number(match[1]) * 8 + Number(match[2]);
   }, 0);
   const totalPages = Math.round((totalEighths / 8) * 10) / 10;
-  const BUDGET_PER_SHOOT_DAY_USD = 85_000;
-  const estimatedBudget = totalDays * BUDGET_PER_SHOOT_DAY_USD;
-  const formattedBudget =
-    estimatedBudget >= 1_000_000
-      ? `$${(estimatedBudget / 1_000_000).toFixed(1)}M`
-      : `$${(estimatedBudget / 1_000).toFixed(0)}K`;
+  const project = React.useMemo(() => (projectId ? getProjectById(projectId) : null), [projectId]);
+  const activeCurrency = currency || project?.currency || "USD";
+  const activeDayRate = budgetPerShootDay ?? project?.budgetPerShootDayUsd ?? 85_000;
+  const isCustomRate = budgetPerShootDay !== undefined || project?.budgetPerShootDayUsd !== undefined;
+  const estimatedBudget = totalDays * activeDayRate;
+  const formattedBudget = formatCurrency(estimatedBudget, activeCurrency);
 
   return (
     <div className={`flex flex-col rounded-xl border border-border bg-card p-4 space-y-4 ${className ?? ""}`}>
@@ -372,7 +437,7 @@ export function StripboardView({
           <Button
             size="sm"
             variant="outline"
-            onClick={handleAuditProduction}
+            onClick={() => handleAuditProduction(true)}
             disabled={isAuditing}
             className="h-7 text-xs gap-1.5 border-accent/40 bg-accent/5 hover:bg-accent/15 text-accent font-medium"
           >
@@ -398,7 +463,7 @@ export function StripboardView({
           </div>
           <div className="text-base font-bold font-mono text-foreground">{formattedBudget}</div>
           <span className="text-[10px] text-muted-foreground block">
-            {totalDays} shoot day{totalDays === 1 ? "" : "s"} × $85K/day (indie/mid-tier estimate)
+            {totalDays} shoot day{totalDays === 1 ? "" : "s"} × {formatCurrency(activeDayRate, activeCurrency)}/day ({isCustomRate ? "configured rate" : "default estimate — edit in project settings"})
           </span>
         </div>
 

@@ -231,27 +231,27 @@ export function synthesizeCinemaPrompt(options: SynthesisOptions): SynthesisResu
       : "";
     const wardrobeDetail = activeCharacter.wardrobe
       ? `wearing ${activeCharacter.wardrobe}`
-      : "wearing textured cinematic production wardrobe";
+      : "in costume consistent with their role";
     const visualDesc = activeCharacter.visualDescription
       ? activeCharacter.visualDescription.trim()
-      : `${activeCharacter.archetype} persona with intense dramatic facial presence`;
+      : `${activeCharacter.archetype}, intense and dramatically lit facial presence`;
     const tics = activeCharacter.quirks && activeCharacter.quirks.length > 0
-      ? `Physical nuances: ${activeCharacter.quirks.slice(0, 2).join("; ")}.`
+      ? `Distinctive physical mannerisms: ${activeCharacter.quirks.slice(0, 2).join("; ")}.`
       : "";
     const objective = activeCharacter.objective
-      ? `Internal dramatic motivation: ${activeCharacter.objective}.`
+      ? `Their expression and body language should read as: ${activeCharacter.objective}.`
       : "";
 
     promptBody = [
-      `Cinematic 16:9 film scene set in [${slugline}].`,
-      `Intimate dramatic focus on ${activeCharacter.name}${likenessComp ? ` (${likenessComp})` : ""}, ${wardrobeDetail}.`,
+      `Cinematic 16:9 film still, ${slugline}.`,
+      `Single subject in frame: ${activeCharacter.name}${likenessComp ? ` (${likenessComp})` : ""}, ${wardrobeDetail}.`,
       visualDesc,
       tics,
       objective,
-      scriptBeat ? `Key dramatic beat: ${scriptBeat}.` : "",
-      `Atmospheric lighting: ${lightingStudy}, color palette tones of ${colorPalette.slice(0, 3).join(", ")}.`,
-      `Camera execution: ${cameraMotion}, ${storyboardFraming}.`,
-      `Film aesthetic: ${stylePreset}. 35mm anamorphic lens with soft oval bokeh, photoreal skin and textile micro-details, Hollywood master cinematography.`,
+      scriptBeat ? `Captured mid-beat: ${scriptBeat}.` : "",
+      `Lighting: ${lightingStudy}. Color grade: ${colorPalette.slice(0, 3).join(", ")}.`,
+      `Shot: ${storyboardFraming}, ${cameraMotion}.`,
+      `Style: ${stylePreset}, shallow depth of field, photoreal skin and fabric detail, no text or watermarks.`,
     ].filter(Boolean).join(" ");
   } else {
     // ------------------- MASTER ENSEMBLE SCENE TAKE -------------------
@@ -264,16 +264,16 @@ export function synthesizeCinemaPrompt(options: SynthesisOptions): SynthesisResu
     const conflict = chemistryScenario || sceneStakes || "high tension standoff";
 
     promptBody = [
-      `Master cinematic 16:9 widescreen shot of [${slugline}].`,
-      `Scene context: ${sceneTitle} (${genre}).`,
-      castDescriptions ? `Featuring ${castDescriptions} colliding in physical space.` : "",
-      `Dramatic tension: ${conflict}.`,
-      scriptBeat ? `Scene action beat: ${scriptBeat}.` : "",
-      storyboardPrompt ? `Storyboard framing note: ${storyboardPrompt}.` : "",
-      `Visual lighting study: ${lightingStudy}. Pacing: ${pacingStyle}. Palette: ${colorPalette.slice(0, 4).join(", ")}.`,
-      peakTension ? `Dramatic tension level: ${peakTension}/100.` : "",
-      `Cinematography: ${cameraMotion}, ${storyboardFraming}.`,
-      `Aesthetic: ${stylePreset}, photoreal depth, smoke and volumetric light hazing, anamorphic lens flares.`,
+      `Master cinematic 16:9 widescreen film still, ${slugline}.`,
+      `${sceneTitle}, a ${genre} scene.`,
+      castDescriptions ? `In frame: ${castDescriptions}, positioned in physical confrontation with each other.` : "",
+      `Central conflict driving the moment: ${conflict}.`,
+      scriptBeat ? `Action beat being depicted: ${scriptBeat}.` : "",
+      storyboardPrompt ? `Framing direction: ${storyboardPrompt}.` : "",
+      `Lighting: ${lightingStudy}. Pacing/mood: ${pacingStyle}. Color grade: ${colorPalette.slice(0, 4).join(", ")}.`,
+      peakTension ? `Dramatic intensity: ${peakTension}/100, reflected in blocking and expressions.` : "",
+      `Shot: ${storyboardFraming}, ${cameraMotion}.`,
+      `Style: ${stylePreset}, photoreal depth, volumetric atmosphere, no text or watermarks.`,
     ].filter(Boolean).join(" ");
   }
 

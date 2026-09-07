@@ -80,9 +80,9 @@ async def generate_image(req: GenerateImageRequest):
     client = genai.Client(api_key=api_key)
 
     cinematic_prompt = (
-        f"Generate a cinematic {req.aspect_ratio} widescreen storyboard frame. "
-        f"35mm anamorphic film, photoreal, master director cinematography, high production value. "
-        f"Visual scene: {req.prompt}"
+        f"{req.prompt.strip().rstrip('.')}. "
+        f"Aspect ratio {req.aspect_ratio}, photoreal cinematography, high production value, "
+        f"sharp focus on the main subject, no text or watermarks, no distorted anatomy."
     )
 
     models_to_try = [
@@ -249,11 +249,12 @@ async def generate_video(req: GenerateVideoRequest):
 
     client = genai.Client(api_key=api_key)
 
-    character_clause = f" Focus the shot on {req.character_name}." if req.character_name else ""
+    character_clause = f" Keep {req.character_name} as the primary subject in frame throughout." if req.character_name else ""
+    style_clause = f" Overall visual style: {req.style_preset}." if req.style_preset and req.style_preset.lower() not in req.prompt.lower() else ""
     cinematic_prompt = (
-        f"Cinematic {req.aspect_ratio} film scene, {req.style_preset}. "
-        f"Masterful Hollywood cinematography, dynamic camera movement, photorealistic depth: {req.prompt}."
-        f"{character_clause}"
+        f"{req.prompt.strip().rstrip('.')}.{character_clause}{style_clause} "
+        f"Aspect ratio {req.aspect_ratio}, photoreal depth, consistent lighting and continuity across frames, "
+        f"no text or watermarks, no jump cuts."
     )
 
     duration = max(4, min(8, req.duration_seconds))

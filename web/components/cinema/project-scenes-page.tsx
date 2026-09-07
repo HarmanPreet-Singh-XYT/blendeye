@@ -26,12 +26,17 @@ import {
   SlidersHorizontal,
   GitFork,
   ExternalLink,
+  Pencil,
+  Settings2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SlateLabel } from "@/components/cinema/slate-label";
 import { CreateSceneDialog } from "@/components/cinema/create-scene-dialog";
+import { EditProjectDialog } from "@/components/cinema/edit-project-dialog";
+import { BridgeSceneDialog } from "@/components/cinema/bridge-scene-dialog";
 import { StripboardView } from "@/components/cinema/stripboard-view";
+import { LocationBoard } from "@/components/cinema/location-board";
 import { TerritoryHeatmapView } from "@/components/cinema/territory-heatmap-view";
 import { ShowrunnerChat, type ExtendedShowrunnerMessage } from "@/components/cinema/showrunner-chat";
 import { SequenceTimelineView } from "@/components/cinema/sequence-timeline-view";
@@ -67,17 +72,22 @@ export function ProjectScenesPage({
   onOpenSceneStudio,
 }: ProjectScenesPageProps) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = React.useState<"scenes" | "stripboard" | "screenplay" | "showrunner" | "market">("scenes");
+  const [activeTab, setActiveTab] = React.useState<"scenes" | "stripboard" | "locations" | "screenplay" | "showrunner" | "market">("scenes");
   const [sceneViewMode, setSceneViewMode] = React.useState<"timeline" | "graph" | "cards">("timeline");
   const [scenes, setScenes] = React.useState<FilmScene[]>(() => project.scenes || []);
   const [activeSceneId, setActiveSceneId] = React.useState<string>(
     () => project.activeSceneId || project.scenes?.[0]?.id || "vault-sc-03"
   );
+  const [currentProject, setCurrentProject] = React.useState<ProjectData>(project);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = React.useState(false);
+  const [isProjectEditDialogOpen, setIsProjectEditDialogOpen] = React.useState(false);
+  const [sceneToEdit, setSceneToEdit] = React.useState<FilmScene | null>(null);
   const [isGeneratingBridge, setIsGeneratingBridge] = React.useState<number | null>(null);
+  const [bridgeDialogIndex, setBridgeDialogIndex] = React.useState<number | null>(null);
 
   // Sync state if project changes
   React.useEffect(() => {
+    setCurrentProject(project);
     if (project.scenes && project.scenes.length > 0) {
       setScenes(project.scenes);
       if (!activeSceneId || !project.scenes.some((s) => s.id === activeSceneId)) {
@@ -100,19 +110,20 @@ export function ProjectScenesPage({
 
       const activeSc = nextScenes.find((s) => s.id === aid) || nextScenes[0];
       const updatedProj: ProjectData = {
-        ...project,
+        ...currentProject,
         scenes: nextScenes,
         activeSceneId: aid,
-        sceneTitle: activeSc?.title || project.sceneTitle,
-        sceneSummary: activeSc?.summary || project.sceneSummary,
-        screenplayText: activeSc?.screenplayText || project.screenplayText,
+        sceneTitle: activeSc?.title || currentProject.sceneTitle,
+        sceneSummary: activeSc?.summary || currentProject.sceneSummary,
+        screenplayText: activeSc?.screenplayText || currentProject.screenplayText,
         updatedAt: Date.now(),
       };
 
+      setCurrentProject(updatedProj);
       saveProject(updatedProj);
       if (onUpdateProject) onUpdateProject(updatedProj);
     },
-    [project, activeSceneId, onUpdateProject]
+    [currentProject, activeSceneId, onUpdateProject]
   );
 
   const handleOpenSceneStudio = (sceneId: string) => {
@@ -120,7 +131,7 @@ export function ProjectScenesPage({
     if (onOpenSceneStudio) {
       onOpenSceneStudio(sceneId);
     } else {
-      router.push(`/studio/${project.id}/scene/${sceneId}`);
+      router.push(`/studio/${currentProject.id}/scene/${sceneId}`);
     }
   };
 
@@ -136,9 +147,30 @@ export function ProjectScenesPage({
       if (onOpenSceneStudio) {
         onOpenSceneStudio(newScene.id);
       } else {
-        router.push(`/studio/${project.id}/scene/${newScene.id}`);
+        router.push(`/studio/${currentProject.id}/scene/${newScene.id}`);
       }
     }
+  };
+
+  const handleUpdateScene = (updatedScene: FilmScene, openStudioImmediately: boolean) => {
+    const next = scenes.map((s) => (s.id === updatedScene.id ? updatedScene : s));
+    saveScenes(next, updatedScene.id);
+    toast.add({
+      title: `Scene Updated`,
+      description: `Saved changes to Scene ${updatedScene.sceneNumber}: "${updatedScene.title}".`,
+      type: "success",
+    });
+    if (openStudioImmediately) {
+      handleOpenSceneStudio(updatedScene.id);
+    }
+  };
+
+  const handleUpdateProject = (updatedProj: ProjectData) => {
+    setCurrentProject(updatedProj);
+    if (updatedProj.scenes && updatedProj.scenes.length > 0) {
+      setScenes(updatedProj.scenes);
+    }
+    if (onUpdateProject) onUpdateProject(updatedProj);
   };
 
   const handleQuickAddScene = (pos?: { x: number; y: number }) => {
@@ -234,7 +266,14 @@ export function ProjectScenesPage({
     });
   };
 
-  const handleGenerateBridgeScene = async (index: number) => {
+  const handleOpenBridgeDialog = (index: number) => {
+    setBridgeDialogIndex(index);
+  };
+
+  const handleGenerateBridgeAI = async (
+    index: number,
+    options: { userPrompt?: string; durationSeconds?: number } = {}
+  ) => {
     const prevScene = scenes[index];
     const nextScene = scenes[index + 1];
     if (!prevScene || !nextScene) return;
@@ -261,6 +300,8 @@ export function ProjectScenesPage({
           },
           premise: project.premise,
           characters: project.characters,
+          userPrompt: options.userPrompt,
+          targetDurationSeconds: options.durationSeconds,
         }),
       });
 
@@ -273,7 +314,7 @@ export function ProjectScenesPage({
         slugline: data.slugline || "INT. CORRIDOR - CONTINUOUS",
         summary: data.summary || "Connective story beat bridging escalating narrative stakes.",
         startSeconds: (prevScene.startSeconds || 0) + (prevScene.durationSeconds || 180),
-        durationSeconds: data.durationSeconds || 120,
+        durationSeconds: data.durationSeconds || options.durationSeconds || 120,
         location: data.location || "Transit Area",
         castPresent: data.castPresent || prevScene.castPresent || [],
         castRoles: {
@@ -295,12 +336,12 @@ export function ProjectScenesPage({
       if (data && typeof data === "object" && (data as Record<string, unknown>)._fallback) {
         toast.add({
           title: "Template Bridge Scene Inserted",
-          description: `Inserted "${bridgeScene.title}" as a placeholder between Scene ${index + 1} and Scene ${index + 2} while the AI service is unreachable.`,
+          description: `Inserted "${bridgeScene.title}" as a placeholder between Scene ${index + 1} and Scene ${index + 2}.`,
           type: "warning",
         });
       } else {
         toast.add({
-          title: "AI Bridge Scene Generated",
+          title: options.userPrompt ? "Directed Bridge Scene Generated" : "AI Bridge Scene Generated",
           description: `Inserted "${bridgeScene.title}" between Scene ${index + 1} and Scene ${index + 2}.`,
           type: "success",
         });
@@ -315,6 +356,60 @@ export function ProjectScenesPage({
     } finally {
       setIsGeneratingBridge(null);
     }
+  };
+
+  const handleInsertBlankBridge = (
+    index: number,
+    blankData: {
+      title: string;
+      slugline: string;
+      location: string;
+      summary: string;
+      screenplayText?: string;
+      durationSeconds: number;
+      castPresent: string[];
+      isCompletelyEmpty?: boolean;
+    }
+  ) => {
+    const prevScene = scenes[index];
+    const nextScene = scenes[index + 1];
+    if (!prevScene || !nextScene) return;
+
+    const isCleanEmpty = blankData.isCompletelyEmpty;
+    const bridgeScene: FilmScene = {
+      id: `bridge-${Date.now()}`,
+      sceneNumber: index + 2,
+      title: blankData.title || (isCleanEmpty ? `Scene ${index + 2}` : "Transitional Beat"),
+      slugline: blankData.slugline || "INT. TRANSIT LOCATION - CONTINUOUS",
+      summary: blankData.summary || "",
+      startSeconds: (prevScene.startSeconds || 0) + (prevScene.durationSeconds || 180),
+      durationSeconds: blankData.durationSeconds || 120,
+      location: blankData.location || "Transit Location",
+      castPresent: blankData.castPresent || [],
+      castRoles: {},
+      screenplayText: blankData.screenplayText !== undefined
+        ? blankData.screenplayText
+        : (isCleanEmpty ? "" : `${blankData.slugline}\n\n`),
+      isBridge: true,
+      nodes: [],
+      edges: [],
+      events: [],
+    };
+
+    const updated = [...scenes.slice(0, index + 1), bridgeScene, ...scenes.slice(index + 1)];
+    let cursor = 0;
+    const reindexed = updated.map((s, idx) => {
+      const sc = { ...s, sceneNumber: idx + 1, startSeconds: cursor };
+      cursor += s.durationSeconds || 180;
+      return sc;
+    });
+
+    saveScenes(reindexed, bridgeScene.id);
+    toast.add({
+      title: "Blank Bridge Scene Inserted",
+      description: `Inserted "${bridgeScene.title}" between Scene ${index + 1} and Scene ${index + 2}.`,
+      type: "success",
+    });
   };
 
   const [showrunnerMessages, setShowrunnerMessages] = React.useState<ExtendedShowrunnerMessage[]>([
@@ -447,19 +542,27 @@ export function ProjectScenesPage({
               <div className="flex flex-col">
                 <div className="flex items-center gap-2.5 flex-wrap">
                   <h1 className="text-xl sm:text-2xl font-black tracking-tight text-foreground">
-                    {project.title}
+                    {currentProject.title}
                   </h1>
+                  <button
+                    type="button"
+                    onClick={() => setIsProjectEditDialogOpen(true)}
+                    className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-colors cursor-pointer"
+                    title="Edit Project Configuration (Title, Genre, Director, Scope, Characters)"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
                   <Badge variant="outline" className="border-accent/40 bg-accent/10 text-accent font-medium text-xs">
-                    {project.genre || "Cinema Feature"}
+                    {currentProject.genre || "Cinema Feature"}
                   </Badge>
-                  {project.directorStyle && (
+                  {currentProject.directorStyle && (
                     <Badge variant="outline" className="border-border text-muted-foreground text-xs font-mono">
-                      Dir. {project.directorStyle}
+                      Dir. {currentProject.directorStyle}
                     </Badge>
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5 max-w-2xl line-clamp-1">
-                  {project.premise || "No logline specified."}
+                  {currentProject.premise || "No logline specified."}
                 </p>
               </div>
             </div>
@@ -475,9 +578,18 @@ export function ProjectScenesPage({
                 <span className="flex items-center gap-1 text-muted-foreground">
                   <Clock className="h-3.5 w-3.5 text-accent" />
                   <strong className="text-foreground">{totalRuntimeMinutes}m</strong>
-                  {project.targetRuntimeMinutes ? ` / ${project.targetRuntimeMinutes}m Target` : ""}
+                  {currentProject.targetRuntimeMinutes ? ` / ${currentProject.targetRuntimeMinutes}m Target` : ""}
                 </span>
               </div>
+
+              <Button
+                variant="outline"
+                onClick={() => setIsProjectEditDialogOpen(true)}
+                className="gap-1.5 text-xs border-border hover:border-accent text-foreground shadow-2xs"
+              >
+                <Settings2 className="h-3.5 w-3.5 text-accent" />
+                <span>Project Settings</span>
+              </Button>
 
               <Button
                 onClick={() => setIsCreateDialogOpen(true)}
@@ -527,6 +639,19 @@ export function ProjectScenesPage({
             </button>
 
             <button
+              onClick={() => setActiveTab("locations")}
+              className={cn(
+                "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer",
+                activeTab === "locations"
+                  ? "bg-accent text-accent-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary/40"
+              )}
+            >
+              <MapPin className="h-3.5 w-3.5" />
+              Location Board
+            </button>
+
+            <button
               onClick={() => setActiveTab("screenplay")}
               className={cn(
                 "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer",
@@ -570,9 +695,8 @@ export function ProjectScenesPage({
       {/* ── MAIN CONTENT AREA ── */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex-1 w-full">
         {/* TAB 1: SEQUENCE REEL (THE DEDICATED SCENES PAGE) */}
-        {activeTab === "scenes" && (
-          <div className="space-y-6">
-            {/* View Mode Switcher Header */}
+        <div className={activeTab === "scenes" ? "space-y-6" : "hidden"}>
+          {/* View Mode Switcher Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card/60 border border-border p-2.5 rounded-xl shadow-xs">
               <div className="flex items-center gap-1.5 bg-secondary/70 p-1 rounded-lg border border-border/60">
                 <button
@@ -638,12 +762,13 @@ export function ProjectScenesPage({
                 onOpenSceneStudio={handleOpenSceneStudio}
                 onMoveScene={handleMoveScene}
                 onReorderScenes={handleReorderScenes}
-                onGenerateBridge={handleGenerateBridgeScene}
+                onGenerateBridge={handleOpenBridgeDialog}
                 isGeneratingBridge={isGeneratingBridge}
                 onDeleteScene={handleDeleteScene}
                 onAddScene={() => setIsCreateDialogOpen(true)}
-                characters={project.characters}
-                projectTitle={project.title}
+                onEditScene={(scene) => setSceneToEdit(scene)}
+                characters={currentProject.characters}
+                projectTitle={currentProject.title}
               />
             )}
 
@@ -656,13 +781,14 @@ export function ProjectScenesPage({
                 onOpenSceneStudio={handleOpenSceneStudio}
                 onMoveScene={handleMoveScene}
                 onReorderScenes={handleReorderScenes}
-                onGenerateBridge={handleGenerateBridgeScene}
+                onGenerateBridge={handleOpenBridgeDialog}
                 isGeneratingBridge={isGeneratingBridge}
                 onDeleteScene={handleDeleteScene}
                 onAddScene={() => setIsCreateDialogOpen(true)}
                 onQuickAddScene={handleQuickAddScene}
-                characters={project.characters}
-                projectTitle={project.title}
+                onEditScene={(scene) => setSceneToEdit(scene)}
+                characters={currentProject.characters}
+                projectTitle={currentProject.title}
               />
             )}
 
@@ -824,6 +950,18 @@ export function ProjectScenesPage({
                               </button>
                             </div>
 
+                            {/* Edit Scene Button */}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setSceneToEdit(scene)}
+                              className="h-8 text-xs font-semibold gap-1.5 border-border hover:border-accent hover:text-accent shadow-2xs"
+                              title={`Edit Scene ${scene.sceneNumber} Details & Script`}
+                            >
+                              <Pencil className="h-3 w-3" />
+                              <span>Edit Scene</span>
+                            </Button>
+
                             {/* Open Studio Button */}
                             <Button
                               onClick={() => handleOpenSceneStudio(scene.id)}
@@ -911,11 +1049,11 @@ export function ProjectScenesPage({
                           variant="outline"
                           size="sm"
                           disabled={isGeneratingBridge === index}
-                          onClick={() => handleGenerateBridgeScene(index)}
+                          onClick={() => handleOpenBridgeDialog(index)}
                           className="relative z-10 h-7 text-[11px] font-mono gap-1.5 bg-background border-accent/40 text-accent hover:bg-accent/10 px-3 rounded-full shadow-xs"
                         >
                           <Sparkles className={cn("h-3 w-3", isGeneratingBridge === index && "animate-spin")} />
-                          {isGeneratingBridge === index ? "Synthesizing Bridge Beat..." : "+ AI Bridge Scene"}
+                          {isGeneratingBridge === index ? "Synthesizing Bridge Beat..." : "+ Bridge Scene"}
                         </Button>
                       </div>
                     )}
@@ -938,25 +1076,33 @@ export function ProjectScenesPage({
             </div>
               </div>
             )}
-          </div>
-        )}
+        </div>
 
         {/* TAB 2: STRIPBOARD & SHOOTING SCHEDULE */}
-        {activeTab === "stripboard" && (
-          <div className="rounded-xl border border-border bg-card p-4 min-h-[500px]">
-            <StripboardView
-              projectTitle={project.title}
-              characters={project.characters}
-              screenplayText={project.screenplayText}
-              scenes={scenes}
-              projectId={project.id}
-            />
-          </div>
-        )}
+        <div className={activeTab === "stripboard" ? "rounded-xl border border-border bg-card p-4 min-h-[500px]" : "hidden"}>
+          <StripboardView
+            projectTitle={project.title}
+            characters={project.characters}
+            screenplayText={project.screenplayText}
+            scenes={scenes}
+            projectId={project.id}
+          />
+        </div>
+
+        {/* TAB: LOCATION BOARD & SCOUTING */}
+        <div className={activeTab === "locations" ? "min-h-[500px]" : "hidden"}>
+          <LocationBoard
+            project={currentProject}
+            onUpdateProject={(upd) => {
+              setCurrentProject(upd);
+              setScenes(upd.scenes || []);
+              onUpdateProject?.(upd);
+            }}
+          />
+        </div>
 
         {/* TAB 3: MASTER SCREENPLAY (CONTINUOUS SCRIPT) */}
-        {activeTab === "screenplay" && (
-          <div className="rounded-xl border border-border bg-card p-6 space-y-6">
+        <div className={activeTab === "screenplay" ? "rounded-xl border border-border bg-card p-6 space-y-6" : "hidden"}>
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div>
                 <h2 className="text-base font-bold text-foreground">Continuous Master Screenplay</h2>
@@ -999,24 +1145,20 @@ export function ProjectScenesPage({
                 </div>
               ))}
             </div>
-          </div>
-        )}
+        </div>
 
         {/* TAB 4: MARKET GROUNDING (CLICKHOUSE) */}
-        {activeTab === "market" && (
-          <div className="rounded-xl border border-border bg-card p-6">
-            <TerritoryHeatmapView
-              projectTitle={project.title}
-              genre={project.genre}
-              logline={project.premise}
-              targetTerritories={project.targetTerritories}
-            />
-          </div>
-        )}
+        <div className={activeTab === "market" ? "rounded-xl border border-border bg-card p-6" : "hidden"}>
+          <TerritoryHeatmapView
+            projectTitle={project.title}
+            genre={project.genre}
+            logline={project.premise}
+            targetTerritories={project.targetTerritories}
+          />
+        </div>
 
         {/* TAB 5: SHOWRUNNER AI DIRECTOR */}
-        {activeTab === "showrunner" && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <div className={activeTab === "showrunner" ? "grid grid-cols-1 lg:grid-cols-12 gap-6 items-start" : "hidden"}>
             {/* Left Sidebar: Real-time Sequence Reel State (4 columns on lg) */}
             <div className="lg:col-span-4 space-y-4">
               <div className="rounded-xl border border-border bg-card p-4 space-y-3.5 shadow-sm">
@@ -1153,19 +1295,49 @@ export function ProjectScenesPage({
                 className="h-full shadow-sm"
               />
             </div>
-          </div>
-        )}
+        </div>
       </main>
 
-      {/* Dedicated Scene Creation Dialog */}
+      {/* Dedicated Project Settings / Edit Project Dialog */}
+      <EditProjectDialog
+        open={isProjectEditDialogOpen}
+        onOpenChange={setIsProjectEditDialogOpen}
+        project={currentProject}
+        onSaveProject={handleUpdateProject}
+      />
+
+      {/* Dedicated Scene Creation & Editing Dialog */}
       <CreateSceneDialog
-        open={isCreateDialogOpen}
-        onOpenChange={setIsCreateDialogOpen}
-        projectTitle={project.title}
-        projectCharacters={project.characters || []}
+        open={isCreateDialogOpen || sceneToEdit !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsCreateDialogOpen(false);
+            setSceneToEdit(null);
+          }
+        }}
+        projectTitle={currentProject.title}
+        projectCharacters={currentProject.characters || []}
         nextSceneNumber={scenes.length + 1}
         onAddScene={handleAddScene}
+        sceneToEdit={sceneToEdit}
+        onUpdateScene={handleUpdateScene}
         existingScenes={scenes}
+      />
+
+      {/* Dedicated Bridge Scene Dialog (AI Guided or Blank) */}
+      <BridgeSceneDialog
+        open={bridgeDialogIndex !== null}
+        onOpenChange={(open) => {
+          if (!open) setBridgeDialogIndex(null);
+        }}
+        prevScene={bridgeDialogIndex !== null ? scenes[bridgeDialogIndex] || null : null}
+        nextScene={bridgeDialogIndex !== null ? scenes[bridgeDialogIndex + 1] || null : null}
+        targetIndex={bridgeDialogIndex}
+        projectTitle={currentProject.title}
+        projectCharacters={currentProject.characters || []}
+        isGenerating={isGeneratingBridge !== null}
+        onGenerateAI={handleGenerateBridgeAI}
+        onInsertBlank={handleInsertBlankBridge}
       />
     </div>
   );

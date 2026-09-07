@@ -328,7 +328,7 @@ export function GenerationStudioView({
     setGenerationStage("Conditioning Google Veo 3.1 Motion Vectors...");
 
     try {
-      const fullPrompt = `${prompt}. Camera style: ${cameraMotion}. Film preset: ${stylePreset}. Aspect ratio: ${aspectRatio}.`;
+      const fullPrompt = prompt.trim();
       const res = await fetch("/api/media/video", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

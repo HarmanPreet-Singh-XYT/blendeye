@@ -18,12 +18,14 @@ interface BridgeRequestBody {
     castPresent?: string[];
   };
   characters?: Array<{ name: string; archetype?: string }>;
+  userPrompt?: string;
+  targetDurationSeconds?: number;
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as BridgeRequestBody;
-    const { premise, prevScene, nextScene, characters = [] } = body;
+    const { premise, prevScene, nextScene, characters = [], userPrompt, targetDurationSeconds } = body;
 
     if (!prevScene || !nextScene) {
       return NextResponse.json(
@@ -55,9 +57,11 @@ ${premise}
 
 AVAILABLE CAST:
 ${castNames}
-
+${userPrompt?.trim() ? `\nDIRECTOR'S SPECIFIC GUIDANCE / PROMPT:
+"${userPrompt.trim()}"
+CRITICAL: You must realize and reflect the director's specific creative direction above while bridging the scenes.\n` : ""}
 TASK:
-Write a transitional "Bridge Scene" that logically and dramatically connects the previous scene to the next scene.
+Write a transitional "Bridge Scene" that logically and dramatically connects the previous scene to the next scene${userPrompt?.trim() ? ` following the director's creative guidance` : ""}.
 It should solve narrative logistics (e.g. travel, preparation, surveillance, close call, or escalating tension).
 
 Return pure valid JSON with this exact schema:
@@ -67,7 +71,7 @@ Return pure valid JSON with this exact schema:
   "location": "Location name",
   "summary": "2-3 sentence synopsis of the bridge moment",
   "castPresent": ["Names of characters in this bridge scene"],
-  "durationSeconds": 180,
+  "durationSeconds": ${targetDurationSeconds && targetDurationSeconds > 0 ? targetDurationSeconds : 180},
   "screenplayText": "Formatted screenplay with slugline, action lines, and dialogue"
 }`;
 
@@ -106,18 +110,28 @@ Return pure valid JSON with this exact schema:
     }
 
     // Smart Fallback when offline or no API key
+    const fallbackTitle = userPrompt?.trim()
+      ? userPrompt.trim().length > 35
+        ? `${userPrompt.trim().slice(0, 32)}...`
+        : userPrompt.trim()
+      : "Transitional Escalation";
+    const fallbackSummary = userPrompt?.trim()
+      ? `Transitional bridge linking "${prevScene.title}" and "${nextScene.title}". Directed focus: ${userPrompt.trim()}`
+      : `Transitional bridge linking "${prevScene.title}" and "${nextScene.title}". Tension escalates as logistics are prepped.`;
+    const fallbackDuration = targetDurationSeconds && targetDurationSeconds > 0 ? targetDurationSeconds : 180;
+
     return NextResponse.json({
       _fallback: true,
-      title: "Transitional Escalation",
+      title: fallbackTitle,
       slugline: "INT. SERVICE ACCESS CORRIDOR - NIGHT",
       location: "Service Access Corridor",
-      summary: `Transitional bridge linking "${prevScene.title}" and "${nextScene.title}". Tension escalates as logistics are prepped.`,
+      summary: fallbackSummary,
       castPresent: prevScene.castPresent || [characters[0]?.name || "Marcus"],
-      durationSeconds: 180,
+      durationSeconds: fallbackDuration,
       isBridge: true,
       screenplayText: `INT. SERVICE ACCESS CORRIDOR - NIGHT
 
-Distant mechanical hum. Emergency strobe pulses amber through exhaust steam.
+${userPrompt?.trim() ? `[DIRECTOR'S NOTE: ${userPrompt.trim()}]\n\n` : ""}Distant mechanical hum. Emergency strobe pulses amber through exhaust steam.
 
 The crew moves in synchronized silence, checking comm links and verifying line-of-sight before breaching the next threshold.
 

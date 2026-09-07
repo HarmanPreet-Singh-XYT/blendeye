@@ -1033,7 +1033,7 @@ export function FloorPlanView({
       .map((l) => `${l.name} (${l.type}) positioned stage-${l.x > svgW / 2 ? "right" : "left"}`)
       .join(", ");
 
-    return `2.39:1 Anamorphic Scope, ${framedAnalysis.shotType}. Captured on ${activeCam.lensName} (${activeCam.fov}° FOV) with ${activeCam.motion} from ${framedAnalysis.distanceFt}ft. Camera height: ${heightLabel}. Staging: ${primaryChar} framed on ${framedAnalysis.inFrameChars[0]?.relAngle && framedAnalysis.inFrameChars[0].relAngle < 0 ? "screen-left" : "screen-right"}. Lighting: ${lightNotes}. Setting: ${primaryLocation || sceneTitle || "Atmospheric cinematic soundstage"}, photorealistic, 35mm film grain, Hollywood cinematic color grade.`;
+    return `2.39:1 Anamorphic Scope, ${framedAnalysis.shotType}. Captured on ${activeCam.lensName} (${activeCam.fov}° FOV) with ${activeCam.motion} from ${framedAnalysis.distanceFt}ft. Camera height: ${heightLabel}. Staging: ${primaryChar} framed on ${framedAnalysis.inFrameChars[0]?.relAngle && framedAnalysis.inFrameChars[0].relAngle < 0 ? "screen-left" : "screen-right"}. Lighting: ${lightNotes}. Setting: ${primaryLocation || sceneTitle || "Atmospheric cinematic soundstage"}, photorealistic, 35mm film grain, Hollywood cinematic color grade, no text or watermarks.`;
   }, [activeCam, framedAnalysis, stageChars, stageLights, primaryLocation, sceneTitle, svgW]);
 
   const handleSendToVeoBridge = () => {

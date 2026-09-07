@@ -1,0 +1,259 @@
+from __future__ import annotations
+
+import json
+import logging
+
+from fastapi import APIRouter
+from pydantic import BaseModel, Field
+
+from app.agents.location_qa import (
+    build_location_qa_agent,
+    generate_fallback_location_qa,
+    normalize_bullet_markdown,
+)
+from app.agents.location_researcher import (
+    build_location_researcher_agent,
+    compute_deterministic_rank_score,
+    generate_fallback_location_research,
+)
+from app.agents.runner import run_agent_once
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/location", tags=["location-research"])
+
+
+class SceneResearchInput(BaseModel):
+    scene_id: str
+    scene_number: int
+    title: str
+    slugline: str
+    location: str
+    summary: str = ""
+    shoot_region: str | None = None
+    location_budget: float | None = None
+
+
+class LocationResearchRequest(BaseModel):
+    project_title: str
+    genre: str = "Heist / Crime Thriller"
+    production_base: str = "Los Angeles, CA"
+    currency: str = "USD"
+    budget: float = 850_000.0
+    budget_cap_policy: str = "advisory"
+    scenes: list[SceneResearchInput] = Field(default_factory=list)
+
+
+class ScoreBreakdown(BaseModel):
+    budget_fit: float
+    creative_fit: float
+    shootability: float
+    consolidation_bonus: float
+
+
+class EstimatedCost(BaseModel):
+    day_rate: float
+    permit_fee: float
+    currency: str = "USD"
+    notes: str = ""
+
+
+class FilmPrecedent(BaseModel):
+    film: str
+    director: str
+    why: str
+
+
+class LocationSource(BaseModel):
+    title: str
+    url: str
+
+
+class LocationCandidate(BaseModel):
+    candidate_id: str
+    name: str
+    region: str
+    category: str
+    rank_score: float
+    score_breakdown: ScoreBreakdown
+    estimated_cost: EstimatedCost
+    shared_with_scenes: list[str] = Field(default_factory=list)
+    film_precedents: list[FilmPrecedent] = Field(default_factory=list)
+    practical_notes: str = ""
+    sources: list[LocationSource] = Field(default_factory=list)
+    search_grounded: bool = True
+
+
+class SceneResearchResult(BaseModel):
+    scene_id: str
+    scene_number: int
+    candidates: list[LocationCandidate]
+
+
+class LocationCluster(BaseModel):
+    cluster_id: str
+    name: str
+    region: str
+    category: str
+    scene_ids: list[str]
+    candidate_id: str
+    notes: str
+    estimated_savings: str | None = None
+
+
+class LocationResearchResponse(BaseModel):
+    model_config = {"populate_by_name": True}
+
+    scenes: list[SceneResearchResult]
+    clusters: list[LocationCluster] = Field(default_factory=list)
+    fallback: bool = Field(default=False, alias="_fallback")
+    disclosure: str | None = Field(default=None, alias="_disclosure")
+
+
+class LocationQARequest(BaseModel):
+    candidate_id: str = "loc_01"
+    candidate_name: str
+    region: str = "Los Angeles, CA"
+    category: str = "vault"
+    question: str
+    project_title: str = "Feature Production"
+
+
+class LocationQAResponse(BaseModel):
+    model_config = {"populate_by_name": True}
+
+    answer: str
+    sources: list[LocationSource] = Field(default_factory=list)
+    search_grounded: bool = True
+    suggested_followups: list[str] = Field(default_factory=list)
+    fallback: bool = Field(default=False, alias="_fallback")
+    disclosure: str | None = Field(default=None, alias="_disclosure")
+
+
+@router.post("/research", response_model=LocationResearchResponse)
+async def research_locations(req: LocationResearchRequest) -> LocationResearchResponse:
+    """Scouts real-world locations with Google Search grounding for each scene,
+    computes deterministic rank scores, and proposes cross-scene consolidation clusters.
+    """
+    scenes_dict = [s.model_dump() for s in req.scenes]
+
+    # If no scenes provided, create a sensible default scene based on project title
+    if not scenes_dict:
+        scenes_dict = [
+            {
+                "scene_id": "sc-01",
+                "scene_number": 1,
+                "title": "Principal Staging Beat",
+                "slugline": "INT. PRIMARY FACILITY - NIGHT",
+                "location": "Primary Operational Setting",
+                "summary": f"Key dramatic collision for {req.project_title}",
+                "shoot_region": req.production_base,
+                "location_budget": req.budget * 0.15,
+            }
+        ]
+
+    agent = build_location_researcher_agent(with_search=True)
+
+    prompt = (
+        f"Project Title: {req.project_title}\n"
+        f"Genre: {req.genre}\n"
+        f"Production Base: {req.production_base}\n"
+        f"Currency: {req.currency}\n"
+        f"Total Budget: {req.budget}\n"
+        f"Budget Cap Policy: {req.budget_cap_policy}\n"
+        f"Scenes to scout ({len(scenes_dict)} total):\n"
+        f"{json.dumps(scenes_dict, indent=2)}\n\n"
+        "Research real-world location categories, actual neighborhoods/districts, and municipal permit fees. "
+        "Return strictly valid JSON adhering to the required schema."
+    )
+
+    try:
+        raw_output = await run_agent_once(agent, prompt, app_name="location-researcher")
+        cleaned = raw_output.strip()
+        if cleaned.startswith("```"):
+            lines = cleaned.splitlines()
+            cleaned = "\n".join(lines[1:-1] if lines[-1].startswith("```") else lines[1:])
+
+        data = json.loads(cleaned)
+
+        # Post-process: compute deterministic rank scores for each candidate
+        scenes_res: list[SceneResearchResult] = []
+        for s_data in data.get("scenes", []):
+            sc_id = s_data.get("scene_id", "")
+            sc_num = s_data.get("scene_number", 1)
+            raw_candidates = s_data.get("candidates", [])
+
+            processed_candidates: list[LocationCandidate] = []
+            for c in raw_candidates:
+                score_bd = c.get("score_breakdown", {})
+                deterministic_score = compute_deterministic_rank_score(score_bd)
+                c["rank_score"] = deterministic_score
+
+                # Enforce currency consistency if missing
+                if "estimated_cost" in c and not c["estimated_cost"].get("currency"):
+                    c["estimated_cost"]["currency"] = req.currency
+
+                processed_candidates.append(LocationCandidate(**c))
+
+            # Sort descending by rank score
+            processed_candidates.sort(key=lambda c: c.rank_score, reverse=True)
+            scenes_res.append(SceneResearchResult(scene_id=sc_id, scene_number=sc_num, candidates=processed_candidates))
+
+        clusters_res: list[LocationCluster] = [
+            LocationCluster(**cl) for cl in data.get("clusters", [])
+        ]
+
+        return LocationResearchResponse(
+            scenes=scenes_res,
+            clusters=clusters_res,
+            _fallback=False,
+            _disclosure=None,
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Location researcher agent invocation failed, serving grounded fallback: %s", e)
+        fallback_data = generate_fallback_location_research(
+            project_title=req.project_title,
+            genre=req.genre,
+            scenes=scenes_dict,
+            production_base=req.production_base,
+            currency=req.currency,
+            total_budget=req.budget,
+        )
+        return LocationResearchResponse(**fallback_data)
+
+
+@router.post("/qa", response_model=LocationQAResponse)
+async def ask_location_qa(req: LocationQARequest) -> LocationQAResponse:
+    """Answers interactive location questions grounded in Google Search."""
+    agent = build_location_qa_agent(with_search=True)
+
+    prompt = (
+        f"Production Project: {req.project_title}\n"
+        f"Candidate Location: {req.candidate_name}\n"
+        f"Region: {req.region}\n"
+        f"Category: {req.category}\n"
+        f"Director Question: {req.question}\n\n"
+        "Provide factual, production-grounded operational guidance with citations. Return strictly valid JSON."
+    )
+
+    try:
+        raw_output = await run_agent_once(agent, prompt, app_name="location-qa")
+        cleaned = raw_output.strip()
+        if cleaned.startswith("```"):
+            lines = cleaned.splitlines()
+            cleaned = "\n".join(lines[1:-1] if lines[-1].startswith("```") else lines[1:])
+
+        data = json.loads(cleaned)
+        if isinstance(data.get("answer"), str):
+            data["answer"] = normalize_bullet_markdown(data["answer"])
+        return LocationQAResponse(**data)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Location QA agent invocation failed, serving grounded fallback: %s", e)
+        fallback_data = generate_fallback_location_qa(
+            candidate_name=req.candidate_name,
+            region=req.region,
+            category=req.category,
+            question=req.question,
+            project_title=req.project_title,
+        )
+        return LocationQAResponse(**fallback_data)

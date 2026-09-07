@@ -29,6 +29,8 @@ import {
 } from "@/components/cinema/new-project-dialog";
 import { FilmFusionDialog } from "@/components/cinema/film-fusion-dialog";
 import { ScreenplayDialog } from "@/components/cinema/screenplay-dialog";
+import { CreateSceneDialog } from "@/components/cinema/create-scene-dialog";
+import { EditProjectDialog } from "@/components/cinema/edit-project-dialog";
 import { FloorPlanView } from "@/components/cinema/floor-plan-view";
 import { TensionCurveView } from "@/components/cinema/tension-curve-view";
 import { ProjectScenesPage, isBridgeScene } from "@/components/cinema/project-scenes-page";
@@ -101,6 +103,7 @@ import {
   Database,
   Sliders,
   Layers,
+  MapPin,
   Volume2,
   Headphones,
   Video,
@@ -129,6 +132,8 @@ import {
   Timer,
   Milestone,
   ShieldAlert,
+  Settings2,
+  Pencil,
 } from "lucide-react";
 import type { ShowrunnerMessage } from "@/lib/agent-service";
 import {
@@ -231,6 +236,9 @@ export default function StudioPage() {
     return norm.activeSceneId || norm.scenes?.[0]?.id || "vault-sc-03";
   });
 
+  const [projectSettingsOpen, setProjectSettingsOpen] = React.useState(false);
+  const [sceneSettingsOpen, setSceneSettingsOpen] = React.useState(false);
+
   // Slates list for navigation
   const [allProjects, setAllProjects] = React.useState<ProjectData[]>([]);
 
@@ -262,13 +270,22 @@ export default function StudioPage() {
 
       const targetSc = nextScenes.find((s) => s.id === nextActiveId) || nextScenes[0];
       if (targetSc) {
-        setSceneTitle(targetSc.title);
-        setSceneSummary(targetSc.summary);
-        setScreenplayText(targetSc.screenplayText);
-        setPrimaryLocation(targetSc.location);
-        setScenePlacementSeconds(targetSc.startSeconds);
-        setTimeSeconds(targetSc.startSeconds);
-        setSceneDurationSeconds(targetSc.durationSeconds);
+        setSceneTitle(targetSc.title || "");
+        setSceneSummary(targetSc.summary || "");
+        setScreenplayText(targetSc.screenplayText || "");
+        setPrimaryLocation(targetSc.location || "");
+        setScenePlacementSeconds(targetSc.startSeconds || 0);
+        setTimeSeconds(targetSc.startSeconds || 0);
+        setSceneDurationSeconds(targetSc.durationSeconds || 120);
+        if (targetSc.nodes !== undefined) {
+          setNodes(targetSc.nodes);
+        }
+        if (targetSc.edges !== undefined) {
+          setEdges(targetSc.edges);
+        }
+        if (targetSc.events !== undefined) {
+          setEvents(targetSc.events);
+        }
       } else {
         setSceneTitle(normalized.sceneTitle);
         setSceneSummary(normalized.sceneSummary);
@@ -702,6 +719,12 @@ export default function StudioPage() {
   // from the last save — the structural rebuild keeps callbacks/positions live,
   // the overlay keeps edits from vanishing on refresh.
   const initialGraph = React.useMemo(() => {
+    const targetId = routeSceneId || searchParams?.get("scene") || initialProject.activeSceneId || initialProject.scenes?.[0]?.id;
+    const currentScene = (initialProject.scenes || []).find((s) => s.id === targetId);
+    if (currentScene && currentScene.nodes !== undefined) {
+      return { nodes: currentScene.nodes, edges: currentScene.edges || [] };
+    }
+
     const fresh = buildProjectNodesAndEdges(initialProject, nodeCallbacks, isGenerating);
     const savedNodesById = new Map((initialProject.nodes || []).map((n) => [n.id, n]));
     const mergedNodes = fresh.nodes.map((n) => {
@@ -836,25 +859,23 @@ export default function StudioPage() {
                 edges: edges,
                 durationSeconds: sceneDurationSeconds,
                 startSeconds: scenePlacementSeconds,
+                events: events,
               }
             : s
         );
         const target = updated.find((s) => s.id === newSceneId);
         if (target) {
           setActiveSceneId(target.id);
-          setSceneTitle(target.title);
-          setSceneSummary(target.summary);
-          setScreenplayText(target.screenplayText);
-          setPrimaryLocation(target.location);
-          setScenePlacementSeconds(target.startSeconds);
-          setSceneDurationSeconds(target.durationSeconds);
-          setTimeSeconds(target.startSeconds);
-          if (target.nodes && target.nodes.length > 0) {
-            setNodes(target.nodes);
-          }
-          if (target.edges && target.edges.length > 0) {
-            setEdges(target.edges);
-          }
+          setSceneTitle(target.title || "");
+          setSceneSummary(target.summary || "");
+          setScreenplayText(target.screenplayText || "");
+          setPrimaryLocation(target.location || "");
+          setScenePlacementSeconds(target.startSeconds || 0);
+          setSceneDurationSeconds(target.durationSeconds || 120);
+          setTimeSeconds(target.startSeconds || 0);
+          setNodes(target.nodes || []);
+          setEdges(target.edges || []);
+          setEvents(target.events || []);
         }
         return updated;
       });
@@ -867,10 +888,12 @@ export default function StudioPage() {
       primaryLocation,
       nodes,
       edges,
+      events,
       sceneDurationSeconds,
       scenePlacementSeconds,
       setNodes,
       setEdges,
+      setEvents,
       setTimeSeconds,
     ]
   );
@@ -1951,7 +1974,7 @@ export default function StudioPage() {
         }}
         onOpenSceneStudio={(targetSceneId) => {
           handleSelectScene(targetSceneId);
-          setPageViewMode("studio");
+          router.push(`/studio/${projectId}/scene/${targetSceneId}`);
         }}
       />
     );
@@ -1967,11 +1990,7 @@ export default function StudioPage() {
             variant="ghost"
             size="sm"
             onClick={() => {
-              if (routeSceneId) {
-                router.push(`/studio/${projectId}`);
-              } else {
-                setPageViewMode("scenes");
-              }
+              router.push(`/studio/${projectId}`);
             }}
             className="h-7 px-2 gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-secondary/60 cursor-pointer shrink-0"
             title={`Return to Project Scenes Overview for "${projectTitle}"`}
@@ -1983,21 +2002,27 @@ export default function StudioPage() {
           <span className="text-border/70 text-xs select-none">/</span>
 
           {/* Project Title (Clickable link back to project scenes overview) */}
-          <button
-            type="button"
-            onClick={() => {
-              if (routeSceneId) {
+          <div className="flex items-center gap-0.5">
+            <button
+              type="button"
+              onClick={() => {
                 router.push(`/studio/${projectId}`);
-              } else {
-                setPageViewMode("scenes");
-              }
-            }}
-            className="flex items-center gap-1 text-xs font-semibold text-foreground/80 hover:text-foreground transition-colors truncate max-w-[130px] sm:max-w-[170px] cursor-pointer"
-            title={`Project: ${projectTitle} (${genre})`}
-          >
-            <Film className="h-3 w-3 text-accent/80 shrink-0" />
-            <span className="truncate">{projectTitle}</span>
-          </button>
+              }}
+              className="flex items-center gap-1 text-xs font-semibold text-foreground/80 hover:text-foreground transition-colors truncate max-w-[130px] sm:max-w-[170px] cursor-pointer"
+              title={`Project: ${projectTitle} (${genre})`}
+            >
+              <Film className="h-3 w-3 text-accent/80 shrink-0" />
+              <span className="truncate">{projectTitle}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setProjectSettingsOpen(true)}
+              className="p-1 rounded text-muted-foreground hover:text-accent hover:bg-secondary/60 transition-colors cursor-pointer"
+              title="Edit Project Configuration (Title, Genre, Scope, Characters)"
+            >
+              <Settings2 className="h-3 w-3" />
+            </button>
+          </div>
 
           <span className="text-border/70 text-xs select-none">/</span>
 
@@ -2006,80 +2031,92 @@ export default function StudioPage() {
             const currentScene = scenes.find((s) => s.id === activeSceneId);
             const isCurrentBridge = isBridgeScene(currentScene);
             return (
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  className={cn(
-                    "flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-semibold transition-all cursor-pointer min-w-0 shadow-2xs",
-                    isCurrentBridge
-                      ? "border-purple-500/60 bg-purple-500/15 hover:bg-purple-500/25 text-purple-200"
-                      : "border-accent/40 bg-accent/10 hover:bg-accent/20 text-accent"
-                  )}
-                >
-                  <Layers className={cn("h-3 w-3 shrink-0", isCurrentBridge && "text-purple-300")} />
-                  <span className="truncate max-w-[130px] sm:max-w-[200px] text-xs">
-                    {currentScene?.title || sceneTitle}
-                  </span>
-                  {isCurrentBridge && (
-                    <span className="text-[9px] px-1 py-0.2 rounded bg-purple-500/30 text-purple-200 font-mono font-bold">
-                      BRIDGE
-                    </span>
-                  )}
-                  <ChevronDown className="h-2.5 w-2.5 opacity-60 shrink-0" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-72 bg-card border-border shadow-2xl p-1.5 z-50">
-                  <DropdownMenuLabel className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground px-2 py-1">
-                    Project Scenes ({scenes.length})
-                  </DropdownMenuLabel>
-                  {scenes.map((sc) => {
-                    const isBridge = isBridgeScene(sc);
-                    return (
-                      <DropdownMenuItem
-                        key={sc.id}
-                        onClick={() => handleSelectScene(sc.id)}
-                        className={cn(
-                          "flex items-center justify-between px-2.5 py-1.5 rounded text-xs cursor-pointer",
-                          sc.id === activeSceneId
-                            ? isBridge
-                              ? "bg-purple-500/20 text-purple-200 font-semibold"
-                              : "bg-accent/15 text-accent font-semibold"
-                            : "text-foreground hover:bg-secondary"
-                        )}
-                      >
-                        <div className="flex flex-col truncate min-w-0 pr-2">
-                          <div className="flex items-center gap-1.5 truncate">
-                            <span className="font-medium truncate">
-                              Sc. {sc.sceneNumber}: {sc.title}
-                            </span>
-                            {isBridge && (
-                              <Badge variant="outline" className="text-[9px] py-0 px-1 border-purple-500/40 bg-purple-500/20 text-purple-300 font-mono shrink-0">
-                                Bridge
-                              </Badge>
-                            )}
-                          </div>
-                          <span className="text-[10px] font-mono text-muted-foreground truncate">
-                            {sc.slugline}
-                          </span>
-                        </div>
-                        {sc.id === activeSceneId && <Check className="h-3.5 w-3.5 text-accent shrink-0 ml-2" />}
-                      </DropdownMenuItem>
-                    );
-                  })}
-                  <div className="h-px bg-border/50 my-1" />
-                  <DropdownMenuItem
-                    onClick={() => {
-                      if (routeSceneId) {
-                        router.push(`/studio/${projectId}`);
-                      } else {
-                        setPageViewMode("scenes");
-                      }
-                    }}
-                    className="flex items-center gap-2 px-2.5 py-1.5 rounded text-xs text-accent hover:bg-accent/10 cursor-pointer font-medium"
+              <div className="flex items-center gap-1">
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    className={cn(
+                      "flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-semibold transition-all cursor-pointer min-w-0 shadow-2xs",
+                      isCurrentBridge
+                        ? "border-purple-500/60 bg-purple-500/15 hover:bg-purple-500/25 text-purple-200"
+                        : "border-accent/40 bg-accent/10 hover:bg-accent/20 text-accent"
+                    )}
                   >
-                    <Film className="h-3.5 w-3.5" />
-                    <span>All Scenes &amp; Bridge Timeline...</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                    <Layers className={cn("h-3 w-3 shrink-0", isCurrentBridge && "text-purple-300")} />
+                    <span className="truncate max-w-[130px] sm:max-w-[200px] text-xs">
+                      {currentScene?.title || sceneTitle}
+                    </span>
+                    {isCurrentBridge && (
+                      <span className="text-[9px] px-1 py-0.2 rounded bg-purple-500/30 text-purple-200 font-mono font-bold">
+                        BRIDGE
+                      </span>
+                    )}
+                    <ChevronDown className="h-2.5 w-2.5 opacity-60 shrink-0" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-72 bg-card border-border shadow-2xl p-1.5 z-50">
+                    <DropdownMenuLabel className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground px-2 py-1">
+                      Project Scenes ({scenes.length})
+                    </DropdownMenuLabel>
+                    {scenes.map((sc) => {
+                      const isBridge = isBridgeScene(sc);
+                      return (
+                        <DropdownMenuItem
+                          key={sc.id}
+                          onClick={() => {
+                            handleSelectScene(sc.id);
+                            router.push(`/studio/${projectId}/scene/${sc.id}`);
+                          }}
+                          className={cn(
+                            "flex items-center justify-between px-2.5 py-1.5 rounded text-xs cursor-pointer",
+                            sc.id === activeSceneId
+                              ? isBridge
+                                ? "bg-purple-500/20 text-purple-200 font-semibold"
+                                : "bg-accent/15 text-accent font-semibold"
+                              : "text-foreground hover:bg-secondary"
+                          )}
+                        >
+                          <div className="flex flex-col truncate min-w-0 pr-2">
+                            <div className="flex items-center gap-1.5 truncate">
+                              <span className="font-medium truncate">
+                                Sc. {sc.sceneNumber}: {sc.title}
+                              </span>
+                              {isBridge && (
+                                <Badge variant="outline" className="text-[9px] py-0 px-1 border-purple-500/40 bg-purple-500/20 text-purple-300 font-mono shrink-0">
+                                  Bridge
+                                </Badge>
+                              )}
+                            </div>
+                            <span className="text-[10px] font-mono text-muted-foreground truncate">
+                              {sc.slugline}
+                            </span>
+                          </div>
+                          <span className="text-[10px] font-mono text-muted-foreground shrink-0">
+                            {Math.round((sc.durationSeconds || 180) / 60)}m
+                          </span>
+                        </DropdownMenuItem>
+                      );
+                    })}
+                    <div className="h-px bg-border/50 my-1" />
+                    <DropdownMenuItem
+                      onClick={() => {
+                        router.push(`/studio/${projectId}`);
+                      }}
+                      className="flex items-center gap-2 px-2.5 py-1.5 rounded text-xs text-accent hover:bg-accent/10 cursor-pointer font-medium"
+                    >
+                      <Film className="h-3.5 w-3.5" />
+                      <span>All Scenes &amp; Bridge Timeline...</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                <button
+                  type="button"
+                  onClick={() => setSceneSettingsOpen(true)}
+                  className="p-1 rounded text-muted-foreground hover:text-accent hover:bg-secondary/60 transition-colors cursor-pointer"
+                  title="Edit Active Scene Details (Slugline, Duration, Cast)"
+                >
+                  <Pencil className="h-3 w-3" />
+                </button>
+              </div>
             );
           })()}
         </div>
@@ -2273,6 +2310,16 @@ export default function StudioPage() {
               <DropdownMenuLabel className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground px-2 py-1">
                 Production &amp; Telemetry
               </DropdownMenuLabel>
+              <DropdownMenuItem
+                onClick={() => router.push(`/studio/${projectId}/locations`)}
+                className="flex items-center gap-2.5 px-2.5 py-1.5 rounded text-xs cursor-pointer hover:bg-secondary"
+              >
+                <MapPin className="h-4 w-4 text-cyan-400 shrink-0" />
+                <div className="flex flex-col">
+                  <span className="font-medium">Location Board</span>
+                  <span className="text-[10px] text-muted-foreground">Real-world scouting, budget &amp; permits</span>
+                </div>
+              </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => setTimeframeModalOpen(true)}
                 className="flex items-center gap-2.5 px-2.5 py-1.5 rounded text-xs cursor-pointer hover:bg-secondary"
@@ -3138,6 +3185,83 @@ export default function StudioPage() {
           setAllProjects(getAllProjects());
         }}
       />
+
+      {/* Project Settings / Configuration Modal */}
+      <EditProjectDialog
+        open={projectSettingsOpen}
+        onOpenChange={setProjectSettingsOpen}
+        project={{
+          id: projectId,
+          title: projectTitle,
+          genre,
+          premise: premiseInput,
+          directorStyle,
+          coreSecret,
+          primaryLocation,
+          targetTerritories,
+          characters,
+          narrativeFormat,
+          targetRuntimeMinutes,
+          scenes,
+          activeSceneId,
+          sceneTitle,
+          sceneSummary,
+          screenplayText,
+          initialEvents: events,
+          createdAt: initialProject.createdAt || Date.now(),
+          updatedAt: Date.now(),
+        }}
+        onSaveProject={(updated) => {
+          setProjectTitle(updated.title);
+          setGenre(updated.genre);
+          setPremiseInput(updated.premise);
+          setDirectorStyle(updated.directorStyle || "");
+          setCoreSecret(updated.coreSecret || "");
+          setPrimaryLocation(updated.primaryLocation || "");
+          setTargetTerritories(updated.targetTerritories || []);
+          setCharacters(updated.characters || []);
+          setNarrativeFormat(updated.narrativeFormat || "feature");
+          setTargetRuntimeMinutes(updated.targetRuntimeMinutes || 95);
+          saveCurrentProject(updated);
+        }}
+      />
+
+      {/* Active Scene Metadata & Slugline Edit Modal */}
+      {(() => {
+        const currentScene = scenes.find((s) => s.id === activeSceneId);
+        return (
+          <CreateSceneDialog
+            open={sceneSettingsOpen}
+            onOpenChange={setSceneSettingsOpen}
+            projectTitle={projectTitle}
+            projectCharacters={characters}
+            nextSceneNumber={scenes.length + 1}
+            onAddScene={() => {}}
+            sceneToEdit={currentScene || null}
+            onUpdateScene={(updated) => {
+              setSceneTitle(updated.title);
+              setSceneSummary(updated.summary);
+              if (updated.screenplayText) {
+                setScreenplayText(updated.screenplayText);
+              }
+              const nextScenes = scenes.map((s) => (s.id === updated.id ? updated : s));
+              setScenes(nextScenes);
+              saveCurrentProject({
+                scenes: nextScenes,
+                sceneTitle: updated.title,
+                sceneSummary: updated.summary,
+                screenplayText: updated.screenplayText || screenplayText,
+              });
+              toast.add({
+                title: "Scene Details Saved",
+                description: `Saved changes to Scene ${updated.sceneNumber}: "${updated.title}".`,
+                type: "success",
+              });
+            }}
+            existingScenes={scenes}
+          />
+        );
+      })()}
 
       {/* New Project Slate Creation Dialog */}
       <NewProjectDialog

@@ -224,7 +224,7 @@ export function VeoVideoDialog({
     setGenerationStage("Conditioning Google Veo 3.1 Motion Vectors...");
 
     try {
-      const fullPrompt = `${customPrompt}. Camera style: ${cameraMotion}. Visual aesthetic: ${stylePreset}.`;
+      const fullPrompt = customPrompt.trim();
       const res = await fetch("/api/media/video", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

@@ -37,6 +37,42 @@ interface CreateSceneDialogProps {
   nextSceneNumber: number;
   onAddScene: (scene: FilmScene, openStudioImmediately: boolean) => void;
   existingScenes?: FilmScene[];
+  sceneToEdit?: FilmScene | null;
+  onUpdateScene?: (scene: FilmScene, openStudioImmediately: boolean) => void;
+}
+
+function parseSlugline(slugline?: string) {
+  if (!slugline) {
+    return {
+      settingType: "INT." as const,
+      locationName: "",
+      timeOfDay: "NIGHT" as const,
+    };
+  }
+  let settingType: "INT." | "EXT." | "INT./EXT." = "INT.";
+  if (slugline.startsWith("INT./EXT.") || slugline.startsWith("EXT./INT.")) {
+    settingType = "INT./EXT.";
+  } else if (slugline.startsWith("EXT.")) {
+    settingType = "EXT.";
+  } else if (slugline.startsWith("INT.")) {
+    settingType = "INT.";
+  }
+
+  const afterSetting = slugline.replace(/^(INT\.\/EXT\.|EXT\.\/INT\.|INT\.|EXT\.)\s*/i, "");
+  const dashIndex = afterSetting.lastIndexOf("-");
+  if (dashIndex !== -1) {
+    const loc = afterSetting.slice(0, dashIndex).trim();
+    const timeRaw = afterSetting.slice(dashIndex + 1).trim().toUpperCase();
+    let timeOfDay: "NIGHT" | "DAY" | "DUSK" | "DAWN" | "CONTINUOUS" = "NIGHT";
+    if (timeRaw.includes("DAY")) timeOfDay = "DAY";
+    else if (timeRaw.includes("NIGHT")) timeOfDay = "NIGHT";
+    else if (timeRaw.includes("DUSK")) timeOfDay = "DUSK";
+    else if (timeRaw.includes("DAWN")) timeOfDay = "DAWN";
+    else if (timeRaw.includes("CONTINUOUS")) timeOfDay = "CONTINUOUS";
+    return { settingType, locationName: loc, timeOfDay };
+  }
+
+  return { settingType, locationName: afterSetting.trim(), timeOfDay: "NIGHT" as const };
 }
 
 const COMMON_LOCATIONS = [
@@ -71,6 +107,8 @@ export function CreateSceneDialog({
   nextSceneNumber,
   onAddScene,
   existingScenes = [],
+  sceneToEdit,
+  onUpdateScene,
 }: CreateSceneDialogProps) {
   const [sceneNumber, setSceneNumber] = React.useState(nextSceneNumber);
   const [title, setTitle] = React.useState("");
@@ -79,6 +117,8 @@ export function CreateSceneDialog({
   const [timeOfDay, setTimeOfDay] = React.useState<"NIGHT" | "DAY" | "DUSK" | "DAWN" | "CONTINUOUS">("NIGHT");
   const [summary, setSummary] = React.useState("");
   const [durationMinutes, setDurationMinutes] = React.useState(4);
+  const [shootRegion, setShootRegion] = React.useState("");
+  const [locationBudget, setLocationBudget] = React.useState<number | string>("");
 
   // Character selection & roles
   const [selectedCast, setSelectedCast] = React.useState<string[]>([]);
@@ -93,24 +133,42 @@ export function CreateSceneDialog({
   const [screenplayText, setScreenplayText] = React.useState("");
   const [isDraftingAI, setIsDraftingAI] = React.useState(false);
 
-  // Reset form when opened with new nextSceneNumber
+  // Reset form when opened with new nextSceneNumber or sceneToEdit
   React.useEffect(() => {
     if (open) {
-      setSceneNumber(nextSceneNumber);
-      setTitle(`Scene ${nextSceneNumber}`);
-      setLocationName("");
-      setSummary("");
-      setScreenplayText("");
-      // Default to picking first 2 project characters if available
-      const initialCast = projectCharacters.slice(0, 2).map((c) => c.name);
-      setSelectedCast(initialCast);
-      const initialRoles: Record<string, string> = {};
-      initialCast.forEach((name, i) => {
-        initialRoles[name] = i === 0 ? "Protagonist / Primary Driver" : "Counterpart / Obstacle";
-      });
-      setCastRoles(initialRoles);
+      if (sceneToEdit) {
+        setSceneNumber(sceneToEdit.sceneNumber);
+        setTitle(sceneToEdit.title);
+        const parsed = parseSlugline(sceneToEdit.slugline);
+        setSettingType(parsed.settingType);
+        setLocationName(sceneToEdit.location || parsed.locationName);
+        setTimeOfDay(parsed.timeOfDay);
+        setShootRegion(sceneToEdit.shootRegion || "");
+        setLocationBudget(sceneToEdit.locationBudget !== undefined ? sceneToEdit.locationBudget : "");
+        setSummary(sceneToEdit.summary || "");
+        setDurationMinutes(Math.max(1, Math.round((sceneToEdit.durationSeconds || 180) / 60)));
+        setSelectedCast(sceneToEdit.castPresent ? [...sceneToEdit.castPresent] : []);
+        setCastRoles(sceneToEdit.castRoles ? { ...sceneToEdit.castRoles } : {});
+        setScreenplayText(sceneToEdit.screenplayText || "");
+      } else {
+        setSceneNumber(nextSceneNumber);
+        setTitle(`Scene ${nextSceneNumber}`);
+        setLocationName("");
+        setShootRegion("");
+        setLocationBudget("");
+        setSummary("");
+        setScreenplayText("");
+        // Default to picking first 2 project characters if available
+        const initialCast = projectCharacters.slice(0, 2).map((c) => c.name);
+        setSelectedCast(initialCast);
+        const initialRoles: Record<string, string> = {};
+        initialCast.forEach((name, i) => {
+          initialRoles[name] = i === 0 ? "Protagonist / Primary Driver" : "Counterpart / Obstacle";
+        });
+        setCastRoles(initialRoles);
+      }
     }
-  }, [open, nextSceneNumber, projectCharacters]);
+  }, [open, nextSceneNumber, projectCharacters, sceneToEdit]);
 
   const computedSlugline = `${settingType} ${locationName.trim().toUpperCase() || "LOCATION"} - ${timeOfDay}`;
 
@@ -205,6 +263,26 @@ Then make your move now.`);
   };
 
   const handleSave = (openStudio: boolean) => {
+    if (sceneToEdit && onUpdateScene) {
+      const updated: FilmScene = {
+        ...sceneToEdit,
+        sceneNumber: Number(sceneNumber) || sceneToEdit.sceneNumber,
+        title: title.trim() || sceneToEdit.title,
+        slugline: computedSlugline,
+        location: locationName.trim() || sceneToEdit.location || "Set Location",
+        shootRegion: shootRegion.trim() || undefined,
+        locationBudget: locationBudget !== "" ? Number(locationBudget) : undefined,
+        summary: summary.trim() || sceneToEdit.summary,
+        durationSeconds: Math.max(30, Math.round(durationMinutes * 60)),
+        castPresent: selectedCast,
+        castRoles: castRoles,
+        screenplayText: screenplayText || sceneToEdit.screenplayText,
+      };
+      onUpdateScene(updated, openStudio);
+      onOpenChange(false);
+      return;
+    }
+
     const calculatedStartSeconds = existingScenes.reduce(
       (acc, sc) => acc + (sc.durationSeconds || 180),
       0
@@ -219,6 +297,8 @@ Then make your move now.`);
       startSeconds: calculatedStartSeconds,
       durationSeconds: Math.max(30, Math.round(durationMinutes * 60)),
       location: locationName.trim() || "Set Location",
+      shootRegion: shootRegion.trim() || undefined,
+      locationBudget: locationBudget !== "" ? Number(locationBudget) : undefined,
       castPresent: selectedCast,
       castRoles: castRoles,
       screenplayText: screenplayText || `${computedSlugline}\n\n[Scene action and dialogue to be written in Scene Studio]`,
@@ -235,13 +315,15 @@ Then make your move now.`);
           <div className="h-8 w-8 rounded-lg bg-accent/15 border border-accent/30 flex items-center justify-center text-accent">
             <Clapperboard className="h-4 w-4" />
           </div>
-          <span>Create New Scene</span>
+          <span>{sceneToEdit ? `Edit Scene ${sceneToEdit.sceneNumber}` : "Create New Scene"}</span>
           <span className="text-xs font-mono text-muted-foreground ml-auto bg-secondary px-2.5 py-1 rounded-full border border-border">
-            {projectTitle}
+            {sceneToEdit ? sceneToEdit.title : projectTitle}
           </span>
         </DialogTitle>
         <DialogDescription className="text-xs text-muted-foreground -mt-1">
-          Add a scene to the film sequence. Define dramatic stakes, cast presence, and each character&apos;s specific objective in this beat.
+          {sceneToEdit
+            ? "Modify scene metadata, slugline, location, duration, cast presence, and script draft."
+            : "Add a scene to the film sequence. Define dramatic stakes, cast presence, and each character's specific objective in this beat."}
         </DialogDescription>
 
         <div className="space-y-6 pt-2">
@@ -364,6 +446,33 @@ Then make your move now.`);
                   {loc}
                 </button>
               ))}
+            </div>
+
+            {/* Real-World Location & Regional Override */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <div>
+                <label className="text-[10px] uppercase font-mono text-muted-foreground block mb-1">
+                  Shoot Region Override (Optional)
+                </label>
+                <Input
+                  placeholder="e.g. London, UK (defaults to project base)"
+                  value={shootRegion}
+                  onChange={(e) => setShootRegion(e.target.value)}
+                  className="text-xs bg-card"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] uppercase font-mono text-muted-foreground block mb-1">
+                  Scene Location Budget Override (Optional)
+                </label>
+                <Input
+                  type="number"
+                  placeholder="e.g. 15000 (defaults to even split)"
+                  value={locationBudget}
+                  onChange={(e) => setLocationBudget(e.target.value)}
+                  className="text-xs font-mono bg-card"
+                />
+              </div>
             </div>
 
             {/* Slugline live preview badge */}
@@ -623,8 +732,8 @@ Then make your move now.`);
               onClick={() => handleSave(false)}
               className="text-xs h-9 flex-1 sm:flex-initial gap-1"
             >
-              <Plus className="h-3.5 w-3.5" />
-              Add to Sequence
+              <Check className="h-3.5 w-3.5" />
+              {sceneToEdit ? "Save Scene Changes" : "Add to Sequence"}
             </Button>
             <Button
               type="button"
@@ -632,7 +741,7 @@ Then make your move now.`);
               className="text-xs h-9 flex-1 sm:flex-initial gap-1.5 bg-accent text-accent-foreground font-semibold hover:bg-accent/90 shadow-sm"
             >
               <Clapperboard className="h-3.5 w-3.5" />
-              Add &amp; Open Scene Studio
+              {sceneToEdit ? "Save & Open Scene Studio" : "Add & Open Scene Studio"}
             </Button>
           </div>
         </DialogFooter>

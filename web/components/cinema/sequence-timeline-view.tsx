@@ -14,6 +14,7 @@ import {
   Users,
   Film,
   GripVertical,
+  Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +34,7 @@ interface SequenceTimelineViewProps {
   isGeneratingBridge: number | null;
   onDeleteScene: (sceneId: string) => void;
   onAddScene: () => void;
+  onEditScene?: (scene: FilmScene) => void;
   characters?: Array<{ name: string }>;
   projectTitle: string;
 }
@@ -48,6 +50,7 @@ export function SequenceTimelineView({
   isGeneratingBridge,
   onDeleteScene,
   onAddScene,
+  onEditScene,
   characters = [],
   projectTitle,
 }: SequenceTimelineViewProps) {
@@ -445,6 +448,19 @@ export function SequenceTimelineView({
                   )}
                 />
                 <span className="hidden sm:inline">Bridge to Next</span>
+              </Button>
+            )}
+
+            {/* Edit Scene Details */}
+            {onEditScene && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onEditScene(selectedScene)}
+                className="gap-1.5 text-xs border-border hover:border-accent hover:text-accent font-medium shadow-2xs"
+              >
+                <Pencil className="h-3 w-3" />
+                <span>Edit Scene</span>
               </Button>
             )}
 

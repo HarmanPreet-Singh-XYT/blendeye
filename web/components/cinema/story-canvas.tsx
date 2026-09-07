@@ -637,6 +637,21 @@ function StoryCanvas({
         </div>
       )}
 
+      {/* Clean Slate Empty Backlot Notice */}
+      {nodes.length === 0 && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10 px-4">
+          <div className="flex flex-col items-center max-w-md text-center p-6 rounded-2xl border border-dashed border-border/80 bg-card/85 shadow-2xl backdrop-blur">
+            <div className="h-10 w-10 rounded-xl bg-accent/15 border border-accent/30 flex items-center justify-center text-accent mb-3">
+              <Plus className="h-5 w-5" />
+            </div>
+            <h3 className="text-sm font-bold text-foreground mb-1">Empty Scene Backlot</h3>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              This scene is completely empty. Click <strong className="text-foreground font-semibold">&ldquo;Add Blueprint Node&rdquo;</strong> in the top-left to spawn script, character, or camera nodes, or edit the screenplay below.
+            </p>
+          </div>
+        </div>
+      )}
+
       <ReactFlow
         nodes={nodes}
         edges={edges}

@@ -5,6 +5,13 @@
  * the browser network tab. See ../../plan.md for the two-service split.
  */
 
+import type {
+  LocationCandidate,
+  LocationCluster,
+  SupportedCurrency,
+  BudgetCapPolicy,
+} from "./project-store";
+
 const AGENT_SERVICE_URL = process.env.AGENT_SERVICE_URL ?? "http://localhost:8000";
 
 // Long enough for a real Gemini/Veo call, short enough that a hung backend
@@ -733,4 +740,65 @@ export interface StripboardBreakdownResponse {
 
 export function generateStripboardBreakdown(req: StripboardBreakdownRequest) {
   return postJson<StripboardBreakdownResponse>("/production/stripboard-breakdown", req);
+}
+
+export interface SceneResearchInput {
+  scene_id: string;
+  scene_number: number;
+  title: string;
+  slugline: string;
+  location: string;
+  summary?: string;
+  shoot_region?: string;
+  location_budget?: number;
+}
+
+export interface LocationResearchRequest {
+  project_title: string;
+  genre?: string;
+  production_base?: string;
+  currency?: SupportedCurrency;
+  budget?: number;
+  budget_cap_policy?: BudgetCapPolicy;
+  scenes?: SceneResearchInput[];
+}
+
+export interface SceneResearchResult {
+  scene_id: string;
+  scene_number: number;
+  candidates: LocationCandidate[];
+}
+
+export interface LocationResearchResponse {
+  scenes: SceneResearchResult[];
+  clusters: LocationCluster[];
+  _fallback?: boolean;
+  _disclosure?: string;
+  _error?: string;
+}
+
+export interface LocationQARequest {
+  candidate_id: string;
+  candidate_name: string;
+  region: string;
+  category: string;
+  question: string;
+  project_title?: string;
+}
+
+export interface LocationQAResponse {
+  answer: string;
+  sources: Array<{ title: string; url: string }>;
+  search_grounded: boolean;
+  suggested_followups?: string[];
+  _fallback?: boolean;
+  _disclosure?: string;
+}
+
+export function researchLocations(req: LocationResearchRequest) {
+  return postJson<LocationResearchResponse>("/location/research", req, 60_000);
+}
+
+export function askLocationQA(req: LocationQARequest) {
+  return postJson<LocationQAResponse>("/location/qa", req, 45_000);
 }
