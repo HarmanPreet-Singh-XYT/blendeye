@@ -54,7 +54,7 @@ async def get_precedents(genre: str = "") -> list[PrecedentItem]:
 
 @router.post("/chat", response_model=ShowrunnerChatResponse)
 async def chat_with_showrunner(body: ShowrunnerChatRequest) -> ShowrunnerChatResponse:
-    agent = build_showrunner_agent()
+    agent = build_showrunner_agent(with_mcp=True)
     store = get_clickhouse_store()
 
     # Query ClickHouse for cinematic precedents & box office metrics (Grounding Flourish)

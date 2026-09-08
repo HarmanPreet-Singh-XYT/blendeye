@@ -27,7 +27,7 @@ HOW TO INTERACT (BE HUMAN & CONVERSATIONAL):
 """
 
 
-def build_showrunner_agent(*, with_mcp: bool = False) -> Agent:
+def build_showrunner_agent(*, with_mcp: bool = True) -> Agent:
     settings = get_settings()
     tools = []
     if with_mcp:

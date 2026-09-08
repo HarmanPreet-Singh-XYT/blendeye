@@ -101,6 +101,18 @@ ORDER BY audience_retention_pct DESC;
 ### 4. Real-Time Query Inspector
 A live console built directly into the UI shows judges and directors the exact ClickHouse SQL query being executed, latency (typically 1–4ms), and row counts.
 
+## 🧗 Challenges We Ran Into
+- **Compounding Visual & Narrative Drift in Video Sequences**: Generative video models like Veo 3.1 excel at 4–8 second single shots, but multi-shot scene sequences quickly degrade in consistency. We solved this by engineering a custom server-side `video_sequencer.py` that extracts the exact final frame of Shot $N$ via OpenCV/PIL and injects it as the conditioning image for Shot $N+1$, while locking each shot's prompt to an immutable, pre-computed continuity bible.
+- **Preventing AI Omniscience "Leakage"**: LLMs naturally want to be helpful and predict answers. When an interrogator asks a leading question like *"Did Elena betray you with the keys?"*, unconstrained agents easily hallucinate the twist. By querying ClickHouse for explicit negative knowledge (`event_type = 'unaware_of'`) alongside known facts, we conditioned Gemini to treat future twists as absurd paranoia or unverified hearsay.
+- **Upstream MCP Protocol Alignment**: Pairing Google ADK's `McpToolset` with the official `mcp-clickhouse` server required precise dependency harmonization across `mcp` 1.9.x, ensuring stdio sub-processes launch reliably inside containerized and native environments.
+
+---
+
+## 🔬 What We Learned (Findings & Insights)
+- **High-Performance Columnar DBs are Built for Story Time**: Many developers treat vector databases as the default for AI memory. We discovered that for narrative timelines, ClickHouse's `MergeTree` ordered by `(project_id, character_name, event_timestamp)` is vastly superior to vector search: it delivers deterministic, sub-millisecond filtering without probabilistic retrieval errors or expensive re-embeddings.
+- **Structured Sharding Unlocks Directorial Agency**: When a screenplay is generated, passing the raw script into a sharder agent that decomposes the text into structured temporal knowledge tuples transforms a static screenplay into an interactive, explorable virtual set.
+- **Multi-Speaker TTS Changes Writing Dynamics**: Hearing two voices speak formatted dialogue with distinct timbre, cadence, and room acoustics immediately reveals clunky dialogue beats that look fine on a printed page.
+
 ---
 
 ## 🏆 Accomplishments That We're Proud Of
