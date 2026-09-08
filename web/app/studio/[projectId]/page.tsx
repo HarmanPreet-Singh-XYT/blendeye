@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import {
   type Edge,
   type Node,
@@ -2175,6 +2176,21 @@ export default function StudioPage() {
       <header className="flex h-11 shrink-0 items-center justify-between border-b border-border/70 bg-[#0a0c10]/95 px-3 backdrop-blur select-none z-20">
         {/* Left: Breadcrumbs & Scene Context */}
         <div className="flex items-center gap-2 shrink-0">
+          <Link
+            href="/"
+            className="flex items-center gap-1.5 hover:opacity-90 transition-opacity mr-1 shrink-0"
+            title="BlendEye Studio Home"
+          >
+            <div className="h-6 w-6 rounded-md bg-black/60 border border-accent/30 overflow-hidden shadow-sm flex items-center justify-center">
+              <img src="/logo.png" alt="BlendEye" className="h-full w-full object-cover" />
+            </div>
+            <span className="font-heading font-bold text-xs text-foreground tracking-tight hidden md:inline">
+              BlendEye
+            </span>
+          </Link>
+
+          <span className="text-border/70 text-xs select-none">/</span>
+
           <Button
             variant="ghost"
             size="sm"
@@ -3764,7 +3780,7 @@ export default function StudioPage() {
                 <Loader2 className="h-6 w-6 animate-spin" />
               </div>
               <div>
-                <SlateLabel>Agentic Cinema Engine</SlateLabel>
+                <SlateLabel>BlendEye Engine</SlateLabel>
                 <h3 className="text-base font-heading font-bold text-foreground">
                   Autonomous Writers&apos; Room
                 </h3>

@@ -277,12 +277,12 @@ function AuthPageContent() {
         {/* Header Ribbon */}
         <div className="bg-gradient-to-b from-secondary/50 via-secondary/20 to-transparent p-6 pb-4 border-b border-border/60">
           <div className="flex items-center gap-3 mb-2">
-            <div className="h-10 w-10 rounded-xl bg-accent/15 border border-accent/30 flex items-center justify-center text-accent shadow-sm">
-              <Clapperboard className="h-5 w-5" />
+            <div className="h-10 w-10 rounded-xl bg-black/50 border border-accent/30 flex items-center justify-center overflow-hidden shadow-sm">
+              <img src="/logo.png" alt="BlendEye" className="h-full w-full object-cover" />
             </div>
             <div>
               <h1 className="text-base sm:text-lg font-heading font-semibold tracking-tight text-foreground">
-                Agentic Cinema Auth
+                BlendEye Studio Auth
               </h1>
               <p className="text-xs text-muted-foreground">
                 Personalized writers&apos; room bound to your individual director account

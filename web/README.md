@@ -1,6 +1,10 @@
-# Agentic Cinema — Web Frontend
+<p align="center">
+  <img src="public/logo.png" alt="BlendEye Logo" width="120" style="border-radius: 16px;" />
+</p>
 
-Next.js 16 (App Router) web application for **Agentic Cinema**, featuring the interactive cinematic writers' room canvas, director pre-production workbench, and real-time integration with the Python agent service and ClickHouse.
+# BlendEye — Web Frontend
+
+Next.js 16 (App Router) web application for **BlendEye**, featuring the interactive cinematic writers' room canvas, director pre-production workbench, and real-time integration with the Python agent service and ClickHouse.
 
 See the root [README.md](../README.md) for the full product vision, architecture diagram, and feature catalog.
 

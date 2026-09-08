@@ -1,7 +1,14 @@
-# 🎬 Agentic Cinema
+<p align="center">
+  <img src="web/public/logo.png" alt="BlendEye Logo" width="160" style="border-radius: 20px;" />
+</p>
 
-> **The Writers' Room That Knows What Your Characters Know.**  
-> Built for the **Google Cloud Agentic Cinema Hackathon** — *ClickHouse Partner Track*.
+<h1 align="center">BlendEye</h1>
+
+<p align="center">
+  <strong>The Writers' Room That Knows What Your Characters Know.</strong><br>
+  <em>Built for the <strong>Google Cloud Agentic Cinema Hackathon</strong> — ClickHouse Partner Track</em>
+</p>
+<br>
 
 [![Next.js](https://img.shields.io/badge/Next.js-16.3-black?logo=next.js)](https://nextjs.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.141-009688?logo=fastapi)](https://fastapi.tiangolo.com/)
@@ -17,7 +24,7 @@
 ## 📽️ Table of Contents
 
 1. [Executive Overview](#-executive-overview)
-2. [Why Agentic Cinema? (The Problem)](#-why-agentic-cinema-the-problem)
+2. [Why BlendEye? (The Problem)](#-why-blendeye-the-problem)
 3. [System Architecture](#-system-architecture)
 4. [Key Features & Studio Modules](#-key-features--studio-modules)
    - [Interactive Story Canvas (React Flow)](#1-interactive-story-canvas-xyflowreact)
@@ -45,7 +52,7 @@
 
 ## 🌟 Executive Overview
 
-**Agentic Cinema** is an interactive, multi-agent virtual writers' room and cinematic pre-production studio. Screenwriters, showrunners, and directors can map out complex screenplays on an infinite visual backlot canvas, scrub an interactive timeline to any minute of the story runtime, and **interrogate characters live in the "Hot Seat"** — where characters are bounded by strict, sub-millisecond **ClickHouse time-gated knowledge firewalls**.
+**BlendEye** is an interactive, multi-agent virtual writers' room and cinematic pre-production studio. Screenwriters, showrunners, and directors can map out complex screenplays on an infinite visual backlot canvas, scrub an interactive timeline to any minute of the story runtime, and **interrogate characters live in the "Hot Seat"** — where characters are bounded by strict, sub-millisecond **ClickHouse time-gated knowledge firewalls**.
 
 Ask a character where the missing vault keys are at **Minute 34**, and they answer with honest, believable ignorance. Scrub forward to **Minute 52** after a clandestine betrayal, and their entire worldview, emotional state, and testimony shift automatically.
 
@@ -53,19 +60,19 @@ The entire experience combines **ClickHouse's ultra-low-latency temporal query c
 
 ---
 
-## 💡 Why Agentic Cinema? (The Problem)
+## 💡 Why BlendEye? (The Problem)
 
 In traditional screenwriting and filmmaking, writers constantly fight two pervasive problems:
 1. **Character Omniscience ("Writer Leakage")**: Characters often speak as if they've read the end of the script. They foreshadow twists they shouldn't know, fail to react with authentic paranoia, or lack the genuine blind spots of people acting in incomplete information environments.
 2. **Disconnected Pre-Production Workflows**: Screenplay drafting, character psychological profiles, 2D camera blocking, shooting schedules, location dossiers, and musical scoring happen in siloed tools, leading to continuity breaks and compromised pacing.
 
-**Agentic Cinema solves this** by treating character memory as a queryable, time-stamped temporal stream backed by a high-performance column database, surrounded by an end-to-end directorial workbench.
+**BlendEye solves this** by treating character memory as a queryable, time-stamped temporal stream backed by a high-performance column database, surrounded by an end-to-end directorial workbench.
 
 ---
 
 ## 🏗️ System Architecture
 
-Agentic Cinema uses a decoupled, hybrid architecture separating frontend presentation, state persistence, and stateless AI/analytical compute:
+BlendEye uses a decoupled, hybrid architecture separating frontend presentation, state persistence, and stateless AI/analytical compute:
 
 ```mermaid
 flowchart TB
@@ -226,7 +233,7 @@ flowchart TB
 
 ## ⚡ ClickHouse Integration (Partner Track Centerpiece)
 
-ClickHouse is not a passive database in Agentic Cinema — **it is the fundamental data engine powering the time-gate mechanic**:
+ClickHouse is not a passive database in BlendEye — **it is the fundamental data engine powering the time-gate mechanic**:
 
 ```
 +---------------------------------------------------------------------------------------+
@@ -298,7 +305,7 @@ ORDER BY (genre, trope);
 ```
 
 ### 4. `mcp-clickhouse` Integration
-Agentic Cinema includes both direct database connectivity via `clickhouse-connect` (for high-speed internal timeline queries) and official MCP protocol support via `mcp-clickhouse` (allowing Gemini/ADK agents to execute runtime analytical queries dynamically).
+BlendEye includes both direct database connectivity via `clickhouse-connect` (for high-speed internal timeline queries) and official MCP protocol support via `mcp-clickhouse` (allowing Gemini/ADK agents to execute runtime analytical queries dynamically).
 
 ### 5. Live Query Inspector & Telemetry
 The frontend includes a real-time **ClickHouse Query Inspector** modal displaying:
@@ -311,7 +318,7 @@ The frontend includes a real-time **ClickHouse Query Inspector** modal displayin
 
 ## 🤖 Google Cloud AI & Gemini Multimodal Suite
 
-Agentic Cinema harnesses Google Cloud's multimodal model family:
+BlendEye harnesses Google Cloud's multimodal model family:
 
 | Capability | Model | Role in Studio |
 | :--- | :--- | :--- |
@@ -526,7 +533,7 @@ docker compose --profile full up --build
 
 ## 🎬 Benchmark Productions
 
-Agentic Cinema comes out of the box with curated benchmark productions ready for immediate exploration:
+BlendEye comes out of the box with curated benchmark productions ready for immediate exploration:
 
 ### 1. *The Vault Heist* (Crime / Suspense Thriller)
 - **Setting**: Sub-basement vault, Manhattan Financial District.

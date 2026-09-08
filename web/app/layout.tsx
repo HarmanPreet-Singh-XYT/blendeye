@@ -15,8 +15,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Agentic Cinema",
-  description: "A writers' room where you scrub the timeline and interrogate characters bound to what they'd actually know.",
+  title: "BlendEye — The Writers' Room That Knows What Your Characters Know",
+  description: "An interactive writers' room and cinematic pre-production canvas where you scrub the timeline and interrogate characters bound to what they actually know.",
+  icons: {
+    icon: "/logo.png",
+    shortcut: "/logo.png",
+    apple: "/logo.png",
+  },
 };
 
 import { AuthProvider } from "@/lib/auth-context";

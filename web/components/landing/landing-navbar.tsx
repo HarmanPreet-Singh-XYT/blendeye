@@ -36,12 +36,12 @@ export function LandingNavbar({ onOpenNewProject }: LandingNavbarProps) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between gap-4">
         {/* Left: Brand Identity (Single clean line, no wrapping) */}
         <Link href="/" className="flex items-center gap-2.5 shrink-0 hover:opacity-90 transition-opacity">
-          <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-accent/15 border border-accent/30 text-accent">
-            <Film className="h-4 w-4" />
+          <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-black/50 border border-accent/30 overflow-hidden shadow-sm">
+            <img src="/logo.png" alt="BlendEye" className="h-full w-full object-cover" />
           </div>
           <div className="flex items-center gap-2">
             <span className="font-heading font-semibold tracking-tight text-sm sm:text-base text-foreground whitespace-nowrap">
-              Agentic Cinema
+              BlendEye
             </span>
             <span className="text-border text-xs hidden sm:inline">/</span>
             <span className="text-xs font-mono text-muted-foreground uppercase tracking-wider hidden sm:inline">

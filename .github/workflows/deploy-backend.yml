@@ -1,0 +1,106 @@
+name: Deploy Agent Service to Google Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'agent-service/**'
+      - '.github/workflows/deploy-backend.yml'
+  workflow_dispatch:
+    inputs:
+      region:
+        description: 'Google Cloud Region (default: us-central1)'
+        required: false
+        default: 'us-central1'
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: ${{ github.event.inputs.region || vars.GCP_REGION || 'us-central1' }}
+  SERVICE_NAME: agent-service
+
+jobs:
+  deploy:
+    name: Build & Deploy to Cloud Run
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Deploy to Cloud Run
+        id: deploy
+        run: |
+          echo "Deploying ${{ env.SERVICE_NAME }} to Cloud Run in region ${{ env.REGION }}..."
+
+          # Construct comma-separated environment variables
+          ENV_VARS="ENVIRONMENT=production"
+          ENV_VARS="${ENV_VARS},GEMINI_MODEL=${{ vars.GEMINI_MODEL || 'gemini-3.7-flash' }}"
+          ENV_VARS="${ENV_VARS},CLICKHOUSE_HOST=${{ secrets.CLICKHOUSE_HOST }}"
+          ENV_VARS="${ENV_VARS},CLICKHOUSE_PORT=${{ secrets.CLICKHOUSE_PORT || '8443' }}"
+          ENV_VARS="${ENV_VARS},CLICKHOUSE_USER=${{ secrets.CLICKHOUSE_USER || 'default' }}"
+          ENV_VARS="${ENV_VARS},CLICKHOUSE_PASSWORD=${{ secrets.CLICKHOUSE_PASSWORD }}"
+          ENV_VARS="${ENV_VARS},CLICKHOUSE_DATABASE=${{ secrets.CLICKHOUSE_DATABASE || 'default' }}"
+          ENV_VARS="${ENV_VARS},CLICKHOUSE_SECURE=${{ secrets.CLICKHOUSE_SECURE || 'true' }}"
+          ENV_VARS="${ENV_VARS},ALLOWED_ORIGINS=${{ secrets.ALLOWED_ORIGINS || '[\"*\"]' }}"
+          ENV_VARS="${ENV_VARS},GOOGLE_API_KEY=${{ secrets.GOOGLE_API_KEY }}"
+
+          if [ -n "${{ secrets.GOOGLE_CLOUD_PROJECT }}" ]; then
+            ENV_VARS="${ENV_VARS},GOOGLE_CLOUD_PROJECT=${{ secrets.GOOGLE_CLOUD_PROJECT }}"
+          fi
+
+          # Deploy using Cloud Run source deployment (builds Dockerfile via Cloud Build)
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --source ./agent-service \
+            --project ${{ env.PROJECT_ID }} \
+            --region ${{ env.REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --timeout 900 \
+            --memory 2Gi \
+            --cpu 2 \
+            --set-env-vars "${ENV_VARS}"
+
+          # Extract and output the live service URL
+          SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} \
+            --project ${{ env.PROJECT_ID }} \
+            --region ${{ env.REGION }} \
+            --format 'value(status.url)')
+          echo "SERVICE_URL=${SERVICE_URL}" >> $GITHUB_ENV
+          echo "Service deployed successfully at: ${SERVICE_URL}"
+
+      - name: Verify Service Health
+        run: |
+          echo "Testing health endpoint at ${SERVICE_URL}/health..."
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${SERVICE_URL}/health")
+          if [ "$HTTP_STATUS" -eq 200 ]; then
+            echo "✅ Health check passed (HTTP 200)"
+          else
+            echo "⚠️ Health check returned HTTP $HTTP_STATUS (check Cloud Run logs)"
+          fi
+
+      - name: Deployment Summary
+        run: |
+          echo "### 🚀 Cloud Run Deployment Succeeded!" >> $GITHUB_STEP_SUMMARY
+          echo "- **Service Name**: \`${{ env.SERVICE_NAME }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Region**: \`${{ env.REGION }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Live URL**: [${{ env.SERVICE_URL }}](${{ env.SERVICE_URL }})" >> $GITHUB_STEP_SUMMARY
+          echo "- **Docs (OpenAPI)**: [${{ env.SERVICE_URL }}/docs](${{ env.SERVICE_URL }}/docs)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Telemetry**: [${{ env.SERVICE_URL }}/metrics](${{ env.SERVICE_URL }}/metrics)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "> **Next Step**: Add \`AGENT_SERVICE_URL=${{ env.SERVICE_URL }}\` to your Vercel Project Environment Variables." >> $GITHUB_STEP_SUMMARY

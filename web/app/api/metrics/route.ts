@@ -18,7 +18,7 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    studio: "Agentic Cinema Executive Backlot",
+    studio: "BlendEye Executive Backlot",
     partner_integrations: ["ClickHouse Cloud"],
     mcp_servers: {
       clickhouse_mcp: "unreachable",

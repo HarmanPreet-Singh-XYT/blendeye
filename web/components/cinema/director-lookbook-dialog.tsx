@@ -70,7 +70,7 @@ export function DirectorLookbookDialog({
               </DialogTitle>
             </div>
             <p className="text-xs text-muted-foreground font-mono">
-              Executive pre-visualization package · Generated via Agentic Cinema
+              Executive pre-visualization package · Generated via BlendEye Studio
             </p>
           </div>
 

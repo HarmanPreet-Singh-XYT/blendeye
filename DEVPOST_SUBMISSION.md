@@ -1,7 +1,7 @@
-# Devpost Submission — Agentic Cinema
+# Devpost Submission — BlendEye
 
 > **Google Cloud Agentic Cinema Hackathon** — ClickHouse Partner Track
-> **Project Name:** Agentic Cinema
+> **Project Name:** BlendEye
 > **Tagline:** The Writers' Room That Knows What Your Characters Know.
 
 ---
@@ -11,12 +11,12 @@ In traditional filmmaking and television writers' rooms, writers constantly batt
 
 We asked: **What if you could build a movie on an interactive node graph, scrub a timeline to any exact minute of the story, and interrogate any character live — and they genuinely only know what they would know at that exact moment?**
 
-Ask Marcus at Minute 34 where the vault keys are, and he defends his canvas bag with honest ignorance. Scrub to Minute 52 after the betrayal, and his entire reality shifts. That became the core obsession behind **Agentic Cinema**.
+Ask Marcus at Minute 34 where the vault keys are, and he defends his canvas bag with honest ignorance. Scrub to Minute 52 after the betrayal, and his entire reality shifts. That became the core obsession behind **BlendEye**.
 
 ---
 
 ## 💡 What It Does
-Agentic Cinema is an end-to-end interactive writers' room studio consisting of:
+BlendEye is an end-to-end interactive writers' room studio consisting of:
 
 1. **Film Production Slate Hub**: Browse curated benchmark productions (*The Vault Heist*, *Deep Space Airlock*) or launch custom slates with custom premises, genres, and cast rosters.
 2. **Interactive Story Canvas (React Flow)**: An intuitive cinematic node graph displaying:
@@ -125,7 +125,7 @@ A live console built directly into the UI shows judges and directors the exact C
 
 ---
 
-## 🚀 What's Next for Agentic Cinema
+## 🚀 What's Next for BlendEye
 - **Live Duplex Voice Rehearsal**: Integrating Gemini Live WebSockets for real-time vocal table reads and improvised voice interrogation.
 - **Unreal Engine 5 Previs Connector**: Exporting 2D floor plans directly into 3D virtual production stages.
 - **Native Screenplay Export**: One-click Final Draft (.fdx), Fountain, and production PDF script packet generation.

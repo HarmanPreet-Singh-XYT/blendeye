@@ -49,9 +49,9 @@ async def lifespan(app: FastAPI):
 settings = get_settings()
 
 app = FastAPI(
-    title="Agentic Cinema — Agent Service",
+    title="BlendEye — Agent Service",
     description=(
-        "Stateless Gemini/ADK sidecar. Handles script generation, "
+        "Stateless Gemini/ADK sidecar for BlendEye. Handles script generation, "
         "perspective sharding, and time-gated hot-seat interrogation. "
         "Next.js owns Postgres/Supabase; this service owns Gemini/ADK "
         "calls and the ClickHouse story_events store."
@@ -121,7 +121,7 @@ async def metrics() -> dict[str, object]:
         query_latency_ms = round((time.time() - query_start) * 1000, 2)
 
         return {
-            "studio": "Agentic Cinema Executive Backlot",
+            "studio": "BlendEye Executive Backlot",
             "partner_integrations": ["ClickHouse Cloud"],
             "mcp_servers": {
                 "clickhouse_mcp": "online",
@@ -137,7 +137,7 @@ async def metrics() -> dict[str, object]:
         }
     except Exception as exc:  # noqa: BLE001
         return {
-            "studio": "Agentic Cinema Executive Backlot",
+            "studio": "BlendEye Executive Backlot",
             "partner_integrations": ["ClickHouse Cloud"],
             "mcp_servers": {
                 "clickhouse_mcp": "unreachable",

@@ -338,12 +338,12 @@ export function StudioDashboard() {
         {/* Brand Header */}
         <div className="flex h-14 items-center justify-between px-3.5 border-b border-border/80 shrink-0">
           <Link href="/" className="flex items-center gap-2.5 overflow-hidden group">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent/15 border border-accent/30 text-accent group-hover:scale-105 transition-transform shadow-sm">
-              <Clapperboard className="h-4 w-4" />
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-black/50 border border-accent/30 overflow-hidden shadow-sm group-hover:scale-105 transition-transform">
+              <img src="/logo.png" alt="BlendEye" className="h-full w-full object-cover" />
             </div>
             <div className="flex flex-col">
               <span className="font-heading text-xs font-black tracking-wider uppercase text-foreground">
-                Agentic Cinema
+                BlendEye
               </span>
               <span className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground">
                 Studio Lot v2.5

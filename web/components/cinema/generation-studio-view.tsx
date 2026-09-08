@@ -916,7 +916,7 @@ export function GenerationStudioView({
       sceneTitle,
       genre,
       exportTimestamp: new Date().toISOString(),
-      generator: "Google Cloud Agentic Cinema Studio Pipeline",
+      generator: "BlendEye Studio Pipeline",
       activeTake: recentTakes.find((t) => t.id === activeTakeId) || recentTakes[0],
       videoDelivery: {
         engine: "Google Veo 3.1",

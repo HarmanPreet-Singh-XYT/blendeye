@@ -12,9 +12,11 @@ export function LandingFooter() {
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div className="space-y-2">
             <div className="flex items-center gap-3">
-              <Film className="h-5 w-5 text-accent" />
+              <div className="flex items-center justify-center h-7 w-7 rounded-md bg-black/50 border border-accent/30 overflow-hidden shadow-sm">
+                <img src="/logo.png" alt="BlendEye" className="h-full w-full object-cover" />
+              </div>
               <span className="font-heading font-bold text-lg text-foreground">
-                Agentic Cinema
+                BlendEye
               </span>
               <span className="text-border">/</span>
               <SlateLabel>Production Suite</SlateLabel>

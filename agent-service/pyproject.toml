@@ -1,7 +1,7 @@
 [project]
 name = "agentic-cinema-agent-service"
 version = "0.1.0"
-description = "Gemini/ADK agent sidecar for Agentic Cinema — script generation, perspective sharding, time-gated hot-seat interrogation. Stateless: Next.js owns Postgres/Supabase writes, this service owns Gemini/ADK calls and ClickHouse MCP queries."
+description = "Gemini/ADK agent sidecar for BlendEye — script generation, perspective sharding, time-gated hot-seat interrogation. Stateless: Next.js owns Postgres/Supabase writes, this service owns Gemini/ADK calls and ClickHouse MCP queries."
 requires-python = ">=3.12"
 dependencies = [
     # Floors set to the latest available as of 2026-09-04 (verified via

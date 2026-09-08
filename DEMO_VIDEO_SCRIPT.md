@@ -1,4 +1,4 @@
-# 3-Minute Demo Video Recording Script — Agentic Cinema
+# 3-Minute Demo Video Recording Script — BlendEye
 
 > **Target Length:** Exactly 2:50 – 3:00 (English, Public on YouTube/Vimeo)
 > **Goal:** Deliver an unforgettable demo highlighting the ClickHouse time-gate centerpiece.
@@ -10,9 +10,9 @@
 ### 0:00 – 0:30 | The Hook & Problem (Film Slate Hub)
 * **Screen**: Open [http://localhost:3000](http://localhost:3000). Show the **Production Slate Hub**.
 * **Voiceover**:
-  > *"Every screenwriter and director battles the same problem: character omniscience. When you draft a script, characters often sound like they've read the ending. They lack the real blind spots, secrets, and authentic ignorance of a person acting in the dark.*
+  > *"Every screenwriter and director battles the same problem: character omniscience. When you draft a script, characters often sound like they've read the ending. They lack the real blind spots, secrets, and authentic ignorance of a person acting in the dark.
   >
-  > *This is Agentic Cinema — an interactive writers' room where you build a movie on an interactive node graph, scrub a timeline to any minute of the story, and interrogate any character live. They only know what they'd know at that exact minute, backed by a ClickHouse story event engine and Gemini 3.7 Flash."*
+  > *This is BlendEye — an interactive writers' room where you build a movie on an interactive node graph, scrub a timeline to any minute of the story, and interrogate any character live. They only know what they'd know at that exact minute, backed by a ClickHouse story event engine and Gemini 3.7 Flash."*
 * **Action**: Click on **"Enter Writers' Room"** on the *The Vault Heist* slate card.
 
 ---
@@ -72,6 +72,6 @@
 ### 2:45 – 3:00 | Conclusion & Architecture Wrap-up
 * **Screen**: Return to the Story Canvas overview.
 * **Voiceover**:
-  > *"Built with Google Cloud's Gemini 3.7 Flash, Next.js, and ClickHouse as the ultra-fast story event data plane.*
-  > *Agentic Cinema gives filmmakers the power to test story continuity and interrogate characters with genuine, time-gated authenticity.*
+  > *"Built with Google Cloud's Gemini 3.7 Flash, Next.js, and ClickHouse as the ultra-fast story event data plane.
+  > *BlendEye gives filmmakers the power to test story continuity and interrogate characters with genuine, time-gated authenticity.
   > *Thank you!"*

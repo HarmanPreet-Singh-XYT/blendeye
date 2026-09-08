@@ -293,7 +293,7 @@ export default function DesignSystemPage() {
             Screening Room Theme
           </Badge>
           <h1 className="text-3xl font-semibold tracking-tight">
-            Agentic Cinema Design System
+            BlendEye Design System
           </h1>
           <p className="text-muted-foreground max-w-2xl">
             Every installed shadcn component rendered in the actual product

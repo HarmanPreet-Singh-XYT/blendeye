@@ -105,8 +105,8 @@ export function AuthDialog() {
         {/* Header Ribbon */}
         <div className="bg-gradient-to-b from-secondary/40 to-transparent p-6 pb-4 border-b border-border/60">
           <div className="flex items-center gap-2.5 mb-2">
-            <div className="h-9 w-9 rounded-lg bg-accent/15 border border-accent/30 flex items-center justify-center text-accent">
-              <Clapperboard className="h-5 w-5" />
+            <div className="h-9 w-9 rounded-lg bg-black/50 border border-accent/30 flex items-center justify-center overflow-hidden shadow-sm">
+              <img src="/logo.png" alt="BlendEye" className="h-full w-full object-cover" />
             </div>
             <div>
               <DialogTitle className="text-base font-semibold tracking-tight">

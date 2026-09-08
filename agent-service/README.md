@@ -1,4 +1,4 @@
-# Agentic Cinema — Agent Service
+# BlendEye — Agent Service
 
 Stateless Python/FastAPI sidecar handling Gemini/ADK agent calls and the
 ClickHouse `story_events` store. Next.js (`../web`) owns all Postgres/Supabase
