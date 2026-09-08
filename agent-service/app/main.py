@@ -107,6 +107,8 @@ async def metrics() -> dict[str, object]:
 
     try:
         store = get_clickhouse_store()
+        if not store.is_connected or store.client is None:
+            raise RuntimeError("ClickHouse connection not established")
         story_events_count = store.client.query(
             "SELECT count() FROM story_events"
         ).result_rows[0][0]

@@ -51,6 +51,21 @@ class Settings(BaseSettings):
     clickhouse_database: str = "default"
     clickhouse_secure: bool = False
 
+    @field_validator("clickhouse_host", mode="after")
+    @classmethod
+    def sanitize_clickhouse_host(cls, v: str) -> str:
+        if not v:
+            return "localhost"
+        v = v.strip()
+        for prefix in ("https://", "http://"):
+            if v.startswith(prefix):
+                v = v[len(prefix):]
+        # Strip trailing slashes and inline ports if present
+        v = v.rstrip("/")
+        if ":" in v:
+            v = v.split(":")[0]
+        return v
+
     # CORS — only the Next.js frontend calls this service.
     allowed_origins: str | list[str] = ["http://localhost:3000"]
 
