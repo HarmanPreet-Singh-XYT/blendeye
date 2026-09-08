@@ -40,6 +40,7 @@ import {
   toggleStarProject,
   deleteProject,
   createNewProjectEntry,
+  getOnboardingStorageKey,
   type ProjectData,
 } from "@/lib/project-store";
 import {
@@ -50,6 +51,7 @@ import { FilmFusionDialog } from "@/components/cinema/film-fusion-dialog";
 import { ClickHouseToolboxDialog } from "@/components/cinema/clickhouse-toolbox-dialog";
 import { CharacterLabDialog } from "@/components/cinema/character-lab-dialog";
 import { ScratchpadDialog } from "@/components/cinema/scratchpad-dialog";
+import { OnboardingDialog } from "@/components/cinema/onboarding-dialog";
 import { AuthUserButton } from "@/components/cinema/auth-user-button";
 import { StudioChatWorkspace } from "./studio-chat-workspace";
 
@@ -119,6 +121,7 @@ export function StudioDashboard() {
   const [toolboxOpen, setToolboxOpen] = React.useState(false);
   const [characterLabOpen, setCharacterLabOpen] = React.useState(false);
   const [scratchpadOpen, setScratchpadOpen] = React.useState(false);
+  const [onboardingOpen, setOnboardingOpen] = React.useState(false);
 
   // ClickHouse connection status for the header badge — actually probed, not hardcoded
   const [clickhouseLive, setClickhouseLive] = React.useState<boolean | null>(null);
@@ -186,6 +189,26 @@ export function StudioDashboard() {
       window.removeEventListener("agentic_cinema_quota_exceeded", handleQuotaWarning);
     };
   }, [refreshProjects, user, authLoading]);
+
+  // First-visit onboarding — shown once per user (or once per guest browser)
+  React.useEffect(() => {
+    if (authLoading) return;
+    try {
+      const key = getOnboardingStorageKey();
+      if (!localStorage.getItem(key)) {
+        setOnboardingOpen(true);
+      }
+    } catch {}
+  }, [authLoading, user]);
+
+  const handleOnboardingOpenChange = (nextOpen: boolean) => {
+    setOnboardingOpen(nextOpen);
+    if (!nextOpen) {
+      try {
+        localStorage.setItem(getOnboardingStorageKey(), "true");
+      } catch {}
+    }
+  };
 
   // Handle New Project from dialog with Autonomous AI Showrunner Sequence Architect
   const handleCreateNewProject = async (data: NewProjectFormData) => {
@@ -1183,6 +1206,12 @@ export function StudioDashboard() {
       <ScratchpadDialog
         open={scratchpadOpen}
         onOpenChange={setScratchpadOpen}
+      />
+
+      {/* First-visit Onboarding Dialog */}
+      <OnboardingDialog
+        open={onboardingOpen}
+        onOpenChange={handleOnboardingOpenChange}
       />
     </div>
   );

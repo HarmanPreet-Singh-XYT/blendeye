@@ -1765,6 +1765,11 @@ export function getScratchpadStorageKey(userId?: string | null): string {
   return uid ? `agentic_cinema_scratchpad_u_${uid}` : "agentic_cinema_scratchpad_v1";
 }
 
+export function getOnboardingStorageKey(userId?: string | null): string {
+  const uid = userId !== undefined ? userId : getActiveUserId();
+  return uid ? `agentic_cinema_onboarding_seen_u_${uid}` : "agentic_cinema_onboarding_seen_v1";
+}
+
 /**
  * Ensures a project has its `scenes` array and `activeSceneId` set.
  * If missing, falls back to seed preset or wraps single scene.
