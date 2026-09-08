@@ -177,20 +177,35 @@ export function synthesizeCinemaPrompt(options: SynthesisOptions): SynthesisResu
     });
   }
 
-  // 4. Tension Curve Node Context
+  // 4. Director 2D Floor Plan Staging Context
+  const floorplanNode = connectedNodes.find((n) => n.type === "floorplan");
+  const floorplanBlocking = (floorplanNode?.data?.blockingPrompt as string) || "";
+  const floorplanCam = (floorplanNode?.data?.activeCam as string) || "";
+  if (floorplanNode) {
+    contributions.push({
+      id: floorplanNode.id,
+      type: "floorplan",
+      label: "2D Floor Plan Blocking",
+      summary: floorplanBlocking ? floorplanBlocking.slice(0, 50) : `${floorplanCam || "35mm"} Camera Staging`,
+      badgeColor: "border-blue-500/40 bg-blue-500/10 text-blue-300",
+    });
+  }
+
+  // 5. Tension Curve Node Context (Audience EKG & Pacing)
   const tensionNode = connectedNodes.find((n) => n.type === "tensionCurve");
   const peakTension = tensionNode?.data?.peakTension as number | undefined;
-  if (tensionNode && peakTension) {
+  const pacingPrompt = (tensionNode?.data?.pacingPrompt as string) || "";
+  if (tensionNode) {
     contributions.push({
       id: tensionNode.id,
       type: "tensionCurve",
-      label: "Tension Curve",
-      summary: `Peak Tension: ${peakTension}%`,
+      label: "Tension & Pacing Curve",
+      summary: pacingPrompt ? pacingPrompt.slice(0, 50) : (peakTension ? `Peak Tension: ${peakTension}%` : "Audience EKG"),
       badgeColor: "border-rose-500/40 bg-rose-500/10 text-rose-300",
     });
   }
 
-  // 5. Chemistry Node Context
+  // 6. Chemistry Node Context
   const chemistryNode = connectedNodes.find((n) => n.type === "chemistry");
   const chemistryScenario = chemistryNode?.data?.scenario as string | undefined;
   if (chemistryNode && chemistryScenario) {
@@ -203,7 +218,7 @@ export function synthesizeCinemaPrompt(options: SynthesisOptions): SynthesisResu
     });
   }
 
-  // 6. Screenplay Draft Node Context
+  // 7. Screenplay Draft Node Context
   const scriptNode = connectedNodes.find((n) => n.type === "script");
   const scriptBeat = extractScreenplayBeat(screenplayText, focusCharacterName || undefined);
   if (scriptBeat) {
@@ -216,7 +231,48 @@ export function synthesizeCinemaPrompt(options: SynthesisOptions): SynthesisResu
     });
   }
 
-  // 7. Character Dossier & Image Conditioning
+  // 8. Table Read / Voice Rehearsal Context
+  const tableReadNode = connectedNodes.find((n) => n.type === "tableRead");
+  if (tableReadNode) {
+    const voiceCount = (tableReadNode.data?.voiceCount as number) || characters.length || 2;
+    contributions.push({
+      id: tableReadNode.id,
+      type: "tableRead",
+      label: "Speech & Table Read",
+      summary: `${voiceCount} voices calibrated · Rehearsal ready`,
+      badgeColor: "border-cyan-500/40 bg-cyan-500/10 text-cyan-300",
+    });
+  }
+
+  // 9. Actor Legacy Comp Routing (Dream Casting Likeness)
+  const actorNodes = connectedNodes.filter((n) => n.type === "actor");
+  const wiredActorMap = new Map<string, { actorName: string; roleReference: string; vocalWeight: string }>();
+
+  for (const actorNode of actorNodes) {
+    const actorData = actorNode.data as { actorName?: string; roleReference?: string; vocalWeight?: string };
+    if (!actorData?.actorName) continue;
+
+    // Check which node this actor node is wired into
+    const outgoingEdges = edges.filter((e) => e.source === actorNode.id || e.target === actorNode.id);
+    for (const edge of outgoingEdges) {
+      const otherId = edge.source === actorNode.id ? edge.target : edge.source;
+      wiredActorMap.set(otherId, {
+        actorName: actorData.actorName,
+        roleReference: actorData.roleReference || "",
+        vocalWeight: actorData.vocalWeight || "",
+      });
+    }
+
+    contributions.push({
+      id: actorNode.id,
+      type: "actor",
+      label: `Casting Comp: ${actorData.actorName}`,
+      summary: `${actorData.roleReference || "Benchmark"} · ${actorData.vocalWeight || "Tone"}`,
+      badgeColor: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
+    });
+  }
+
+  // 10. Character Dossier & Image Conditioning
   const activeCharacter = focusCharacterName
     ? characters.find((c) => c.name.toLowerCase() === focusCharacterName.toLowerCase()) || null
     : null;
@@ -239,12 +295,24 @@ export function synthesizeCinemaPrompt(options: SynthesisOptions): SynthesisResu
       conditioningImageType = "body";
     }
 
+    // Resolve effective actor likeness comp from wired Actor node if present
+    const charNodeId = `node-core-${activeCharacter.name.toLowerCase()}`;
+    const wiredComp =
+      wiredActorMap.get(charNodeId) ||
+      (actorNodes.length > 0
+        ? (actorNodes[0].data as { actorName?: string; roleReference?: string; vocalWeight?: string })
+        : null);
+
+    const effectiveComp = wiredComp?.actorName
+      ? `${wiredComp.actorName} (in the style of ${wiredComp.roleReference || "signature role"}, ${wiredComp.vocalWeight || "intense"} vocal delivery)`
+      : activeCharacter.actorComp;
+
     // Add character node contribution
     contributions.push({
-      id: `node-core-${activeCharacter.name.toLowerCase()}`,
+      id: charNodeId,
       type: "characterCore",
       label: `Cast: ${activeCharacter.name}`,
-      summary: `${activeCharacter.actorComp ? `Comp: ${activeCharacter.actorComp} · ` : ""}${activeCharacter.role || activeCharacter.archetype}`,
+      summary: `${effectiveComp ? `Comp: ${effectiveComp} · ` : ""}${activeCharacter.role || activeCharacter.archetype}`,
       badgeColor: "border-purple-500/40 bg-purple-500/10 text-purple-300",
     });
 
@@ -260,13 +328,19 @@ export function synthesizeCinemaPrompt(options: SynthesisOptions): SynthesisResu
       });
     }
   } else if (characters.length > 0) {
-    // Master scene includes all main characters
+    // Master scene includes main characters with wired actor comps
     characters.slice(0, 3).forEach((c) => {
+      const cNodeId = `node-core-${c.name.toLowerCase()}`;
+      const cWiredComp = wiredActorMap.get(cNodeId);
+      const cComp = cWiredComp?.actorName
+        ? `${cWiredComp.actorName} (${cWiredComp.roleReference})`
+        : c.actorComp;
+
       contributions.push({
-        id: `node-core-${c.name.toLowerCase()}`,
+        id: cNodeId,
         type: "characterCore",
         label: `Ensemble: ${c.name}`,
-        summary: c.actorComp ? `Like ${c.actorComp}` : c.archetype,
+        summary: cComp ? `Like ${cComp}` : c.archetype,
         badgeColor: "border-purple-500/40 bg-purple-500/10 text-purple-300",
       });
     });
@@ -277,8 +351,19 @@ export function synthesizeCinemaPrompt(options: SynthesisOptions): SynthesisResu
 
   if (activeCharacter) {
     // ------------------- CHARACTER-FOCUSED TAKE -------------------
-    const likenessComp = activeCharacter.actorComp
-      ? `facial likeness and bone structure strongly echoing ${activeCharacter.actorComp}`
+    const charNodeId = `node-core-${activeCharacter.name.toLowerCase()}`;
+    const wiredComp =
+      wiredActorMap.get(charNodeId) ||
+      (actorNodes.length > 0
+        ? (actorNodes[0].data as { actorName?: string; roleReference?: string; vocalWeight?: string })
+        : null);
+
+    const activeActorComp = wiredComp?.actorName
+      ? `${wiredComp.actorName} (resembling ${wiredComp.roleReference || "past role"}, ${wiredComp.vocalWeight || "expressive"} energy)`
+      : activeCharacter.actorComp;
+
+    const likenessComp = activeActorComp
+      ? `facial likeness and bone structure strongly echoing ${activeActorComp}`
       : "";
     const wardrobeDetail = activeCharacter.wardrobe
       ? `wearing ${activeCharacter.wardrobe}`
@@ -299,15 +384,22 @@ export function synthesizeCinemaPrompt(options: SynthesisOptions): SynthesisResu
       visualDesc,
       tics,
       objective,
+      floorplanBlocking ? `Camera blocking & staging: ${floorplanBlocking}.` : "",
       scriptBeat ? `Captured mid-beat: ${scriptBeat}.` : "",
       `Lighting: ${lightingStudy}. Color grade: ${colorPalette.slice(0, 3).join(", ")}.`,
+      pacingPrompt ? `Dramatic pacing: ${pacingPrompt}.` : (peakTension ? `Dramatic intensity: ${peakTension}/100.` : ""),
       `Shot: ${storyboardFraming}, ${cameraMotion}.`,
       `Style: ${stylePreset}, shallow depth of field, photoreal skin and fabric detail, no text or watermarks.`,
     ].filter(Boolean).join(" ");
   } else {
     // ------------------- MASTER ENSEMBLE SCENE TAKE -------------------
     const castDescriptions = characters.slice(0, 2).map((c) => {
-      const likeness = c.actorComp ? ` (likeness resembling ${c.actorComp})` : "";
+      const cNodeId = `node-core-${c.name.toLowerCase()}`;
+      const cWiredComp = wiredActorMap.get(cNodeId);
+      const cComp = cWiredComp?.actorName
+        ? `${cWiredComp.actorName} (${cWiredComp.roleReference})`
+        : c.actorComp;
+      const likeness = cComp ? ` (likeness resembling ${cComp})` : "";
       const clothes = c.wardrobe ? `, in ${c.wardrobe}` : "";
       return `${c.name}${likeness}${clothes}`;
     }).join(" and ");
@@ -319,10 +411,11 @@ export function synthesizeCinemaPrompt(options: SynthesisOptions): SynthesisResu
       `${sceneTitle}, a ${genre} scene.`,
       castDescriptions ? `In frame: ${castDescriptions}, positioned in physical confrontation with each other.` : "",
       `Central conflict driving the moment: ${conflict}.`,
+      floorplanBlocking ? `Spatial blocking & camera setup: ${floorplanBlocking}.` : "",
       scriptBeat ? `Action beat being depicted: ${scriptBeat}.` : "",
       storyboardPrompt ? `Framing direction: ${storyboardPrompt}.` : "",
       `Lighting: ${lightingStudy}. Pacing/mood: ${pacingStyle}. Color grade: ${colorPalette.slice(0, 4).join(", ")}.`,
-      peakTension ? `Dramatic intensity: ${peakTension}/100, reflected in blocking and expressions.` : "",
+      pacingPrompt ? `Dramatic pacing: ${pacingPrompt}.` : (peakTension ? `Dramatic intensity: ${peakTension}/100, reflected in blocking and expressions.` : ""),
       `Shot: ${storyboardFraming}, ${cameraMotion}.`,
       `Style: ${stylePreset}, photoreal depth, volumetric atmosphere, no text or watermarks.`,
     ].filter(Boolean).join(" ");

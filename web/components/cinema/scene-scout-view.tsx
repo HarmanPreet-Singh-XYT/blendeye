@@ -42,7 +42,9 @@ import {
   Plus,
   Trash2,
   Zap,
+  Upload,
 } from "lucide-react";
+import { AssetPickerModal } from "@/components/cinema/asset-picker-modal";
 import {
   LOCATION_STYLE_PRESETS,
   LOCATION_CAMERA_FRAMINGS,
@@ -99,7 +101,7 @@ export function SceneScoutView({
     lockedCandidate?.preview_image_url ||
     activeScene?.preview_image_url ||
     candidates[0]?.preview_image_url ||
-    "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1280&q=80";
+    "/assets/locations/ai_vault_plate.jpg";
 
   const [heroImage, setHeroImage] = React.useState<string>(defaultInitialImage);
   const [heroPrompt, setHeroPrompt] = React.useState<string>("");
@@ -114,7 +116,7 @@ export function SceneScoutView({
         lockedCandidate?.preview_image_url ||
         activeScene.preview_image_url ||
         candidates[0]?.preview_image_url ||
-        "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1280&q=80";
+        "/assets/locations/ai_vault_plate.jpg";
       setHeroImage(topImg);
       setHeroTitle(lockedCandidate?.name || activeScene.location || activeScene.title);
       setHeroPrompt(
@@ -135,6 +137,7 @@ export function SceneScoutView({
   const [customPrompt, setCustomPrompt] = React.useState<string>("");
   const [isGenerating, setIsGenerating] = React.useState<boolean>(false);
   const [lightboxOpen, setLightboxOpen] = React.useState<boolean>(false);
+  const [isAssetPickerOpen, setIsAssetPickerOpen] = React.useState<boolean>(false);
 
   // Location Dossier Modal
   const [dossierCandidate, setDossierCandidate] = React.useState<LocationCandidate | null>(null);
@@ -588,6 +591,16 @@ export function SceneScoutView({
               <div className="flex items-center gap-2">
                 <Button
                   size="sm"
+                  variant="outline"
+                  onClick={() => setIsAssetPickerOpen(true)}
+                  className="h-6 px-2 text-[10px] font-mono border-border hover:border-accent/40 text-accent hover:bg-accent/10 gap-1 cursor-pointer"
+                  title="Import a location reference plate or blueprint from your Asset Hub"
+                >
+                  <Upload className="h-3 w-3" />
+                  <span>Import Plate / Hub</span>
+                </Button>
+                <Button
+                  size="sm"
                   variant="ghost"
                   onClick={() => handleGenerateImages(3, "multi_angle")}
                   disabled={isGenerating}
@@ -611,7 +624,7 @@ export function SceneScoutView({
                 const isLocked = activeScene?.selectedLocationCandidateId === cand.candidate_id;
                 const thumbUrl =
                   cand.preview_image_url ||
-                  "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=400&q=80";
+                  "/assets/locations/ai_vault_plate.jpg";
 
                 return (
                   <div
@@ -1149,6 +1162,43 @@ export function SceneScoutView({
             selectedLocationCandidateId: undefined,
           };
           onUpdateScene?.(updated);
+        }}
+      />
+
+      {/* Location Plate Asset Picker Modal */}
+      <AssetPickerModal
+        open={isAssetPickerOpen}
+        onOpenChange={setIsAssetPickerOpen}
+        title={`Import Location Plate for ${activeScene?.location || activeScene?.title || "Scene"}`}
+        description="Choose an uploaded location scouting plate, architectural photo, or moodboard reference from your Asset Hub."
+        acceptedTypes={["image"]}
+        acceptedCategories={["location", "style", "general", "map"]}
+        projectId={projectId}
+        onSelectAsset={(asset) => {
+          setHeroImage(asset.url);
+          setHeroTitle(`${asset.name} (Imported)`);
+          setHeroPrompt(`Scouted plate reference: ${asset.name}`);
+          if (activeScene && onUpdateScene) {
+            const newImg = {
+              id: `scout-plate-${Date.now()}`,
+              url: asset.url,
+              prompt: `Scouted plate reference: ${asset.name}`,
+              createdAt: Date.now(),
+              title: asset.name,
+              source: "location" as const,
+            };
+            const existing = activeScene.sceneImages || [];
+            onUpdateScene({
+              ...activeScene,
+              preview_image_url: asset.url,
+              sceneImages: [newImg, ...existing],
+            });
+          }
+          toast.add({
+            title: "Location Plate Linked",
+            description: `"${asset.name}" set as active scene concept plate.`,
+            type: "success",
+          });
         }}
       />
     </div>

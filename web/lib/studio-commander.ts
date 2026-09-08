@@ -1,9 +1,10 @@
 import type { Node, Edge } from "@xyflow/react";
-import type { ProjectCharacter, FilmScene } from "@/lib/project-store";
+import type { ProjectCharacter, FilmScene, ScoreTake, TimelineMoment } from "@/lib/project-store";
 import type { StoryEventMarker } from "@/components/cinema/timeline-scrubber";
 import type { StudioAction, CommanderExecutionResponse } from "@/lib/studio-actions";
 import { autoTidyBacklot } from "@/lib/backlot-layout";
 import { StudioVersionControl } from "@/lib/version-control";
+import { getLocalAssets, saveLocalAsset, type CinemaAsset } from "@/lib/asset-store";
 
 export interface CommanderContext {
   nodes?: Node[];
@@ -39,6 +40,8 @@ export interface CommanderCallbacks {
   setScenes?: (scenes: FilmScene[]) => void;
   setActiveSceneId?: (id: string) => void;
   setEvents?: (events: StoryEventMarker[]) => void;
+  switchView?: (tab?: string, subview?: string) => void;
+  openAssetHub?: () => void;
 }
 
 /**
@@ -1074,6 +1077,278 @@ export function executeStudioActions(
           cb.saveProject?.({ shootRegion: region });
           summaries.push(`Set project production base shoot region to "${region}"`);
         }
+        break;
+      }
+
+      case "create_score_take": {
+        const ident = action.sceneIdentifier !== undefined ? String(action.sceneIdentifier).toLowerCase().trim() : (currentActiveSceneId || "").toLowerCase();
+        const numIdent = parseInt(ident, 10);
+        let targetIdx = currentScenes.findIndex((s, idx) => {
+          if (!isNaN(numIdent) && (s.sceneNumber === numIdent || idx + 1 === numIdent)) return true;
+          if (s.id.toLowerCase() === ident) return true;
+          if (s.title.toLowerCase().includes(ident)) return true;
+          return false;
+        });
+
+        if (targetIdx === -1 && currentScenes.length > 0) {
+          targetIdx = 0;
+        }
+
+        if (targetIdx !== -1) {
+          const sc = currentScenes[targetIdx];
+          const existingTakes = sc.scoreTakes || [];
+          const nextTakeNum = existingTakes.length + 1;
+          const dur = action.durationSec || 30;
+          const modelName = action.model || (dur > 30 ? "Lyria 3 Pro" : "Lyria 3 Clip");
+
+          const newTake: ScoreTake = {
+            id: `score-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            sceneId: sc.id,
+            takeNumber: nextTakeNum,
+            title: action.title || `${sc.title} — ${modelName} Cue ${String(nextTakeNum).padStart(2, "0")}`,
+            prompt: action.prompt || "Atmospheric cinematic score with emotional depth",
+            durationMode: dur > 30 ? "pro" : "clip",
+            durationSec: dur,
+            createdAt: Date.now(),
+            audioUrl: action.audioUrl || "/audio/demo-score.wav",
+            lyricsText: action.lyricsText,
+            isMaster: action.isMaster ?? (existingTakes.length === 0),
+            scoreType: action.scoreType || "score",
+            instruments: action.instruments,
+            dynamicArc: action.dynamicArc,
+            model: modelName,
+          };
+
+          const updatedTakes = [newTake, ...existingTakes];
+          currentScenes[targetIdx] = {
+            ...sc,
+            activeScoreUrl: newTake.isMaster ? newTake.audioUrl : (sc.activeScoreUrl || newTake.audioUrl),
+            scoreTakes: updatedTakes,
+          };
+          scenesChanged = true;
+          summaries.push(`Generated ${modelName} score take for Scene ${sc.sceneNumber}: "${newTake.title}" (${dur}s)`);
+        } else {
+          summaries.push(`No scene available to attach score take`);
+        }
+        break;
+      }
+
+      case "set_master_score": {
+        const ident = action.sceneIdentifier !== undefined ? String(action.sceneIdentifier).toLowerCase().trim() : (currentActiveSceneId || "").toLowerCase();
+        const numIdent = parseInt(ident, 10);
+        const targetIdx = currentScenes.findIndex((s, idx) => {
+          if (!isNaN(numIdent) && (s.sceneNumber === numIdent || idx + 1 === numIdent)) return true;
+          if (s.id.toLowerCase() === ident) return true;
+          if (s.title.toLowerCase().includes(ident)) return true;
+          return false;
+        });
+
+        if (targetIdx !== -1) {
+          const sc = currentScenes[targetIdx];
+          const takes = (sc.scoreTakes || []).map((t) => {
+            const isMatch =
+              (typeof action.takeNumber === "number" && t.takeNumber === action.takeNumber) ||
+              (action.takeId && t.id === action.takeId);
+            return { ...t, isMaster: Boolean(isMatch) };
+          });
+          const masterTake = takes.find((t) => t.isMaster);
+          currentScenes[targetIdx] = {
+            ...sc,
+            activeScoreUrl: masterTake ? masterTake.audioUrl : sc.activeScoreUrl,
+            scoreTakes: takes,
+          };
+          scenesChanged = true;
+          summaries.push(`Locked master score take for Scene ${sc.sceneNumber}${masterTake ? ` ("${masterTake.title}")` : ""}`);
+        } else {
+          summaries.push(`Could not find scene matching "${action.sceneIdentifier}" to set master score`);
+        }
+        break;
+      }
+
+      case "delete_score_take": {
+        const ident = action.sceneIdentifier !== undefined ? String(action.sceneIdentifier).toLowerCase().trim() : (currentActiveSceneId || "").toLowerCase();
+        const numIdent = parseInt(ident, 10);
+        const targetIdx = currentScenes.findIndex((s, idx) => {
+          if (!isNaN(numIdent) && (s.sceneNumber === numIdent || idx + 1 === numIdent)) return true;
+          if (s.id.toLowerCase() === ident) return true;
+          if (s.title.toLowerCase().includes(ident)) return true;
+          return false;
+        });
+
+        if (targetIdx !== -1) {
+          const sc = currentScenes[targetIdx];
+          const filteredTakes = (sc.scoreTakes || []).filter((t) => {
+            if (typeof action.takeNumber === "number" && t.takeNumber === action.takeNumber) return false;
+            if (action.takeId && t.id === action.takeId) return false;
+            return true;
+          });
+          currentScenes[targetIdx] = {
+            ...sc,
+            scoreTakes: filteredTakes,
+            activeScoreUrl: filteredTakes.find((t) => t.isMaster)?.audioUrl || filteredTakes[0]?.audioUrl,
+          };
+          scenesChanged = true;
+          summaries.push(`Deleted score take from Scene ${sc.sceneNumber}`);
+        } else {
+          summaries.push(`Could not find scene matching "${action.sceneIdentifier}" to delete score take`);
+        }
+        break;
+      }
+
+      case "attach_asset": {
+        const localAssets = getLocalAssets();
+        const searchTerm = (action.assetName || action.assetId || "").toLowerCase().trim();
+        const matchedAsset = localAssets.find(
+          (a) =>
+            a.id.toLowerCase() === searchTerm ||
+            a.name.toLowerCase().includes(searchTerm) ||
+            a.tags?.some((t) => t.toLowerCase() === searchTerm)
+        );
+
+        if (!matchedAsset) {
+          summaries.push(`Could not find asset matching "${action.assetName || action.assetId}" in Asset Hub`);
+          break;
+        }
+
+        if (action.targetType === "character") {
+          const charIdent = String(action.targetIdentifier || "").toLowerCase().trim();
+          const targetCharIdx = currentCharacters.findIndex(
+            (c) => c.name.toLowerCase() === charIdent || c.name.toLowerCase().includes(charIdent)
+          );
+          if (targetCharIdx !== -1) {
+            if (action.role === "body") {
+              currentCharacters[targetCharIdx] = {
+                ...currentCharacters[targetCharIdx],
+                fullBodyImageUrl: matchedAsset.url,
+              };
+            } else {
+              currentCharacters[targetCharIdx] = {
+                ...currentCharacters[targetCharIdx],
+                imageUrl: matchedAsset.url,
+              };
+            }
+            charsChanged = true;
+            summaries.push(`Attached asset "${matchedAsset.name}" to character ${currentCharacters[targetCharIdx].name} (${action.role || "headshot"})`);
+          } else {
+            summaries.push(`Character "${action.targetIdentifier}" not found to attach asset`);
+          }
+        } else if (action.targetType === "score_moodboard") {
+          const scIdent = action.targetIdentifier !== undefined ? String(action.targetIdentifier).toLowerCase().trim() : (currentActiveSceneId || "").toLowerCase();
+          const numIdent = parseInt(scIdent, 10);
+          const targetIdx = currentScenes.findIndex((s, idx) => {
+            if (!isNaN(numIdent) && (s.sceneNumber === numIdent || idx + 1 === numIdent)) return true;
+            if (s.id.toLowerCase() === scIdent) return true;
+            return false;
+          });
+          if (targetIdx !== -1) {
+            const sc = currentScenes[targetIdx];
+            const existing = (sc as any).scoreMoodboardAssets || [];
+            currentScenes[targetIdx] = {
+              ...sc,
+              scoreMoodboardAssets: Array.from(new Set([...existing, matchedAsset.id])),
+            } as any;
+            scenesChanged = true;
+            summaries.push(`Linked asset "${matchedAsset.name}" as Lyria 3 moodboard conditioning for Scene ${sc.sceneNumber}`);
+          }
+        } else {
+          // Target is Scene
+          const scIdent = action.targetIdentifier !== undefined ? String(action.targetIdentifier).toLowerCase().trim() : (currentActiveSceneId || "").toLowerCase();
+          const numIdent = parseInt(scIdent, 10);
+          const targetIdx = currentScenes.findIndex((s, idx) => {
+            if (!isNaN(numIdent) && (s.sceneNumber === numIdent || idx + 1 === numIdent)) return true;
+            if (s.id.toLowerCase() === scIdent) return true;
+            if (s.title.toLowerCase().includes(scIdent)) return true;
+            return false;
+          });
+
+          if (targetIdx !== -1) {
+            const sc = currentScenes[targetIdx];
+            const existingImages = sc.sceneImages || [];
+            currentScenes[targetIdx] = {
+              ...sc,
+              preview_image_url: sc.preview_image_url || matchedAsset.url,
+              sceneImages: [
+                {
+                  id: `img-${Date.now()}`,
+                  url: matchedAsset.url,
+                  prompt: `Reference plate: ${matchedAsset.name}`,
+                  createdAt: Date.now(),
+                  title: matchedAsset.name,
+                  source: "custom",
+                },
+                ...existingImages,
+              ],
+            };
+            scenesChanged = true;
+            summaries.push(`Attached asset "${matchedAsset.name}" as visual reference for Scene ${sc.sceneNumber}`);
+          } else {
+            summaries.push(`Scene "${action.targetIdentifier}" not found to attach asset`);
+          }
+        }
+        break;
+      }
+
+      case "create_asset_record": {
+        const newAsset: CinemaAsset = {
+          id: `asset-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          name: action.name,
+          category: action.category as any,
+          type: action.category === "video" ? "video" : action.category === "audio" ? "audio" : "image",
+          url: action.url,
+          thumbnailUrl: action.url,
+          tags: action.tags || ["showrunner-created"],
+          metadata: action.metadata || { generator: "Showrunner AI Directive" },
+          createdAt: Date.now(),
+        };
+        saveLocalAsset(newAsset);
+        summaries.push(`Cataloged new ${action.category} asset "${action.name}" in Asset Hub`);
+        break;
+      }
+
+      case "generate_timeline_moment": {
+        const ident = action.sceneIdentifier !== undefined ? String(action.sceneIdentifier).toLowerCase().trim() : (currentActiveSceneId || "").toLowerCase();
+        const numIdent = parseInt(ident, 10);
+        let targetIdx = currentScenes.findIndex((s, idx) => {
+          if (!isNaN(numIdent) && (s.sceneNumber === numIdent || idx + 1 === numIdent)) return true;
+          if (s.id.toLowerCase() === ident) return true;
+          if (s.title.toLowerCase().includes(ident)) return true;
+          return false;
+        });
+
+        if (targetIdx === -1 && currentScenes.length > 0) targetIdx = 0;
+
+        if (targetIdx !== -1) {
+          const sc = currentScenes[targetIdx];
+          const timeSec = typeof action.timestampSec === "number" ? action.timestampSec : 0;
+          const mins = Math.floor(timeSec / 60);
+          const secs = String(Math.floor(timeSec % 60)).padStart(2, "0");
+
+          const newMoment: TimelineMoment = {
+            id: `moment-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+            timestampSec: timeSec,
+            imageUrl: action.imageUrl || "/assets/locations/ai_vault_plate.jpg",
+            prompt: action.prompt || `Cinematic moment at ${timeSec}s in ${sc.title}: ${sc.summary}`,
+            createdAt: Date.now(),
+            styleId: action.stylePreset || "anamorphic_35mm",
+            framingId: action.cameraFraming || "wide_master",
+            label: action.label || `Still @ ${mins}:${secs} · ${action.cameraFraming || "Master"}`,
+          };
+
+          currentScenes[targetIdx] = {
+            ...sc,
+            timelineMoments: [...(sc.timelineMoments || []), newMoment],
+          };
+          scenesChanged = true;
+          summaries.push(`Generated and staged timeline still for Scene ${sc.sceneNumber} at ${mins}:${secs}`);
+        } else {
+          summaries.push(`No scene found to attach timeline still`);
+        }
+        break;
+      }
+
+      case "switch_view": {
+        cb.switchView?.(action.tab, action.subview);
+        summaries.push(`Navigated studio view to ${action.subview ? `"${action.subview}" sub-view` : `"${action.tab}" tab`}`);
         break;
       }
     }

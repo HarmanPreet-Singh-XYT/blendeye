@@ -443,3 +443,149 @@ export async function deleteTalentFromSupabase(characterName: string, userId?: s
   }
 }
 
+// ---------------------------------------------------------------------------
+// Cinema Assets (Media Library & Floor Plan Maps)
+// ---------------------------------------------------------------------------
+
+export interface CinemaAsset {
+  id: string;
+  userId?: string | null;
+  projectId?: string | null;
+  name: string;
+  type: "image" | "video" | "map" | "audio";
+  category: "map" | "character_face" | "character_body" | "location" | "style" | "video" | "audio" | "general";
+  url: string;
+  thumbnailUrl?: string | null;
+  sizeBytes?: number;
+  mimeType?: string;
+  tags?: string[];
+  metadata?: Record<string, any>;
+  createdAt: number;
+}
+
+export function assetToRow(asset: CinemaAsset, explicitUserId?: string | null) {
+  return {
+    id: asset.id,
+    user_id: explicitUserId !== undefined ? explicitUserId : asset.userId || null,
+    project_id: asset.projectId || null,
+    name: asset.name,
+    type: asset.type,
+    category: asset.category,
+    url: asset.url,
+    thumbnail_url: asset.thumbnailUrl || null,
+    size_bytes: asset.sizeBytes || 0,
+    mime_type: asset.mimeType || null,
+    tags: asset.tags || [],
+    metadata: asset.metadata || {},
+    created_at: asset.createdAt || Date.now(),
+  };
+}
+
+export function rowToAsset(r: any): CinemaAsset {
+  return {
+    id: r.id,
+    userId: r.user_id || undefined,
+    projectId: r.project_id || undefined,
+    name: r.name,
+    type: r.type || "image",
+    category: r.category || "general",
+    url: r.url,
+    thumbnailUrl: r.thumbnail_url || null,
+    sizeBytes: typeof r.size_bytes === "number" ? r.size_bytes : Number(r.size_bytes) || 0,
+    mimeType: r.mime_type || undefined,
+    tags: Array.isArray(r.tags) ? r.tags : [],
+    metadata: r.metadata && typeof r.metadata === "object" ? r.metadata : {},
+    createdAt: typeof r.created_at === "number" ? r.created_at : Number(r.created_at) || Date.now(),
+  };
+}
+
+export async function fetchAssetsFromSupabase(
+  userId?: string | null,
+  projectId?: string | null,
+  category?: string | null
+): Promise<CinemaAsset[]> {
+  if (!isSupabaseConfigured()) return [];
+
+  try {
+    const client = typeof window === "undefined" ? getSupabaseAdminClient() || getSupabaseClient() : getSupabaseClient();
+    if (!client) return [];
+
+    let query = client.from("assets").select("*").order("created_at", { ascending: false });
+
+    if (userId) {
+      query = query.or(`user_id.is.null,user_id.eq.${userId}`);
+    }
+    if (projectId) {
+      query = query.or(`project_id.is.null,project_id.eq.${projectId}`);
+    }
+    if (category && category !== "all") {
+      query = query.eq("category", category);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      console.warn("[SupabaseStore] fetchAssetsFromSupabase query error:", error.message);
+      return [];
+    }
+
+    return (data || []).map(rowToAsset);
+  } catch (err) {
+    console.warn("[SupabaseStore] fetchAssetsFromSupabase error:", err);
+    return [];
+  }
+}
+
+export async function upsertAssetToSupabase(
+  asset: CinemaAsset,
+  userId?: string | null
+): Promise<boolean> {
+  if (!isSupabaseConfigured()) return false;
+
+  try {
+    const client = typeof window === "undefined" ? getSupabaseAdminClient() || getSupabaseClient() : getSupabaseClient();
+    if (!client) return false;
+
+    const row = assetToRow(asset, userId);
+    const { error } = await client.from("assets").upsert(row, { onConflict: "id" });
+
+    if (error) {
+      console.warn("[SupabaseStore] Could not upsert asset:", error.message);
+      return false;
+    }
+
+    return true;
+  } catch (err) {
+    console.warn("[SupabaseStore] upsertAssetToSupabase error:", err);
+    return false;
+  }
+}
+
+export async function deleteAssetFromSupabase(
+  assetId: string,
+  userId?: string | null
+): Promise<boolean> {
+  if (!isSupabaseConfigured()) return false;
+
+  try {
+    const client = typeof window === "undefined" ? getSupabaseAdminClient() || getSupabaseClient() : getSupabaseClient();
+    if (!client) return false;
+
+    let query = client.from("assets").delete().eq("id", assetId);
+    if (userId) {
+      query = query.eq("user_id", userId);
+    }
+
+    const { error } = await query;
+    if (error) {
+      console.warn("[SupabaseStore] Could not delete asset:", error.message);
+      return false;
+    }
+
+    return true;
+  } catch (err) {
+    console.warn("[SupabaseStore] deleteAssetFromSupabase error:", err);
+    return false;
+  }
+}
+
+

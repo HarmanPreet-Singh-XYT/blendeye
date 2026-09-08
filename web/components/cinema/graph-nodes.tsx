@@ -40,6 +40,8 @@ import {
   Building2,
   DollarSign,
   Check,
+  Pencil,
+  SlidersHorizontal,
 } from "lucide-react";
 
 export type NodeState = "idle" | "generating" | "ready" | "stale" | "error";
@@ -314,7 +316,11 @@ export interface ActorNodeData extends Record<string, unknown> {
   energyProfile: string;
 }
 
-export function ActorNode({ data, selected }: NodeProps & { data: ActorNodeData }) {
+export function ActorNode({ id, data, selected }: NodeProps & { data: ActorNodeData }) {
+  const nodeId = id || useNodeId();
+  const connections = useNodeConnections();
+  const isWired = connections && connections.length > 0;
+
   return (
     <BlueprintNodeShell
       kind="Actor Legacy Comp"
@@ -324,14 +330,40 @@ export function ActorNode({ data, selected }: NodeProps & { data: ActorNodeData 
       selected={selected}
     >
       <div className="flex flex-col gap-2 text-xs">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-mono text-emerald-400 uppercase font-semibold">
+            Dream Casting Intent
+          </span>
+          {isWired && (
+            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+              <Check className="h-2.5 w-2.5" /> Wired to Cast
+            </span>
+          )}
+        </div>
+
         <div className="rounded border border-emerald-500/20 bg-emerald-500/5 p-2">
-          <div className="text-[10px] font-mono uppercase text-emerald-400">Past Performance Baseline:</div>
-          <p className="mt-0.5 text-[11px] font-medium text-foreground">{data.roleReference}</p>
+          <div className="text-[10px] font-mono uppercase text-emerald-400/90">Past Performance Baseline:</div>
+          <p className="mt-0.5 text-[11px] font-medium text-foreground">{data.roleReference || "Intense cinematic benchmark"}</p>
         </div>
-        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-          <span>Vocal Delivery:</span>
-          <span className="font-mono text-foreground font-medium">{data.vocalWeight}</span>
+
+        <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+          <div className="rounded bg-secondary/40 border border-border/40 p-1.5">
+            <span className="text-[9px] font-mono text-muted-foreground block">Vocal Delivery:</span>
+            <span className="font-mono text-foreground font-medium text-[10px] truncate block">
+              {data.vocalWeight || "Authoritative"}
+            </span>
+          </div>
+          <div className="rounded bg-secondary/40 border border-border/40 p-1.5">
+            <span className="text-[9px] font-mono text-muted-foreground block">Energy Profile:</span>
+            <span className="font-mono text-foreground font-medium text-[10px] truncate block">
+              {data.energyProfile || "Simmering High Stakes"}
+            </span>
+          </div>
         </div>
+
+        <p className="text-[9px] text-muted-foreground/80 leading-tight">
+          Wire <code className="text-emerald-400">actor_out</code> into Character Core <code className="text-emerald-400">actor_ref</code> to inject casting likeness & vocal tone into Gemini/Veo.
+        </p>
 
         {/* Output & Universal Input Ports */}
         <div className="relative mt-1 flex items-center justify-between pt-1 border-t border-border/30">
@@ -548,9 +580,20 @@ export interface CharacterCoreNodeData extends Record<string, unknown> {
 
 export function CharacterCoreNode({ data, selected }: NodeProps & { data: CharacterCoreNodeData }) {
   const nodeId = useNodeId();
-  const { setEdges } = useReactFlow();
+  const { setEdges, getNode } = useReactFlow();
   const connections = useNodeConnections();
   const connCount = connections ? connections.length : 0;
+
+  // Check if an ActorNode is wired into actor_ref
+  const actorConn = connections.find(
+    (c) => c.targetHandle === "actor_ref" || (c.target === nodeId && c.targetHandle === "actor_ref")
+  );
+  const wiredActorNode = actorConn ? getNode(actorConn.source) : null;
+  const wiredActorData = wiredActorNode?.data as { actorName?: string; roleReference?: string } | undefined;
+  const hasWiredActor = Boolean(wiredActorData?.actorName);
+  const effectiveActorComp = hasWiredActor
+    ? `${wiredActorData!.actorName}${wiredActorData!.roleReference ? ` (${wiredActorData!.roleReference})` : ""}`
+    : (data.actorComp || "Unbound");
 
   return (
     <div
@@ -584,7 +627,7 @@ export function CharacterCoreNode({ data, selected }: NodeProps & { data: Charac
             className={cn(handleBaseClass, "!bg-emerald-500")}
           />
           <span className="absolute left-4 top-0 hidden rounded bg-popover px-1.5 py-0.5 text-[9px] font-mono text-emerald-400 group-hover:block whitespace-nowrap shadow">
-            actor_ref
+            actor_ref (dream comp / likeness)
           </span>
         </div>
         <div className="relative group">
@@ -666,8 +709,18 @@ export function CharacterCoreNode({ data, selected }: NodeProps & { data: Charac
 
         {/* Connected modules indicators */}
         <div className="grid grid-cols-2 gap-1 text-[10px] font-mono">
-          <div className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-emerald-400 border border-emerald-500/20 truncate">
-            Actor: {data.actorComp || "Unbound"}
+          <div
+            className={cn(
+              "rounded px-1.5 py-0.5 border truncate flex items-center gap-1",
+              hasWiredActor
+                ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40 font-semibold"
+                : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+            )}
+            title={effectiveActorComp}
+          >
+            <User className="h-2.5 w-2.5 shrink-0" />
+            <span className="truncate">{effectiveActorComp}</span>
+            {hasWiredActor && <Check className="h-2.5 w-2.5 shrink-0 text-emerald-400" />}
           </div>
           <div className="rounded bg-cyan-500/10 px-1.5 py-0.5 text-cyan-400 border border-cyan-500/20 truncate">
             Dials: {data.dialsSummary || "Default"}
@@ -807,7 +860,42 @@ export interface SceneNodeData extends Record<string, unknown> {
   onViewScript?: () => void;
 }
 
-export function SceneNode({ data, selected }: NodeProps & { data: SceneNodeData }) {
+export function SceneNode({ id, data, selected }: NodeProps & { data: SceneNodeData }) {
+  const nodeId = id || useNodeId();
+  const { setNodes, getNode } = useReactFlow();
+  const connections = useNodeConnections();
+  const [isEditing, setIsEditing] = React.useState(false);
+  const [editSlugline, setEditSlugline] = React.useState(data.slugline || "");
+  const [editStakes, setEditStakes] = React.useState(data.stakes || "");
+
+  // Detect connected floorplan or style clip
+  const hasFloorPlan = connections.some((c) => {
+    const otherId = c.source === nodeId ? c.target : c.source;
+    const otherNode = getNode(otherId);
+    return otherNode?.type === "floorplan";
+  });
+
+  const handleSaveEdit = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setIsEditing(false);
+    if (nodeId) {
+      setNodes((nds) =>
+        nds.map((n) =>
+          n.id === nodeId
+            ? {
+                ...n,
+                data: {
+                  ...n.data,
+                  slugline: editSlugline.trim() || data.slugline,
+                  stakes: editStakes.trim() || data.stakes,
+                },
+              }
+            : n
+        )
+      );
+    }
+  };
+
   return (
     <BlueprintNodeShell
       kind="Scene Master"
@@ -818,7 +906,7 @@ export function SceneNode({ data, selected }: NodeProps & { data: SceneNodeData 
       selected={selected}
     >
       <div className="relative flex flex-col gap-2 text-xs">
-        {/* Input Ports for Characters, Style Ref, Plot Seed, Scene Chaining */}
+        {/* Input Ports for Characters, Style Ref, Floor Plan, Plot Seed, Scene Chaining */}
         <div className="absolute -left-6 top-2 flex flex-col gap-3">
           <Handle
             type="target"
@@ -846,17 +934,81 @@ export function SceneNode({ data, selected }: NodeProps & { data: SceneNodeData 
           />
         </div>
 
-        <div className="font-mono text-[11px] font-bold text-accent tracking-wide uppercase">
-          {data.slugline || "INT. SCENE LOCATION - TIME"}
-        </div>
-
-        <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2">
-          {data.stakes || "Dramatic conflict and objectives"}
-        </p>
+        {/* Inline Editing Mode vs Display Mode */}
+        {isEditing ? (
+          <div className="flex flex-col gap-2 rounded bg-background/80 p-2 border border-accent/40 nodrag">
+            <div>
+              <label className="text-[9px] font-mono uppercase text-accent font-semibold block mb-0.5">
+                Scene Slugline:
+              </label>
+              <input
+                type="text"
+                value={editSlugline}
+                onChange={(e) => setEditSlugline(e.target.value)}
+                placeholder="INT. SCENE LOCATION - TIME"
+                className="w-full bg-secondary/80 border border-border/60 rounded px-2 py-1 text-[11px] font-mono font-bold text-accent uppercase focus:outline-none focus:border-accent"
+                autoFocus
+              />
+            </div>
+            <div>
+              <label className="text-[9px] font-mono uppercase text-muted-foreground font-semibold block mb-0.5">
+                Dramatic Conflict / Stakes:
+              </label>
+              <textarea
+                value={editStakes}
+                onChange={(e) => setEditStakes(e.target.value)}
+                rows={2}
+                placeholder="What is the core dramatic conflict driving this scene?"
+                className="w-full bg-secondary/80 border border-border/60 rounded px-2 py-1 text-[11px] text-foreground focus:outline-none focus:border-accent resize-none"
+              />
+            </div>
+            <div className="flex items-center justify-end gap-1.5 pt-1">
+              <button
+                type="button"
+                onClick={() => setIsEditing(false)}
+                className="px-2 py-0.5 text-[10px] rounded bg-secondary hover:bg-secondary/80 text-muted-foreground"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveEdit}
+                className="px-2.5 py-0.5 text-[10px] font-medium rounded bg-accent text-accent-foreground hover:bg-accent/90"
+              >
+                Save Plan
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="group relative cursor-pointer" onClick={() => setIsEditing(true)}>
+            <div className="flex items-center justify-between">
+              <div className="font-mono text-[11px] font-bold text-accent tracking-wide uppercase">
+                {data.slugline || "INT. SCENE LOCATION - TIME"}
+              </div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsEditing(true);
+                }}
+                className="opacity-40 group-hover:opacity-100 p-0.5 rounded hover:bg-accent/20 text-accent transition-opacity nodrag"
+                title="Edit Slugline & Stakes directly on canvas"
+              >
+                <Pencil className="h-2.5 w-2.5" />
+              </button>
+            </div>
+            <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2 mt-0.5">
+              {data.stakes || "Dramatic conflict and objectives"}
+            </p>
+          </div>
+        )}
 
         <div className="flex items-center justify-between text-[10px] text-muted-foreground border-t border-border/40 pt-1.5">
           <span>{data.characterCount ?? 2} Cast Members Wired</span>
-          {data.hasStyleRef && <span className="text-purple-400 font-mono">Style Sync ✓</span>}
+          <div className="flex items-center gap-1.5">
+            {hasFloorPlan && <span className="text-blue-400 font-mono">Floor Plan ✓</span>}
+            {data.hasStyleRef && <span className="text-purple-400 font-mono">Style Sync ✓</span>}
+          </div>
         </div>
 
         <div className="flex items-center gap-1.5 pt-1 nodrag">
@@ -1118,11 +1270,111 @@ export function StoryboardNode({ id, data, selected }: NodeProps & { data: Story
 export interface FloorPlanNodeData extends Record<string, unknown> {
   sceneTitle: string;
   cameraCount?: number;
+  blockingPreset?: "confrontation" | "ots" | "parallel" | "depth";
+  activeCam?: "35mm" | "50mm" | "85mm";
+  blockingPrompt?: string;
   onOpenDeck?: () => void;
 }
 
-export function FloorPlanNode({ data, selected }: NodeProps & { data: FloorPlanNodeData }) {
-  const [activeCam, setActiveCam] = React.useState<"35mm" | "50mm" | "85mm">("35mm");
+const BLOCKING_PRESETS = {
+  confrontation: {
+    label: "Standoff",
+    desc: "Face-to-face intense confrontation across room",
+    posA: { x: 30, y: 20 },
+    posB: { x: 70, y: 20 },
+  },
+  ots: {
+    label: "OTS Depth",
+    desc: "Over-the-shoulder dirty foreground into midground",
+    posA: { x: 26, y: 26 },
+    posB: { x: 68, y: 15 },
+  },
+  parallel: {
+    label: "Two-Shot",
+    desc: "Side-by-side alliance staging facing unified direction",
+    posA: { x: 38, y: 20 },
+    posB: { x: 62, y: 20 },
+  },
+  depth: {
+    label: "Layered",
+    desc: "Commanding foreground subject with background observer",
+    posA: { x: 50, y: 27 },
+    posB: { x: 50, y: 12 },
+  },
+} as const;
+
+export function FloorPlanNode({ id, data, selected }: NodeProps & { data: FloorPlanNodeData }) {
+  const nodeId = id || useNodeId();
+  const { setNodes, getNodes } = useReactFlow();
+  const connections = useNodeConnections();
+
+  const [activeCam, setActiveCam] = React.useState<"35mm" | "50mm" | "85mm">(
+    data.activeCam || "35mm"
+  );
+  const [blockingPreset, setBlockingPreset] = React.useState<"confrontation" | "ots" | "parallel" | "depth">(
+    data.blockingPreset || "confrontation"
+  );
+
+  // Discover connected character nodes
+  const connectedChars = React.useMemo(() => {
+    const nodes = getNodes();
+    // 1. Check direct wires into character_in or flow_in
+    const directIds = connections
+      .map((c) => (c.source === nodeId ? c.target : c.source))
+      .filter(Boolean);
+    const directChars = nodes.filter(
+      (n) => directIds.includes(n.id) && (n.type === "characterCore" || n.type === "actor")
+    );
+    if (directChars.length > 0) return directChars;
+
+    // 2. Fall back to character nodes on canvas
+    return nodes.filter((n) => n.type === "characterCore").slice(0, 2);
+  }, [connections, nodeId, getNodes]);
+
+  const charAName = (connectedChars[0]?.data?.name as string) || "Subject A";
+  const charBName = (connectedChars[1]?.data?.name as string) || "Subject B";
+  const charAInit = (connectedChars[0]?.data?.name as string)?.slice(0, 2).toUpperCase() || "A1";
+  const charBInit = (connectedChars[1]?.data?.name as string)?.slice(0, 2).toUpperCase() || "A2";
+  const isDirectlyWired = connections.some((c) => c.targetHandle === "character_in" || c.sourceHandle === "character_in");
+
+  // Compute and persist blocking prompt
+  const updateBlocking = React.useCallback(
+    (newCam: "35mm" | "50mm" | "85mm", newPreset: "confrontation" | "ots" | "parallel" | "depth") => {
+      setActiveCam(newCam);
+      setBlockingPreset(newPreset);
+
+      const lensNote =
+        newCam === "35mm"
+          ? "35mm anamorphic wide master establishing spatial tension"
+          : newCam === "50mm"
+          ? "50mm cinematic over-the-shoulder medium shot"
+          : "85mm portrait telephoto compression with shallow depth of field";
+
+      const presetInfo = BLOCKING_PRESETS[newPreset];
+      const blockingDesc = `${lensNote}: ${charAName} and ${charBName} staged in ${presetInfo.desc}. Low-angle camera perspective, cinematic mise-en-scène.`;
+
+      if (nodeId) {
+        setNodes((nds) =>
+          nds.map((n) =>
+            n.id === nodeId
+              ? {
+                  ...n,
+                  data: {
+                    ...n.data,
+                    activeCam: newCam,
+                    blockingPreset: newPreset,
+                    blockingPrompt: blockingDesc,
+                  },
+                }
+              : n
+          )
+        );
+      }
+    },
+    [charAName, charBName, nodeId, setNodes]
+  );
+
+  const presetLayout = BLOCKING_PRESETS[blockingPreset];
 
   return (
     <BlueprintNodeShell
@@ -1133,19 +1385,65 @@ export function FloorPlanNode({ data, selected }: NodeProps & { data: FloorPlanN
       selected={selected}
     >
       <div className="relative flex flex-col gap-2 text-xs">
-        <Handle
-          type="target"
-          position={Position.Left}
-          id="script_in"
-          className={cn(handleBaseClass, "!bg-blue-500 -left-5")}
-        />
-
-        <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-          <span>{data.sceneTitle}</span>
-          <span className="text-blue-400 font-semibold">{data.cameraCount || 3} Setups · Scope</span>
+        {/* Input Handles: character_in, script_in, flow_in */}
+        <div className="absolute -left-6 top-1 flex flex-col gap-3">
+          <Handle
+            type="target"
+            position={Position.Left}
+            id="character_in"
+            className={cn(handleBaseClass, "!bg-purple-500")}
+          />
+          <Handle
+            type="target"
+            position={Position.Left}
+            id="script_in"
+            className={cn(handleBaseClass, "!bg-blue-500")}
+          />
+          <Handle
+            type="target"
+            position={Position.Left}
+            id="flow_in"
+            className={cn(handleBaseClass, "!bg-cyan-500")}
+          />
         </div>
 
-        {/* Camera Lens Selector Buttons */}
+        {/* Header Metadata */}
+        <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+          <span className="truncate max-w-[140px]">{data.sceneTitle || "Production Set Master"}</span>
+          <span className="text-blue-400 font-semibold font-mono">
+            {isDirectlyWired ? "Cast Wired ✓" : "Default Setups"}
+          </span>
+        </div>
+
+        {/* Blocking Preset Selector */}
+        <div className="flex flex-col gap-1 nodrag">
+          <span className="text-[9px] font-mono text-muted-foreground uppercase font-semibold">
+            Director Staging:
+          </span>
+          <div className="grid grid-cols-4 gap-1">
+            {(Object.keys(BLOCKING_PRESETS) as Array<keyof typeof BLOCKING_PRESETS>).map((preset) => (
+              <button
+                key={preset}
+                type="button"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  updateBlocking(activeCam, preset);
+                }}
+                className={cn(
+                  "py-0.5 text-[9px] font-mono rounded border transition-all cursor-pointer text-center",
+                  blockingPreset === preset
+                    ? "bg-blue-500/30 text-blue-200 border-blue-400/60 font-bold shadow-sm"
+                    : "bg-secondary/40 text-muted-foreground border-border/40 hover:bg-secondary/70 hover:text-foreground"
+                )}
+              >
+                {BLOCKING_PRESETS[preset].label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Camera Lens Selector */}
         <div className="grid grid-cols-3 gap-1 nodrag">
           {(["35mm", "50mm", "85mm"] as const).map((cam) => (
             <button
@@ -1154,12 +1452,12 @@ export function FloorPlanNode({ data, selected }: NodeProps & { data: FloorPlanN
               onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.stopPropagation();
-                setActiveCam(cam);
+                updateBlocking(cam, blockingPreset);
               }}
               className={cn(
                 "py-0.5 text-[9px] font-mono rounded border transition-all cursor-pointer nodrag",
                 activeCam === cam
-                  ? "bg-blue-500/30 text-blue-300 border-blue-400/50 shadow-sm"
+                  ? "bg-blue-500/30 text-blue-300 border-blue-400/50 shadow-sm font-semibold"
                   : "bg-secondary/40 text-muted-foreground border-border/40 hover:bg-secondary/70 hover:text-foreground"
               )}
             >
@@ -1168,39 +1466,69 @@ export function FloorPlanNode({ data, selected }: NodeProps & { data: FloorPlanN
           ))}
         </div>
 
-        {/* Dynamic 2D Floor Plan SVG */}
-        <div className="w-full h-14 bg-black/40 rounded border border-blue-500/20 relative overflow-hidden flex items-center justify-center">
+        {/* Dynamic 2D Floor Plan SVG Canvas */}
+        <div className="w-full h-20 bg-black/50 rounded border border-blue-500/25 relative overflow-hidden flex items-center justify-center">
           <svg className="w-full h-full" viewBox="0 0 100 40">
-            <rect x="5" y="5" width="90" height="30" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
-            {/* Actor positions */}
-            <circle cx="38" cy="20" r="3.5" fill="#38bdf8" />
-            <text x="38" y="14" fontSize="5" fill="#94a3b8" textAnchor="middle">A1</text>
-            <circle cx="68" cy="19" r="3.5" fill="#34d399" />
-            <text x="68" y="13" fontSize="5" fill="#94a3b8" textAnchor="middle">A2</text>
+            {/* Grid background */}
+            <defs>
+              <pattern id="node-grid" width="10" height="10" patternUnits="userSpaceOnUse">
+                <circle cx="5" cy="5" r="0.4" fill="rgba(255,255,255,0.15)" />
+              </pattern>
+            </defs>
+            <rect x="0" y="0" width="100" height="40" fill="url(#node-grid)" />
+            <rect x="5" y="4" width="90" height="32" fill="none" stroke="rgba(56,189,248,0.2)" strokeWidth="0.8" strokeDasharray="2 2" />
 
             {/* Dynamic Camera Frustums based on active lens */}
             {activeCam === "35mm" && (
               <>
-                <polygon points="12,35 48,10 25,10" fill="rgba(56,189,248,0.18)" stroke="#38bdf8" strokeWidth="0.8" strokeDasharray="1.5 1.5" />
-                <circle cx="12" cy="35" r="2.5" fill="#38bdf8" />
-                <text x="12" y="38" fontSize="4.5" fill="#38bdf8" textAnchor="middle">CAM A</text>
+                <polygon points="12,36 60,6 20,6" fill="rgba(56,189,248,0.15)" stroke="#38bdf8" strokeWidth="0.8" strokeDasharray="1.5 1.5" />
+                <circle cx="12" cy="36" r="2.2" fill="#38bdf8" />
+                <text x="12" y="39" fontSize="3.5" fill="#38bdf8" textAnchor="middle" fontWeight="bold">CAM A</text>
               </>
             )}
             {activeCam === "50mm" && (
               <>
-                <polygon points="25,32 68,14 62,25" fill="rgba(244,114,182,0.18)" stroke="#f472b6" strokeWidth="0.8" strokeDasharray="1.5 1.5" />
-                <circle cx="25" cy="32" r="2.5" fill="#f472b6" />
-                <text x="25" y="38" fontSize="4.5" fill="#f472b6" textAnchor="middle">CAM B</text>
+                <polygon points="24,34 76,14 60,26" fill="rgba(244,114,182,0.18)" stroke="#f472b6" strokeWidth="0.8" strokeDasharray="1.5 1.5" />
+                <circle cx="24" cy="34" r="2.2" fill="#f472b6" />
+                <text x="24" y="39" fontSize="3.5" fill="#f472b6" textAnchor="middle" fontWeight="bold">CAM B</text>
               </>
             )}
             {activeCam === "85mm" && (
               <>
-                <polygon points="80,34 38,18 42,24" fill="rgba(250,204,21,0.18)" stroke="#facc15" strokeWidth="0.8" strokeDasharray="1.5 1.5" />
-                <circle cx="80" cy="34" r="2.5" fill="#facc15" />
-                <text x="80" y="38" fontSize="4.5" fill="#facc15" textAnchor="middle">CAM C</text>
+                <polygon points="80,35 34,18 40,24" fill="rgba(250,204,21,0.18)" stroke="#facc15" strokeWidth="0.8" strokeDasharray="1.5 1.5" />
+                <circle cx="80" cy="35" r="2.2" fill="#facc15" />
+                <text x="80" y="39" fontSize="3.5" fill="#facc15" textAnchor="middle" fontWeight="bold">CAM C</text>
               </>
             )}
+
+            {/* Dynamic Actor Positions from Preset */}
+            <g>
+              <circle cx={presetLayout.posA.x} cy={presetLayout.posA.y} r="3.6" fill="#38bdf8" stroke="#ffffff" strokeWidth="0.6" />
+              <text x={presetLayout.posA.x} y={presetLayout.posA.y + 1.2} fontSize="3.2" fill="#0f172a" textAnchor="middle" fontWeight="bold">
+                {charAInit}
+              </text>
+              <text x={presetLayout.posA.x} y={presetLayout.posA.y - 4.5} fontSize="3.5" fill="#38bdf8" textAnchor="middle">
+                {charAName.slice(0, 8)}
+              </text>
+            </g>
+
+            <g>
+              <circle cx={presetLayout.posB.x} cy={presetLayout.posB.y} r="3.6" fill="#34d399" stroke="#ffffff" strokeWidth="0.6" />
+              <text x={presetLayout.posB.x} y={presetLayout.posB.y + 1.2} fontSize="3.2" fill="#0f172a" textAnchor="middle" fontWeight="bold">
+                {charBInit}
+              </text>
+              <text x={presetLayout.posB.x} y={presetLayout.posB.y - 4.5} fontSize="3.5" fill="#34d399" textAnchor="middle">
+                {charBName.slice(0, 8)}
+              </text>
+            </g>
           </svg>
+        </div>
+
+        {/* Live Blocking Prompt Preview */}
+        <div className="rounded bg-blue-500/10 border border-blue-500/20 px-2 py-1">
+          <span className="text-[9px] font-mono text-blue-300 block truncate">
+            {activeCam} · {BLOCKING_PRESETS[blockingPreset].label}: {charAName} &amp; {charBName}
+          </span>
         </div>
 
         <button
@@ -1218,13 +1546,7 @@ export function FloorPlanNode({ data, selected }: NodeProps & { data: FloorPlanN
         {/* Universal In/Out Ports */}
         <div className="relative mt-1 flex items-center justify-between pt-1 border-t border-border/30">
           <div className="flex items-center">
-            <Handle
-              type="target"
-              position={Position.Left}
-              id="flow_in"
-              className={cn(handleBaseClass, "!bg-blue-500 -left-5")}
-            />
-            <span className="text-[10px] font-mono text-blue-400 ml-1">← in</span>
+            <span className="text-[9px] font-mono text-blue-400/80 ml-1">← cast/script</span>
           </div>
           <div className="flex items-center">
             <span className="text-[10px] font-mono text-blue-400 mr-2">floorplan_out →</span>
@@ -1246,11 +1568,85 @@ export function FloorPlanNode({ data, selected }: NodeProps & { data: FloorPlanN
 // -------------------------------------------------------------
 export interface TensionCurveNodeData extends Record<string, unknown> {
   peakTension?: number;
+  arcPreset?: "slow_burn" | "medias_res" | "double_peak" | "ticking_clock";
+  pacingPrompt?: string;
   hasWarning?: boolean;
   onOpenDeck?: () => void;
 }
 
-export function TensionCurveNode({ data, selected }: NodeProps & { data: TensionCurveNodeData }) {
+const ARC_PRESETS = {
+  slow_burn: {
+    label: "Slow-Burn",
+    path: "M 0,26 Q 35,24 60,16 T 82,4 T 100,16",
+    peakX: 82,
+    peakY: 4,
+    desc: "Gradual escalation building to Act 3 climax followed by swift resolution",
+  },
+  medias_res: {
+    label: "In Medias Res",
+    path: "M 0,6 Q 20,24 50,18 T 75,10 T 100,22",
+    peakX: 12,
+    peakY: 6,
+    desc: "Explosive opening confrontation, mid-scene exposition valley, secondary climax",
+  },
+  double_peak: {
+    label: "Double Peak",
+    path: "M 0,22 Q 25,6 45,20 T 75,5 T 100,18",
+    peakX: 75,
+    peakY: 5,
+    desc: "Initial skirmish, false sense of safety, followed by catastrophic standoff",
+  },
+  ticking_clock: {
+    label: "Ticking Clock",
+    path: "M 0,25 Q 40,23 65,14 T 92,3 T 100,4",
+    peakX: 92,
+    peakY: 3,
+    desc: "Compounding psychological urgency with escalating stakes and zero relief",
+  },
+} as const;
+
+export function TensionCurveNode({ id, data, selected }: NodeProps & { data: TensionCurveNodeData }) {
+  const nodeId = id || useNodeId();
+  const { setNodes } = useReactFlow();
+
+  const [arcPreset, setArcPreset] = React.useState<"slow_burn" | "medias_res" | "double_peak" | "ticking_clock">(
+    data.arcPreset || "slow_burn"
+  );
+  const [peakVal, setPeakVal] = React.useState<number>(
+    typeof data.peakTension === "number" ? data.peakTension : 88
+  );
+
+  const updateArc = React.useCallback(
+    (newPreset: "slow_burn" | "medias_res" | "double_peak" | "ticking_clock", newPeak: number) => {
+      setArcPreset(newPreset);
+      setPeakVal(newPeak);
+
+      const presetInfo = ARC_PRESETS[newPreset];
+      const pacingDesc = `${presetInfo.label} Arc: ${presetInfo.desc}, peaking at ${newPeak}% dramatic intensity`;
+
+      if (nodeId) {
+        setNodes((nds) =>
+          nds.map((n) =>
+            n.id === nodeId
+              ? {
+                  ...n,
+                  data: {
+                    ...n.data,
+                    arcPreset: newPreset,
+                    peakTension: newPeak,
+                    pacingPrompt: pacingDesc,
+                  },
+                }
+              : n
+          )
+        );
+      }
+    },
+    [nodeId, setNodes]
+  );
+
+  const activeArc = ARC_PRESETS[arcPreset];
+
   return (
     <BlueprintNodeShell
       kind="Audience EKG"
@@ -1260,37 +1656,87 @@ export function TensionCurveNode({ data, selected }: NodeProps & { data: Tension
       selected={selected}
     >
       <div className="relative flex flex-col gap-1.5 text-xs">
-        <Handle
-          type="target"
-          position={Position.Left}
-          id="script_in"
-          className={cn(handleBaseClass, "!bg-rose-500 -left-5")}
-        />
+        {/* Handles */}
+        <div className="absolute -left-6 top-2 flex flex-col gap-3">
+          <Handle
+            type="target"
+            position={Position.Left}
+            id="script_in"
+            className={cn(handleBaseClass, "!bg-rose-500")}
+          />
+          <Handle
+            type="target"
+            position={Position.Left}
+            id="flow_in"
+            className={cn(handleBaseClass, "!bg-pink-500")}
+          />
+        </div>
 
         <div className="flex items-center justify-between text-[10px]">
-          <span className="text-muted-foreground">Dynamic Stakes vs Relief</span>
+          <span className="text-muted-foreground">Dramatic Arc &amp; Urgency</span>
           <span className="font-mono text-rose-400 font-bold">
-            {typeof data.peakTension === "number" ? `Peak: ${data.peakTension}%` : "Not yet analyzed"}
+            Peak: {peakVal}%
           </span>
         </div>
 
-        {/* Illustrative example curve shape — not derived from this scene's actual script */}
-        <div className="w-full h-12 bg-secondary/30 rounded border border-border/50 relative overflow-hidden flex items-center justify-center p-1">
+        {/* Arc Preset Selector */}
+        <div className="grid grid-cols-2 gap-1 nodrag">
+          {(Object.keys(ARC_PRESETS) as Array<keyof typeof ARC_PRESETS>).map((presetKey) => (
+            <button
+              key={presetKey}
+              type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                updateArc(presetKey, peakVal);
+              }}
+              className={cn(
+                "py-0.5 px-1 text-[9px] font-mono rounded border transition-all cursor-pointer truncate",
+                arcPreset === presetKey
+                  ? "bg-rose-500/30 text-rose-200 border-rose-400/60 font-semibold shadow-sm"
+                  : "bg-secondary/40 text-muted-foreground border-border/40 hover:bg-secondary/70 hover:text-foreground"
+              )}
+            >
+              {ARC_PRESETS[presetKey].label}
+            </button>
+          ))}
+        </div>
+
+        {/* Interactive Dynamic SVG Bezier Curve */}
+        <div className="w-full h-14 bg-secondary/30 rounded border border-border/50 relative overflow-hidden flex items-center justify-center p-1">
           <svg className="w-full h-full" viewBox="0 0 100 30" preserveAspectRatio="none">
+            {/* Grid lines */}
+            <line x1="0" y1="15" x2="100" y2="15" stroke="rgba(255,255,255,0.06)" strokeDasharray="2 2" strokeWidth="0.5" />
+            <line x1="0" y1="25" x2="100" y2="25" stroke="rgba(255,255,255,0.06)" strokeWidth="0.5" />
+
+            {/* Dynamic Curve Path */}
             <path
-              d="M 0,25 Q 25,18 45,22 T 75,5 T 100,12"
+              d={activeArc.path}
               fill="none"
               stroke="#f43f5e"
-              strokeWidth="2"
-              strokeOpacity={typeof data.peakTension === "number" ? 1 : 0.4}
+              strokeWidth="2.2"
+              strokeLinecap="round"
             />
-            <circle cx="75" cy="5" r="2.5" fill="#f43f5e" opacity={typeof data.peakTension === "number" ? 1 : 0.4} />
+            {/* Climax Peak Indicator */}
+            <circle cx={activeArc.peakX} cy={activeArc.peakY} r="3" fill="#f43f5e" />
+            <circle cx={activeArc.peakX} cy={activeArc.peakY} r="5" fill="none" stroke="#f43f5e" strokeWidth="0.8" opacity="0.6" />
           </svg>
-          {typeof data.peakTension !== "number" && (
-            <span className="absolute inset-0 flex items-center justify-center text-[9px] text-muted-foreground font-mono bg-secondary/40">
-              Example shape — open to analyze
-            </span>
-          )}
+        </div>
+
+        {/* Interactive Peak Tension Slider */}
+        <div className="flex items-center gap-2 nodrag pt-0.5">
+          <span className="text-[9px] font-mono text-muted-foreground shrink-0">Peak:</span>
+          <input
+            type="range"
+            min={45}
+            max={99}
+            value={peakVal}
+            onChange={(e) => updateArc(arcPreset, Number(e.target.value))}
+            className="w-full accent-rose-500 h-1 bg-secondary rounded cursor-pointer"
+          />
+          <span className="text-[10px] font-mono font-bold text-rose-400 shrink-0 w-8 text-right">
+            {peakVal}%
+          </span>
         </div>
 
         {data.hasWarning && (
@@ -1307,7 +1753,7 @@ export function TensionCurveNode({ data, selected }: NodeProps & { data: Tension
             e.stopPropagation();
             data.onOpenDeck?.();
           }}
-          className="w-full mt-1 py-1 rounded bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 text-[10px] font-medium transition-colors text-center border border-rose-500/30 cursor-pointer nodrag"
+          className="w-full mt-0.5 py-1 rounded bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 text-[10px] font-medium transition-colors text-center border border-rose-500/30 cursor-pointer nodrag"
         >
           View Full 3-Act Curve →
         </button>
@@ -1336,7 +1782,23 @@ export interface TableReadNodeData extends Record<string, unknown> {
   onOpenPlayer?: () => void;
 }
 
-export function TableReadNode({ data, selected }: NodeProps & { data: TableReadNodeData }) {
+export function TableReadNode({ id, data, selected }: NodeProps & { data: TableReadNodeData }) {
+  const nodeId = id || useNodeId();
+  const { getNodes } = useReactFlow();
+  const connections = useNodeConnections();
+
+  // Find characters in the graph to show voice assignments
+  const characterNodes = React.useMemo(() => {
+    const all = getNodes();
+    return all.filter((n) => n.type === "characterCore");
+  }, [getNodes]);
+
+  const castVoiceList = characterNodes.slice(0, 3).map((cn) => {
+    const name = (cn.data?.name as string) || "Cast";
+    const voice = (cn.data?.ttsVoice as string) || "Default Voice";
+    return { name, voice };
+  });
+
   return (
     <BlueprintNodeShell
       kind="Speech Studio"
@@ -1346,28 +1808,54 @@ export function TableReadNode({ data, selected }: NodeProps & { data: TableReadN
       selected={selected}
     >
       <div className="relative flex flex-col gap-2 text-xs">
-        <Handle
-          type="target"
-          position={Position.Left}
-          id="script_in"
-          className={cn(handleBaseClass, "!bg-cyan-500 -left-5")}
-        />
+        <div className="absolute -left-6 top-2 flex flex-col gap-3">
+          <Handle
+            type="target"
+            position={Position.Left}
+            id="script_in"
+            className={cn(handleBaseClass, "!bg-cyan-500")}
+          />
+          <Handle
+            type="target"
+            position={Position.Left}
+            id="flow_in"
+            className={cn(handleBaseClass, "!bg-blue-500")}
+          />
+        </div>
 
         <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-          <span>Multi-Character Voice Synthesizer</span>
-          <span className="font-mono text-cyan-400">{data.voiceCount || 3} Voices</span>
+          <span>Cast Voice Rehearsal</span>
+          <span className="font-mono text-cyan-400 font-semibold">
+            {characterNodes.length || data.voiceCount || 2} Voices Wired
+          </span>
         </div>
 
-        {/* Audio Visualizer Wave */}
-        <div className="flex items-center justify-center gap-1 h-8 rounded bg-background/60 border border-border/40 px-2">
-          {[40, 70, 30, 90, 60, 80, 45, 95, 65, 35, 75, 50].map((h, i) => (
-            <div
-              key={i}
-              className="w-1.5 rounded-full bg-cyan-400/70 animate-pulse"
-              style={{ height: `${h}%`, animationDelay: `${i * 0.08}s` }}
-            />
-          ))}
-        </div>
+        {/* Cast Voice Readiness Cards */}
+        {castVoiceList.length > 0 ? (
+          <div className="flex flex-col gap-1 nodrag">
+            {castVoiceList.map((c, i) => (
+              <div
+                key={i}
+                className="flex items-center justify-between rounded bg-secondary/40 border border-border/40 px-2 py-1 text-[10px]"
+              >
+                <span className="font-medium text-foreground">{c.name}</span>
+                <span className="font-mono text-cyan-300 text-[9px] bg-cyan-500/15 px-1.5 py-0.5 rounded border border-cyan-500/25">
+                  {c.voice}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex items-center justify-center gap-1 h-7 rounded bg-background/60 border border-border/40 px-2">
+            {[40, 70, 30, 90, 60, 80, 45, 95, 65, 35, 75, 50].map((h, i) => (
+              <div
+                key={i}
+                className="w-1.5 rounded-full bg-cyan-400/70 animate-pulse"
+                style={{ height: `${h}%`, animationDelay: `${i * 0.08}s` }}
+              />
+            ))}
+          </div>
+        )}
 
         <button
           type="button"

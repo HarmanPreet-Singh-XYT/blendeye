@@ -35,7 +35,9 @@ import {
   Trash2,
   Check,
   Layers,
+  Upload,
 } from "lucide-react";
+import { AssetPickerModal } from "@/components/cinema/asset-picker-modal";
 import type { Node } from "@xyflow/react";
 import type { ProjectCharacter } from "@/lib/project-store";
 import {
@@ -109,7 +111,9 @@ export function VeoVideoDialog({
 
   // Active conditioning image and contributing canvas nodes
   const [activeConditioningImage, setActiveConditioningImage] = React.useState<string | null>(null);
-  const [activeImageType, setActiveImageType] = React.useState<"face" | "body" | null>(null);
+  const [activeImageType, setActiveImageType] = React.useState<"face" | "body" | "custom" | null>(null);
+  const [conditioningCustomName, setConditioningCustomName] = React.useState<string | null>(null);
+  const [isAssetPickerOpen, setIsAssetPickerOpen] = React.useState<boolean>(false);
   const [activeNodeContributions, setActiveNodeContributions] = React.useState<NodeContribution[]>([]);
 
   const [isGenerating, setIsGenerating] = React.useState<boolean>(false);
@@ -839,85 +843,98 @@ export function VeoVideoDialog({
                 )}
 
                 {/* Image Conditioning Controls (Image-to-Video) */}
-                {activeChar && (activeChar.imageUrl || activeChar.fullBodyImageUrl) && (
-                  <div className="p-2 rounded-lg border border-purple-500/30 bg-purple-950/20 space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-mono uppercase text-purple-300 font-semibold flex items-center gap-1">
-                        <Sparkles className="h-3 w-3 text-accent" />
-                        <span>Veo Image-to-Video Conditioning</span>
-                      </span>
-                      {activeConditioningImage ? (
-                        <Badge variant="outline" className="text-[8px] font-mono border-emerald-500/50 bg-emerald-500/10 text-emerald-300 py-0">
-                          Active Reference
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-[8px] font-mono text-muted-foreground py-0">
-                          Text Only
-                        </Badge>
-                      )}
-                    </div>
+                <div className="p-2 rounded-lg border border-purple-500/30 bg-purple-950/20 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-mono uppercase text-purple-300 font-semibold flex items-center gap-1">
+                      <Sparkles className="h-3 w-3 text-accent" />
+                      <span>Veo Image-to-Video Conditioning</span>
+                    </span>
+                    {activeConditioningImage ? (
+                      <Badge variant="outline" className="text-[8px] font-mono border-emerald-500/50 bg-emerald-500/10 text-emerald-300 py-0">
+                        {conditioningCustomName || "Active Reference"}
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-[8px] font-mono text-muted-foreground py-0">
+                        Text Only
+                      </Badge>
+                    )}
+                  </div>
 
-                    <div className="flex items-center gap-2">
-                      {activeConditioningImage && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={activeConditioningImage}
-                          alt="Conditioning reference"
-                          className="h-9 w-9 rounded-md object-cover border border-purple-400 shrink-0"
-                        />
-                      )}
-                      <div className="flex items-center gap-1 flex-1">
-                        {activeChar.imageUrl && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setActiveConditioningImage(activeChar.imageUrl!);
-                              setActiveImageType("face");
-                            }}
-                            className={`px-2 py-1 rounded text-[10px] font-mono flex-1 border cursor-pointer transition-colors ${
-                              activeConditioningImage === activeChar.imageUrl
-                                ? "bg-purple-600 border-purple-400 text-white font-semibold"
-                                : "bg-card border-border text-muted-foreground hover:text-foreground"
-                            }`}
-                          >
-                            Face Image
-                          </button>
-                        )}
-                        {activeChar.fullBodyImageUrl && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setActiveConditioningImage(activeChar.fullBodyImageUrl!);
-                              setActiveImageType("body");
-                            }}
-                            className={`px-2 py-1 rounded text-[10px] font-mono flex-1 border cursor-pointer transition-colors ${
-                              activeConditioningImage === activeChar.fullBodyImageUrl
-                                ? "bg-purple-600 border-purple-400 text-white font-semibold"
-                                : "bg-card border-border text-muted-foreground hover:text-foreground"
-                            }`}
-                          >
-                            Body Stance
-                          </button>
-                        )}
+                  <div className="flex items-center gap-2">
+                    {activeConditioningImage && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={activeConditioningImage}
+                        alt="Conditioning reference"
+                        className="h-9 w-9 rounded-md object-cover border border-purple-400 shrink-0"
+                      />
+                    )}
+                    <div className="flex items-center gap-1 flex-1 flex-wrap">
+                      {activeChar?.imageUrl && (
                         <button
                           type="button"
                           onClick={() => {
-                            setActiveConditioningImage(null);
-                            setActiveImageType(null);
+                            setActiveConditioningImage(activeChar.imageUrl!);
+                            setActiveImageType("face");
+                            setConditioningCustomName(`${activeChar.name} Face`);
                           }}
-                          className={`px-1.5 py-1 rounded text-[10px] font-mono border cursor-pointer transition-colors ${
-                            !activeConditioningImage
-                              ? "bg-secondary border-border text-foreground font-semibold"
-                              : "bg-card/40 border-border/60 text-muted-foreground hover:text-foreground"
+                          className={`px-2 py-1 rounded text-[10px] font-mono border cursor-pointer transition-colors ${
+                            activeConditioningImage === activeChar.imageUrl
+                              ? "bg-purple-600 border-purple-400 text-white font-semibold"
+                              : "bg-card border-border text-muted-foreground hover:text-foreground"
                           }`}
-                          title="Generate text-only without conditioning image"
                         >
-                          Off
+                          Face
                         </button>
-                      </div>
+                      )}
+                      {activeChar?.fullBodyImageUrl && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveConditioningImage(activeChar.fullBodyImageUrl!);
+                            setActiveImageType("body");
+                            setConditioningCustomName(`${activeChar.name} Stance`);
+                          }}
+                          className={`px-2 py-1 rounded text-[10px] font-mono border cursor-pointer transition-colors ${
+                            activeConditioningImage === activeChar.fullBodyImageUrl
+                              ? "bg-purple-600 border-purple-400 text-white font-semibold"
+                              : "bg-card border-border text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          Body
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setIsAssetPickerOpen(true)}
+                        className={`px-2 py-1 rounded text-[10px] font-mono border cursor-pointer transition-colors flex items-center gap-1 ${
+                          activeImageType === "custom"
+                            ? "bg-purple-600 border-purple-400 text-white font-semibold"
+                            : "bg-card border-border text-purple-300 hover:text-purple-200"
+                        }`}
+                      >
+                        <Upload className="h-2.5 w-2.5" />
+                        <span>{activeImageType === "custom" ? "Custom (Hub)" : "Asset Hub..."}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveConditioningImage(null);
+                          setActiveImageType(null);
+                          setConditioningCustomName(null);
+                        }}
+                        className={`px-1.5 py-1 rounded text-[10px] font-mono border cursor-pointer transition-colors ${
+                          !activeConditioningImage
+                            ? "bg-secondary border-border text-foreground font-semibold"
+                            : "bg-card/40 border-border/60 text-muted-foreground hover:text-foreground"
+                        }`}
+                        title="Generate text-only without conditioning image"
+                      >
+                        Off
+                      </button>
                     </div>
                   </div>
-                )}
+                </div>
 
                 {/* Active Character Visual Dossier */}
                 {activeChar && (
@@ -1117,6 +1134,26 @@ export function VeoVideoDialog({
             </div>
           </div>
         </div>
+
+        {/* Conditioning Asset Picker Modal */}
+        <AssetPickerModal
+          open={isAssetPickerOpen}
+          onOpenChange={setIsAssetPickerOpen}
+          title="Select Reference Image or Video Frame for Veo 3.1"
+          description="Condition Google Veo 3.1 motion diffusion on character faces, location plates, or style reference images."
+          acceptedTypes={["image"]}
+          projectId={projectId}
+          onSelectAsset={(asset) => {
+            setActiveConditioningImage(asset.url);
+            setActiveImageType("custom");
+            setConditioningCustomName(asset.name);
+            toast.add({
+              title: "Conditioning Reference Linked",
+              description: `"${asset.name}" selected as Veo visual anchor.`,
+              type: "success",
+            });
+          }}
+        />
       </DialogContent>
     </Dialog>
   );

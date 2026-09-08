@@ -48,7 +48,9 @@ import {
   Star,
   Music,
   Trash2,
+  Upload,
 } from "lucide-react";
+import { AssetPickerModal } from "@/components/cinema/asset-picker-modal";
 import type { Node, Edge } from "@xyflow/react";
 import { cn } from "@/lib/utils";
 import type { ProjectCharacter, FilmScene } from "@/lib/project-store";
@@ -194,6 +196,7 @@ export function GenerationStudioView({
   // Active conditioning image and contributing canvas nodes
   const [activeConditioningImage, setActiveConditioningImage] = React.useState<string | null>(null);
   const [activeImageType, setActiveImageType] = React.useState<"face" | "body" | null>(null);
+  const [isAssetPickerOpen, setIsAssetPickerOpen] = React.useState<boolean>(false);
   const [activeNodeContributions, setActiveNodeContributions] = React.useState<NodeContribution[]>([]);
 
   // Multi-node & character context synthesizer
@@ -1657,6 +1660,14 @@ export function GenerationStudioView({
                             )}
                             <button
                               type="button"
+                              onClick={() => setIsAssetPickerOpen(true)}
+                              className="px-2 py-1 rounded text-[10px] font-mono border border-purple-400/60 bg-purple-950/40 text-purple-300 hover:text-white cursor-pointer transition-colors flex items-center gap-1"
+                            >
+                              <Upload className="h-2.5 w-2.5" />
+                              <span>Hub...</span>
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => {
                                 setActiveConditioningImage(null);
                                 setActiveImageType(null);
@@ -1684,13 +1695,23 @@ export function GenerationStudioView({
                         <MapPin className="h-3 w-3" />
                         <span>Scene &amp; Venue Reference</span>
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => setStudioMode("scout")}
-                        className="text-amber-400 hover:underline flex items-center gap-0.5 cursor-pointer"
-                      >
-                        <span>+ Scout &amp; Gen Images</span>
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setIsAssetPickerOpen(true)}
+                          className="text-amber-400 hover:underline flex items-center gap-0.5 cursor-pointer text-[10px]"
+                        >
+                          <Upload className="h-2.5 w-2.5" />
+                          <span>+ Asset Hub Plate</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setStudioMode("scout")}
+                          className="text-amber-400 hover:underline flex items-center gap-0.5 cursor-pointer text-[10px]"
+                        >
+                          <span>+ Scout &amp; Gen Images</span>
+                        </button>
+                      </div>
                     </div>
 
                     {/* Active Reference Card or Selector */}
@@ -1752,7 +1773,7 @@ export function GenerationStudioView({
                               onClick={() => {
                                 const url =
                                   c.preview_image_url ||
-                                  "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1280&q=80";
+                                  "/assets/locations/ai_vault_plate.jpg";
                                 setActiveConditioningImage(url);
                                 setActiveImageType(null);
                                 setActiveSceneRefTitle(c.name);
@@ -2420,6 +2441,26 @@ export function GenerationStudioView({
         </aside>
       </div>
       )}
+
+      {/* Conditioning Media Asset Picker Modal */}
+      <AssetPickerModal
+        open={isAssetPickerOpen}
+        onOpenChange={setIsAssetPickerOpen}
+        title="Select Conditioning Reference for Veo 3.1"
+        description="Choose a character face, location plate, or style image from your Asset Hub."
+        acceptedTypes={["image"]}
+        projectId={projectId}
+        onSelectAsset={(asset) => {
+          setActiveConditioningImage(asset.url);
+          setActiveSceneRefTitle(asset.name);
+          setActiveImageType(asset.category === "character_face" ? "face" : "body");
+          toast.add({
+            title: "Conditioning Reference Linked",
+            description: `"${asset.name}" active in Generation Studio.`,
+            type: "success",
+          });
+        }}
+      />
     </div>
   );
 }

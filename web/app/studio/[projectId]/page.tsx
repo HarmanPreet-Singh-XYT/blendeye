@@ -50,7 +50,9 @@ import { LocationDossierDialog } from "@/components/cinema/location-dossier-dial
 import { DirectorLookbookDialog } from "@/components/cinema/director-lookbook-dialog";
 import { CharacterLabDialog } from "@/components/cinema/character-lab-dialog";
 import { ScratchpadDialog } from "@/components/cinema/scratchpad-dialog";
+import { AssetHubDialog } from "@/components/cinema/asset-hub-dialog";
 import { AuthUserButton } from "@/components/cinema/auth-user-button";
+import { getLocalAssets } from "@/lib/asset-store";
 import { toast } from "@/components/ui/toast";
 import { notifyIfFallback } from "@/lib/fallback-notice";
 import {
@@ -454,6 +456,9 @@ export default function StudioPage() {
   const [lookbookOpen, setLookbookOpen] = React.useState(false);
   const [characterLabOpen, setCharacterLabOpen] = React.useState(false);
   const [scratchpadOpen, setScratchpadOpen] = React.useState(false);
+  const [assetHubOpen, setAssetHubOpen] = React.useState(false);
+  const [floorPlanCustomMapUrl, setFloorPlanCustomMapUrl] = React.useState<string | null>(null);
+  const [floorPlanCustomMapName, setFloorPlanCustomMapName] = React.useState<string | undefined>(undefined);
   const [stagedCameraMotion, setStagedCameraMotion] = React.useState<string>("");
   const [stagedPromptNote, setStagedPromptNote] = React.useState<string>("");
 
@@ -1388,6 +1393,7 @@ export default function StudioPage() {
               edges,
               scenes,
               activeSceneId,
+              assets: typeof window !== "undefined" ? getLocalAssets() : [],
             },
             history: showrunnerMessages.slice(-6).map((m) => ({
               role: m.role,
@@ -1440,6 +1446,24 @@ export default function StudioPage() {
               setScenes,
               setActiveSceneId,
               setEvents,
+              switchView: (tab, subview) => {
+                if (tab === "planning") {
+                  setMainTab("planning");
+                } else if (tab === "simulation") {
+                  setMainTab("simulation");
+                  if (subview === "audio" || subview === "score") setSimulationTab("audio");
+                  else if (subview === "hotseat") setSimulationTab("hotseat");
+                  else if (subview === "chemistry") setSimulationTab("chemistry");
+                } else if (tab === "generation") {
+                  setMainTab("generation");
+                } else if (tab === "showrunner") {
+                  setMainTab("showrunner");
+                }
+                if (subview === "assets") {
+                  setAssetHubOpen(true);
+                }
+              },
+              openAssetHub: () => setAssetHubOpen(true),
             }
           );
           executedSummaries = result.summaries;
@@ -2382,6 +2406,18 @@ export default function StudioPage() {
             <span className="hidden md:inline">Continuity Audit</span>
           </Button>
 
+          {/* Asset Hub Vault Button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setAssetHubOpen(true)}
+            className="h-7 px-2.5 gap-1.5 text-xs border-accent/50 bg-accent/10 hover:bg-accent/20 text-accent font-medium cursor-pointer transition-colors shadow-xs"
+            title="Open Production Asset Hub & Media Library"
+          >
+            <Layers className="h-3.5 w-3.5 text-accent" />
+            <span className="hidden sm:inline">Asset Hub</span>
+          </Button>
+
           {/* Unified Creative Tools Dropdown Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger className="inline-flex items-center h-7 gap-1.5 text-xs font-medium border border-border/70 rounded-md px-2.5 bg-secondary/30 hover:bg-secondary/70 text-foreground cursor-pointer transition-colors">
@@ -2391,8 +2427,18 @@ export default function StudioPage() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-64 bg-card border-border shadow-2xl p-1.5 z-50">
               <DropdownMenuLabel className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground px-2 py-1">
-                Story &amp; Character Lab
+                Media &amp; Character Lab
               </DropdownMenuLabel>
+              <DropdownMenuItem
+                onClick={() => setAssetHubOpen(true)}
+                className="flex items-center gap-2.5 px-2.5 py-1.5 rounded text-xs cursor-pointer hover:bg-secondary"
+              >
+                <Layers className="h-4 w-4 text-accent shrink-0" />
+                <div className="flex flex-col">
+                  <span className="font-medium text-accent">Asset Hub &amp; Media Vault</span>
+                  <span className="text-[10px] text-muted-foreground">Upload blueprints, faces, &amp; b-roll</span>
+                </div>
+              </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => setCharacterLabOpen(true)}
                 className="flex items-center gap-2.5 px-2.5 py-1.5 rounded text-xs cursor-pointer hover:bg-secondary"
@@ -2838,6 +2884,8 @@ export default function StudioPage() {
                   primaryLocation={primaryLocation}
                   screenplayText={screenplayText}
                   directorStyle={directorStyle}
+                  initialMapUrl={floorPlanCustomMapUrl}
+                  initialMapName={floorPlanCustomMapName}
                   onSendToVeo={handleSendStagingToVeo}
                 />
               )}
@@ -3308,6 +3356,52 @@ export default function StudioPage() {
             description: "Scratchpad memo inserted into master screenplay.",
             type: "success",
           });
+        }}
+      />
+
+      {/* Production Asset Hub & Media Vault */}
+      <AssetHubDialog
+        open={assetHubOpen}
+        onOpenChange={setAssetHubOpen}
+        projectId={projectId}
+        projectTitle={projectTitle}
+        onSetFloorPlanMap={(mapUrl, asset) => {
+          setFloorPlanCustomMapUrl(mapUrl);
+          setFloorPlanCustomMapName(asset.name);
+          setMainTab("planning");
+          setDeckSubTab("blocking");
+          setAssetHubOpen(false);
+          toast.add({
+            title: "2D Floor Plan Active",
+            description: `Switched to 2D Blocking canvas with "${asset.name}".`,
+            type: "success",
+          });
+        }}
+        onSendToVeo={(_imageUrl, asset) => {
+          setVeoVideoOpen(true);
+          setAssetHubOpen(false);
+          toast.add({
+            title: "Veo 3.1 Pre-viz",
+            description: `Conditioning Veo with "${asset.name}".`,
+            type: "success",
+          });
+        }}
+        onSetCharacterFace={(_imageUrl, _asset) => {
+          setCharacterLabOpen(true);
+          setAssetHubOpen(false);
+        }}
+        onAddToSceneScout={(_imageUrl, _asset) => {
+          setMainTab("planning");
+          setDeckSubTab("location");
+          setAssetHubOpen(false);
+        }}
+        onInsertToTimeline={(_mediaUrl, _asset) => {
+          setMainTab("generation");
+          setAssetHubOpen(false);
+        }}
+        onAddToLyraScore={(_imageUrl, _asset) => {
+          setMainTab("generation");
+          setAssetHubOpen(false);
         }}
       />
 

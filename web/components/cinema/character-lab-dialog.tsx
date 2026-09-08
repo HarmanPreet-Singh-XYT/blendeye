@@ -33,7 +33,9 @@ import {
   Film,
   Shirt,
   X,
+  Upload,
 } from "lucide-react";
+import { AssetPickerModal } from "@/components/cinema/asset-picker-modal";
 import { toast } from "@/components/ui/toast";
 import { notifyIfFallback } from "@/lib/fallback-notice";
 import {
@@ -86,6 +88,7 @@ export function CharacterLabDialog({
   // Visual image generation state
   const [isGeneratingFace, setIsGeneratingFace] = React.useState(false);
   const [isGeneratingBody, setIsGeneratingBody] = React.useState(false);
+  const [assetPickerTarget, setAssetPickerTarget] = React.useState<"face" | "body" | null>(null);
   const [previewModal, setPreviewModal] = React.useState<{ url: string; title: string; subtitle: string } | null>(null);
 
   // Local copy of characters
@@ -774,19 +777,30 @@ export function CharacterLabDialog({
                       )}
                     </div>
 
-                    <Button
-                      size="sm"
-                      onClick={handleGenerateFace}
-                      disabled={isGeneratingFace}
-                      className="w-full text-xs h-8 gap-1.5 bg-accent text-accent-foreground hover:bg-accent/90 font-semibold cursor-pointer shadow-xs"
-                    >
-                      {isGeneratingFace ? (
-                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Sparkles className="h-3.5 w-3.5" />
-                      )}
-                      <span>{isGeneratingFace ? "Generating Face..." : activeChar.imageUrl ? "Regenerate Face (Imagen 3)" : "Generate Face Portrait (Imagen 3)"}</span>
-                    </Button>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        size="sm"
+                        onClick={handleGenerateFace}
+                        disabled={isGeneratingFace}
+                        className="text-xs h-8 gap-1.5 bg-accent text-accent-foreground hover:bg-accent/90 font-semibold cursor-pointer shadow-xs"
+                      >
+                        {isGeneratingFace ? (
+                          <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Sparkles className="h-3.5 w-3.5" />
+                        )}
+                        <span>{isGeneratingFace ? "Generating..." : "Generate AI"}</span>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setAssetPickerTarget("face")}
+                        className="text-xs h-8 gap-1.5 border-border hover:bg-secondary cursor-pointer font-medium"
+                      >
+                        <Upload className="h-3.5 w-3.5 text-accent" />
+                        <span>Upload / Hub</span>
+                      </Button>
+                    </div>
                   </div>
 
                   {/* 2. Full-Body Stance & Wardrobe */}
@@ -867,19 +881,30 @@ export function CharacterLabDialog({
                       )}
                     </div>
 
-                    <Button
-                      size="sm"
-                      onClick={handleGenerateFullBody}
-                      disabled={isGeneratingBody}
-                      className="w-full text-xs h-8 gap-1.5 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold cursor-pointer shadow-xs"
-                    >
-                      {isGeneratingBody ? (
-                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Sparkles className="h-3.5 w-3.5" />
-                      )}
-                      <span>{isGeneratingBody ? "Generating Stance..." : activeChar.fullBodyImageUrl ? "Regenerate Full-Body (Imagen 3)" : "Generate Full-Body Stance (Imagen 3)"}</span>
-                    </Button>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        size="sm"
+                        onClick={handleGenerateFullBody}
+                        disabled={isGeneratingBody}
+                        className="text-xs h-8 gap-1.5 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold cursor-pointer shadow-xs"
+                      >
+                        {isGeneratingBody ? (
+                          <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Sparkles className="h-3.5 w-3.5" />
+                        )}
+                        <span>{isGeneratingBody ? "Generating..." : "Generate AI"}</span>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setAssetPickerTarget("body")}
+                        className="text-xs h-8 gap-1.5 border-border hover:bg-secondary cursor-pointer font-medium"
+                      >
+                        <Upload className="h-3.5 w-3.5 text-cyan-400" />
+                        <span>Upload / Hub</span>
+                      </Button>
+                    </div>
                   </div>
                 </div>
 
@@ -1448,6 +1473,42 @@ export function CharacterLabDialog({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Character Visual Asset Picker Modal */}
+      <AssetPickerModal
+        open={Boolean(assetPickerTarget)}
+        onOpenChange={(open) => !open && setAssetPickerTarget(null)}
+        title={
+          assetPickerTarget === "face"
+            ? `Select Portrait Headshot for ${activeChar?.name || "Character"}`
+            : `Select Full-Body Stance & Wardrobe for ${activeChar?.name || "Character"}`
+        }
+        description="Link an uploaded reference photo or actor likeness comp directly to this character profile."
+        acceptedTypes={["image"]}
+        acceptedCategories={
+          assetPickerTarget === "face"
+            ? ["character_face", "general", "style"]
+            : ["character_body", "general", "style"]
+        }
+        onSelectAsset={(asset) => {
+          if (assetPickerTarget === "face") {
+            handleUpdateActiveChar({ imageUrl: asset.url });
+            toast.add({
+              title: "Character Portrait Linked",
+              description: `Linked "${asset.name}" as ${activeChar?.name || "character"}'s face.`,
+              type: "success",
+            });
+          } else if (assetPickerTarget === "body") {
+            handleUpdateActiveChar({ fullBodyImageUrl: asset.url });
+            toast.add({
+              title: "Character Stance Linked",
+              description: `Linked "${asset.name}" as ${activeChar?.name || "character"}'s full-body look.`,
+              type: "success",
+            });
+          }
+          setAssetPickerTarget(null);
+        }}
+      />
     </Dialog>
   );
 }

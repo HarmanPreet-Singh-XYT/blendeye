@@ -31,8 +31,9 @@ import {
   Eye,
   Sliders,
   Clapperboard,
-
+  Upload,
 } from "lucide-react";
+import { AssetPickerModal } from "@/components/cinema/asset-picker-modal";
 import {
   LOCATION_STYLE_PRESETS,
   LOCATION_CAMERA_FRAMINGS,
@@ -205,6 +206,7 @@ export function SceneTimelineCanvas({
   );
   const [customNote, setCustomNote] = React.useState<string>("");
   const [isGenerating, setIsGenerating] = React.useState(false);
+  const [isAssetPickerOpen, setIsAssetPickerOpen] = React.useState(false);
 
   // Derived prompt preview
   const promptPreview = React.useMemo(() => {
@@ -785,8 +787,17 @@ export function SceneTimelineCanvas({
                 </>
               )}
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full mt-2 gap-1.5 text-xs border-border hover:bg-secondary text-accent font-medium cursor-pointer"
+              onClick={() => setIsAssetPickerOpen(true)}
+            >
+              <Upload className="h-3.5 w-3.5" />
+              <span>Import from Asset Hub / Upload...</span>
+            </Button>
             <p className="text-[10px] text-muted-foreground mt-1.5 text-center">
-              Imagen 3 · context-aware cinematic prompt
+              Imagen 3 AI generation or custom uploaded media
             </p>
           </div>
 
@@ -1078,6 +1089,39 @@ export function SceneTimelineCanvas({
           </p>
         </div>
       )}
+
+      {/* Asset Picker Modal for Timeline Media */}
+      <AssetPickerModal
+        open={isAssetPickerOpen}
+        onOpenChange={setIsAssetPickerOpen}
+        title={`Import Media at ${formatTimecode(scrubTimeSec)}`}
+        description="Select an image plate, character still, or video take from your Asset Hub to anchor this timeline moment."
+        acceptedTypes={["image", "video"]}
+        onSelectAsset={(asset) => {
+          if (!scene) return;
+          const newMoment: TimelineMoment = {
+            id: `moment-asset-${Date.now()}`,
+            timestampSec: scrubTimeSec,
+            imageUrl: asset.thumbnailUrl || asset.url,
+            prompt: `Imported reference: ${asset.name}`,
+            createdAt: Date.now(),
+            styleId,
+            framingId,
+            label: `${momentPositionLabel(scrubTimeSec, totalSec)} · ${asset.name}`,
+          } as TimelineMoment & { styleId: string; framingId: string; label: string };
+
+          onUpdateScene?.({
+            ...scene,
+            timelineMoments: [...(scene.timelineMoments || []), newMoment],
+          });
+          setFocusTimestamp(Math.round(scrubTimeSec));
+          toast.add({
+            title: "Media Placed on Timeline",
+            description: `"${asset.name}" placed at ${formatTimecode(scrubTimeSec)}.`,
+            type: "success",
+          });
+        }}
+      />
     </div>
   );
 }

@@ -38,7 +38,9 @@ import {
   Pencil,
   Check as CheckIcon,
   X,
+  Upload,
 } from "lucide-react";
+import { AssetPickerModal } from "@/components/cinema/asset-picker-modal";
 import type { Node } from "@xyflow/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -166,10 +168,10 @@ export function SceneScoreView({
   const [streamingText, setStreamingText] = React.useState<string>("");
   const [copiedLyrics, setCopiedLyrics] = React.useState<boolean>(false);
   const [showReadinessDetails, setShowReadinessDetails] = React.useState<boolean>(false);
+  const [customHubImages, setCustomHubImages] = React.useState<Array<{ id: string; url: string; label: string; type: MoodboardCandidate["type"] }>>([]);
+  const [isAssetPickerOpen, setIsAssetPickerOpen] = React.useState<boolean>(false);
 
-  // ── Moodboard candidates — scoped strictly to the active scene ──────────
-  // Characters and other scenes are excluded: Lyria 3 visual conditioning
-  // should reflect this scene's aesthetic, not cross-scene visual noise.
+  // ── Moodboard candidates — scene visuals and user-selected references from Asset Hub ──────────
   const moodboardCandidates = React.useMemo<MoodboardCandidate[]>(() => {
     const list: MoodboardCandidate[] = [];
     const seen = new Set<string>();
@@ -198,8 +200,13 @@ export function SceneScoreView({
       add(m.imageUrl, label, "timeline_moment");
     });
 
+    // 4. Custom reference images imported from Asset Hub
+    customHubImages.forEach((m) => {
+      add(m.url, m.label, m.type);
+    });
+
     return list;
-  }, [activeScene]);
+  }, [activeScene, customHubImages]);
 
   // Prepopulate selected moodboard with active scene keyframe or first scout
   React.useEffect(() => {
@@ -1211,6 +1218,15 @@ export function SceneScoreView({
                           <span className="text-muted-foreground text-[10px]">·</span>
                           <button
                             type="button"
+                            onClick={() => setIsAssetPickerOpen(true)}
+                            className="text-[10px] text-accent hover:underline flex items-center gap-1 cursor-pointer font-medium"
+                          >
+                            <Upload className="h-2.5 w-2.5" />
+                            <span>Add from Asset Hub...</span>
+                          </button>
+                          <span className="text-muted-foreground text-[10px]">·</span>
+                          <button
+                            type="button"
                             onClick={clearMoodboard}
                             className="text-[10px] text-muted-foreground hover:text-foreground cursor-pointer"
                           >
@@ -2155,6 +2171,35 @@ export function SceneScoreView({
           </div>
         </div>
       </div>
+
+      {/* Lyria Moodboard Asset Picker Modal */}
+      <AssetPickerModal
+        open={isAssetPickerOpen}
+        onOpenChange={setIsAssetPickerOpen}
+        title="Select Moodboard Reference for Lyria 3 Music Score"
+        description="Choose an uploaded concept plate, style image, or location reference from your Asset Hub."
+        acceptedTypes={["image"]}
+        acceptedCategories={["style", "location", "character_face", "general"]}
+        onSelectAsset={(asset) => {
+          const newEntry = {
+            id: `hub-${Date.now()}`,
+            url: asset.url,
+            label: `${asset.name} (Hub)`,
+            type: "scene_scout" as const,
+          };
+          setCustomHubImages((prev) => [newEntry, ...prev]);
+          setSelectedMoodboardUrls((prev) => {
+            if (prev.includes(asset.url)) return prev;
+            if (prev.length >= 10) return prev;
+            return [...prev, asset.url];
+          });
+          toast.add({
+            title: "Moodboard Reference Added",
+            description: `"${asset.name}" added to Lyria 3 musical conditioning set.`,
+            type: "success",
+          });
+        }}
+      />
     </div>
   );
 }

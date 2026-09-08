@@ -17,10 +17,23 @@ import {
   Crosshair,
   ImageIcon,
   ShieldAlert,
+  Layers,
+  Sliders,
+  RotateCw,
+  ZoomIn,
+  ZoomOut,
+  Lock,
+  Unlock,
+  Upload,
+  Grid,
+  Plus,
+  X,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { notifyIfFallback } from "@/lib/fallback-notice";
 import type { ShotItem, ShotlistResponse } from "@/lib/agent-service";
+import { AssetPickerModal } from "@/components/cinema/asset-picker-modal";
+import { type CinemaAsset } from "@/lib/asset-store";
 
 /* -------------------------------------------------------------------------
    Data Structures & Types
@@ -95,6 +108,8 @@ export interface FloorPlanViewProps {
   screenplayText?: string;
   directorStyle?: string;
   className?: string;
+  initialMapUrl?: string | null;
+  initialMapName?: string;
   onSendToVeo?: (camData: {
     camName: string;
     lens: string;
@@ -597,6 +612,8 @@ export function FloorPlanView({
   screenplayText = "",
   directorStyle = "David Fincher / Neo-Noir Precision",
   className,
+  initialMapUrl,
+  initialMapName,
   onSendToVeo,
 }: FloorPlanViewProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -611,6 +628,31 @@ export function FloorPlanView({
 
   const [show180Axis, setShow180Axis] = React.useState(true);
   const [activeTab, setActiveTab] = React.useState<"viewfinder" | "inspector" | "precedents" | "shotlist">("viewfinder");
+
+  // Building Top-Level Map / Architectural Blueprint Background State
+  const [mapUrl, setMapUrl] = React.useState<string | null>(
+    initialMapUrl || null
+  );
+  const [mapName, setMapName] = React.useState<string>(
+    initialMapName || "No Map Loaded"
+  );
+  const [mapOpacity, setMapOpacity] = React.useState<number>(0.55);
+  const [mapScale, setMapScale] = React.useState<number>(1.0);
+  const [mapOffsetX, setMapOffsetX] = React.useState<number>(0);
+  const [mapOffsetY, setMapOffsetY] = React.useState<number>(0);
+  const [mapRotation, setMapRotation] = React.useState<number>(0);
+  const [mapInvert, setMapInvert] = React.useState<boolean>(false);
+  const [showGrid, setShowGrid] = React.useState<boolean>(true);
+  const [showMapControls, setShowMapControls] = React.useState<boolean>(false);
+  const [isAssetPickerOpen, setIsAssetPickerOpen] = React.useState<boolean>(false);
+
+  // Sync if initialMapUrl updates externally
+  React.useEffect(() => {
+    if (initialMapUrl !== undefined) {
+      setMapUrl(initialMapUrl);
+      if (initialMapName) setMapName(initialMapName);
+    }
+  }, [initialMapUrl, initialMapName]);
 
   // Autonomous Shot List State
   const [shotlistData, setShotlistData] = React.useState<ShotlistResponse | null>(null);
@@ -1227,6 +1269,24 @@ export function FloorPlanView({
             <span>180° Axis</span>
           </Button>
 
+          {/* Building Top-Level Map Background Button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowMapControls(!showMapControls)}
+            className={`h-7 text-xs gap-1.5 font-mono cursor-pointer transition-all ${
+              mapUrl ? "border-accent/50 bg-accent/15 text-accent shadow-xs" : "text-muted-foreground"
+            }`}
+          >
+            <MapPin className="h-3 w-3" />
+            <span>{mapUrl ? "Building Map (Active)" : "Add Building Map"}</span>
+            {mapUrl && (
+              <Badge variant="secondary" className="text-[9px] px-1 py-0 font-mono hidden sm:inline-block">
+                {Math.round(mapOpacity * 100)}%
+              </Badge>
+            )}
+          </Button>
+
           {/* AI Scout Button */}
           <Button
             size="sm"
@@ -1239,6 +1299,241 @@ export function FloorPlanView({
           </Button>
         </div>
       </div>
+
+      {/* Building Top-Level Map Inspector & Alignment Controls Panel */}
+      {showMapControls && (
+        <div className="p-3.5 rounded-xl border border-accent/40 bg-[#0e1017] shadow-xl animate-in fade-in-50 duration-150 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/60 pb-2.5">
+            <div className="flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-accent" />
+              <span className="text-xs font-bold text-foreground">
+                2D Camera Blocking · Top-Level Building Map &amp; Blueprint Setup
+              </span>
+              {mapUrl && (
+                <Badge variant="outline" className="text-[10px] font-mono border-accent/40 text-accent">
+                  {mapName}
+                </Badge>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setIsAssetPickerOpen(true)}
+                className="h-7 text-xs gap-1.5 border-accent/50 text-accent hover:bg-accent/20 cursor-pointer"
+              >
+                <Upload className="h-3 w-3" />
+                <span>Upload Map / Pick from Asset Hub</span>
+              </Button>
+              {mapUrl && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setMapUrl(null);
+                    setMapName("None");
+                  }}
+                  className="h-7 text-xs text-muted-foreground hover:text-destructive cursor-pointer"
+                >
+                  Clear Background
+                </Button>
+              )}
+              <Button
+                size="icon-xs"
+                variant="ghost"
+                onClick={() => setShowMapControls(false)}
+                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Map Source & Sliders */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-1">
+            {/* Map Source */}
+            <div className="space-y-1.5 md:border-r border-border/60 md:pr-3">
+              <span className="text-[10px] font-mono uppercase text-muted-foreground block">
+                Map Source
+              </span>
+              <div className="space-y-2">
+                {mapUrl ? (
+                  <div className="p-2.5 rounded-md bg-secondary/50 border border-border/60 space-y-2">
+                    <div className="text-xs font-medium text-foreground truncate flex items-center gap-1.5">
+                      <ImageIcon className="h-3.5 w-3.5 text-accent shrink-0" />
+                      <span className="truncate">{mapName}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        size="xs"
+                        variant="secondary"
+                        onClick={() => setIsAssetPickerOpen(true)}
+                        className="h-6 text-[10px] flex-1 cursor-pointer"
+                      >
+                        Change Map...
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        onClick={() => {
+                          setMapUrl(null);
+                          setMapName("No Map Loaded");
+                        }}
+                        className="h-6 text-[10px] text-destructive hover:bg-destructive/20 px-2 cursor-pointer"
+                      >
+                        Clear
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3 rounded-md border border-dashed border-border/80 text-center space-y-2 bg-secondary/20">
+                    <p className="text-[11px] text-muted-foreground">
+                      No building map loaded. Upload an overhead blueprint or select one from your assets.
+                    </p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setIsAssetPickerOpen(true)}
+                      className="h-7 text-xs w-full gap-1.5 text-accent border-accent/40 hover:bg-accent/10 cursor-pointer"
+                    >
+                      <Upload className="h-3.5 w-3.5" />
+                      <span>Upload / Select Map...</span>
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Opacity & Zoom Scale Sliders */}
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <div className="flex justify-between text-[11px]">
+                  <span className="text-muted-foreground">Map Opacity</span>
+                  <span className="font-mono text-accent">{Math.round(mapOpacity * 100)}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="0.1"
+                  max="1.0"
+                  step="0.05"
+                  value={mapOpacity}
+                  onChange={(e) => setMapOpacity(parseFloat(e.target.value))}
+                  className="w-full accent-accent h-1.5 bg-secondary rounded cursor-pointer"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex justify-between text-[11px]">
+                  <span className="text-muted-foreground">Zoom / Scale</span>
+                  <span className="font-mono text-accent">{mapScale.toFixed(2)}x</span>
+                </div>
+                <input
+                  type="range"
+                  min="0.5"
+                  max="2.5"
+                  step="0.05"
+                  value={mapScale}
+                  onChange={(e) => setMapScale(parseFloat(e.target.value))}
+                  className="w-full accent-accent h-1.5 bg-secondary rounded cursor-pointer"
+                />
+              </div>
+            </div>
+
+            {/* Pan Offset X / Y Sliders */}
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <div className="flex justify-between text-[11px]">
+                  <span className="text-muted-foreground">Pan Offset X</span>
+                  <span className="font-mono text-muted-foreground">{mapOffsetX}px</span>
+                </div>
+                <input
+                  type="range"
+                  min="-150"
+                  max="150"
+                  step="5"
+                  value={mapOffsetX}
+                  onChange={(e) => setMapOffsetX(parseInt(e.target.value))}
+                  className="w-full accent-accent h-1.5 bg-secondary rounded cursor-pointer"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex justify-between text-[11px]">
+                  <span className="text-muted-foreground">Pan Offset Y</span>
+                  <span className="font-mono text-muted-foreground">{mapOffsetY}px</span>
+                </div>
+                <input
+                  type="range"
+                  min="-150"
+                  max="150"
+                  step="5"
+                  value={mapOffsetY}
+                  onChange={(e) => setMapOffsetY(parseInt(e.target.value))}
+                  className="w-full accent-accent h-1.5 bg-secondary rounded cursor-pointer"
+                />
+              </div>
+            </div>
+
+            {/* Toggles & Actions */}
+            <div className="space-y-2 flex flex-col justify-between">
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setMapRotation((prev) => (prev + 90) % 360)}
+                  className="h-7 text-xs gap-1 cursor-pointer"
+                  title="Rotate Blueprint 90 degrees"
+                >
+                  <RotateCw className="h-3 w-3" />
+                  <span>Rotate ({mapRotation}°)</span>
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setMapInvert(!mapInvert)}
+                  className={`h-7 text-xs gap-1 cursor-pointer ${
+                    mapInvert ? "bg-accent/20 text-accent border-accent/40" : "text-muted-foreground"
+                  }`}
+                  title="Invert colors for dark-mode blueprint"
+                >
+                  <Sliders className="h-3 w-3" />
+                  <span>Blueprint LUT</span>
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowGrid(!showGrid)}
+                  className={`h-7 text-xs gap-1 cursor-pointer ${
+                    showGrid ? "text-foreground" : "text-muted-foreground line-through"
+                  }`}
+                >
+                  <Grid className="h-3 w-3" />
+                  <span>Grid {showGrid ? "On" : "Off"}</span>
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setMapScale(1.0);
+                    setMapOffsetX(0);
+                    setMapOffsetY(0);
+                    setMapRotation(0);
+                  }}
+                  className="h-7 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+                >
+                  Reset Alignment
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {scoutError && !isScouting && (
         <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive flex items-center justify-between">
@@ -1312,7 +1607,30 @@ export function FloorPlanView({
                 </radialGradient>
               </defs>
 
-              <rect width={svgW} height={svgH} fill="url(#floor-grid-major)" />
+              {showGrid && <rect width={svgW} height={svgH} fill="url(#floor-grid-major)" />}
+
+              {/* Custom Top-Level Building Map / Architectural Blueprint Background */}
+              {mapUrl && (
+                <g
+                  transform={`translate(${roomX + roomW / 2 + mapOffsetX}, ${roomY + roomH / 2 + mapOffsetY}) rotate(${mapRotation}) scale(${mapScale}) translate(${-(roomW / 2)}, ${-(roomH / 2)})`}
+                  opacity={mapOpacity}
+                  style={{
+                    pointerEvents: "none",
+                    filter: mapInvert
+                      ? "invert(1) hue-rotate(180deg) brightness(0.9) contrast(1.25)"
+                      : undefined,
+                  }}
+                >
+                  <image
+                    href={mapUrl}
+                    x={0}
+                    y={0}
+                    width={roomW}
+                    height={roomH}
+                    preserveAspectRatio="xMidYMid meet"
+                  />
+                </g>
+              )}
 
               <rect
                 x={roomX}
@@ -2232,6 +2550,20 @@ export function FloorPlanView({
           {buildLiveVeoPrompt()}
         </p>
       </div>
+
+      {/* Asset Picker Modal for Custom Maps & Blueprints */}
+      <AssetPickerModal
+        open={isAssetPickerOpen}
+        onOpenChange={setIsAssetPickerOpen}
+        title="Select Top-Level Building Map or Architectural Blueprint"
+        description="Choose an architectural blueprint, top-level layout, or aerial plan to align your camera and actor blocking."
+        acceptedCategories={["map"]}
+        onSelectAsset={(asset) => {
+          setMapUrl(asset.url);
+          setMapName(asset.name);
+          setShowMapControls(true);
+        }}
+      />
     </div>
   );
 }

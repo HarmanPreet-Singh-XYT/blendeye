@@ -102,6 +102,35 @@ CREATE TABLE IF NOT EXISTS public.generation_cache (
 
 CREATE INDEX IF NOT EXISTS idx_generation_cache_namespace ON public.generation_cache(namespace);
 
+-- 6. ASSETS TABLE (Media Library, Floor Plans, Character References, Footage)
+CREATE TABLE IF NOT EXISTS public.assets (
+    id TEXT PRIMARY KEY,
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    project_id TEXT REFERENCES public.projects(id) ON DELETE SET NULL,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL, -- 'image', 'video', 'map', 'audio'
+    category TEXT NOT NULL, -- 'map', 'character_face', 'character_body', 'location', 'style', 'video', 'audio', 'general'
+    url TEXT NOT NULL,
+    thumbnail_url TEXT,
+    size_bytes BIGINT DEFAULT 0,
+    mime_type TEXT,
+    tags JSONB DEFAULT '[]'::jsonb,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    created_at BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT
+);
+
+CREATE INDEX IF NOT EXISTS idx_assets_user ON public.assets(user_id);
+CREATE INDEX IF NOT EXISTS idx_assets_project ON public.assets(project_id);
+CREATE INDEX IF NOT EXISTS idx_assets_category ON public.assets(category);
+CREATE INDEX IF NOT EXISTS idx_assets_created ON public.assets(created_at DESC);
+
+-- ============================================================================
+-- SUPABASE STORAGE BUCKET CONFIGURATION
+-- ============================================================================
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('cinema_assets', 'cinema_assets', true)
+ON CONFLICT (id) DO UPDATE SET public = true;
+
 -- ============================================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
 -- ============================================================================
@@ -111,6 +140,7 @@ ALTER TABLE public.scratchpad_notes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.talent_vault ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.project_snapshots ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.generation_cache ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.assets ENABLE ROW LEVEL SECURITY;
 
 DO $$ 
 BEGIN
@@ -124,6 +154,7 @@ BEGIN
     DROP POLICY IF EXISTS "Scratchpad access policy" ON public.scratchpad_notes;
     DROP POLICY IF EXISTS "Talent access policy" ON public.talent_vault;
     DROP POLICY IF EXISTS "Snapshots access policy" ON public.project_snapshots;
+    DROP POLICY IF EXISTS "Assets access policy" ON public.assets;
 
     -- Flexible policies: Authenticated users manage their own rows, and
     -- guest/demo rows (where user_id IS NULL) remain readable and accessible.
@@ -159,7 +190,34 @@ BEGIN
             user_id IS NULL OR user_id = auth.uid()
         );
 
+    CREATE POLICY "Assets access policy" ON public.assets
+        FOR ALL USING (
+            user_id IS NULL OR user_id = auth.uid()
+        )
+        WITH CHECK (
+            user_id IS NULL OR user_id = auth.uid()
+        );
+
     CREATE POLICY "Generation cache access policy" ON public.generation_cache
         FOR ALL USING (true)
         WITH CHECK (true);
+
+    -- Storage RLS policies for cinema_assets bucket
+    DROP POLICY IF EXISTS "Public view cinema_assets" ON storage.objects;
+    DROP POLICY IF EXISTS "Public insert cinema_assets" ON storage.objects;
+    DROP POLICY IF EXISTS "Public update cinema_assets" ON storage.objects;
+    DROP POLICY IF EXISTS "Public delete cinema_assets" ON storage.objects;
+
+    CREATE POLICY "Public view cinema_assets" ON storage.objects
+        FOR SELECT USING (bucket_id = 'cinema_assets');
+
+    CREATE POLICY "Public insert cinema_assets" ON storage.objects
+        FOR INSERT WITH CHECK (bucket_id = 'cinema_assets');
+
+    CREATE POLICY "Public update cinema_assets" ON storage.objects
+        FOR UPDATE USING (bucket_id = 'cinema_assets');
+
+    CREATE POLICY "Public delete cinema_assets" ON storage.objects
+        FOR DELETE USING (bucket_id = 'cinema_assets');
 END $$;
+

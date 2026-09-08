@@ -32,7 +32,11 @@ export type StudioActionType =
   | "set_shoot_region"
   | "create_score_take"
   | "set_master_score"
-  | "delete_score_take";
+  | "delete_score_take"
+  | "attach_asset"
+  | "create_asset_record"
+  | "generate_timeline_moment"
+  | "switch_view";
 
 export interface CreateNodeAction {
   type: "create_node";
@@ -295,6 +299,41 @@ export interface DeleteScoreTakeAction {
   takeId?: string;
 }
 
+export interface AttachAssetAction {
+  type: "attach_asset";
+  assetId?: string;
+  assetName?: string;
+  targetType: "scene" | "character" | "score_moodboard" | "general";
+  targetIdentifier?: string | number;
+  role?: "face" | "body" | "plate" | "style" | "moodboard";
+}
+
+export interface CreateAssetRecordAction {
+  type: "create_asset_record";
+  name: string;
+  category: "map" | "character_face" | "character_body" | "location" | "style" | "video" | "audio" | "general";
+  url: string;
+  tags?: string[];
+  metadata?: Record<string, any>;
+}
+
+export interface GenerateTimelineMomentAction {
+  type: "generate_timeline_moment";
+  sceneIdentifier: string | number;
+  timestampSec: number;
+  prompt?: string;
+  stylePreset?: string;
+  cameraFraming?: string;
+  label?: string;
+  imageUrl?: string;
+}
+
+export interface SwitchViewAction {
+  type: "switch_view";
+  tab?: "planning" | "simulation" | "generation" | "showrunner";
+  subview?: "canvas" | "timeline" | "score" | "video" | "location" | "floorplan" | "assets";
+}
+
 export type StudioAction =
   | CreateNodeAction
   | DeleteNodeAction
@@ -327,7 +366,11 @@ export type StudioAction =
   | SetShootRegionAction
   | CreateScoreTakeAction
   | SetMasterScoreAction
-  | DeleteScoreTakeAction;
+  | DeleteScoreTakeAction
+  | AttachAssetAction
+  | CreateAssetRecordAction
+  | GenerateTimelineMomentAction
+  | SwitchViewAction;
 
 export interface CitedPrecedent {
   genre: string;

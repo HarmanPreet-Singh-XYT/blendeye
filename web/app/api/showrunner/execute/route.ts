@@ -37,9 +37,13 @@ AVAILABLE ACTIONS YOU CAN EMIT IN "actions":
 27. {"type": "add_location_candidate", "sceneIdentifier": 2, "candidate": {"name": "Venue Name", "category": "practical"|"warehouse"|"rooftop"|"vault"|"studio"|"historic", "region": "City/State", "day_rate": 2500, "permit_fee": 400, "film_precedent": "Movie Title", "director": "Director Name", "why": "Why it fits", "practical_notes": "...", "environment_type": "practical"|"studio_stage"|"green_screen", "auto_lock": true}}
 28. {"type": "set_location_budget", "sceneIdentifier": optional 2, "budget": 15000, "locationsPct": 20}
 29. {"type": "set_shoot_region", "shootRegion": "New York, NY" | "London, UK" | "Los Angeles, CA", "sceneIdentifier": optional 2}
-30. {"type": "create_score_take", "sceneIdentifier": 2, "title": "Score Cue", "prompt": "Tense cinematic strings", "durationSec": 30, "scoreType": "score"|"source"|"vocal", "audioUrl": "/audio/demo-score.wav"}
+30. {"type": "create_score_take", "sceneIdentifier": 2, "title": "Score Cue", "prompt": "Tense cinematic strings", "durationSec": 30|60|90, "scoreType": "score"|"source"|"vocal", "model": "Lyria 3 Pro"|"Lyria 3 Clip", "instruments": ["Strings", "Synth Bass"], "dynamicArc": "slow-burn"|"crescendo"|"staccato", "lyricsText": "Optional vocal lyrics..."}
 31. {"type": "set_master_score", "sceneIdentifier": 2, "takeNumber": 1}
 32. {"type": "delete_score_take", "sceneIdentifier": 2, "takeNumber": 1}
+33. {"type": "attach_asset", "assetName": "Sub-Level Concrete Vault", "targetType": "scene"|"character"|"score_moodboard", "targetIdentifier": 2|"Marcus", "role": "plate"|"face"|"body"|"moodboard"}
+34. {"type": "create_asset_record", "name": "Asset Name", "category": "location"|"character_face"|"character_body"|"style"|"video"|"audio"|"map", "url": "/assets/...", "tags": ["tag1", "tag2"]}
+35. {"type": "generate_timeline_moment", "sceneIdentifier": 2, "timestampSec": 45, "prompt": "Marcus confronting Elena under harsh neon rim lighting", "stylePreset": "anamorphic_35mm", "cameraFraming": "wide_master"}
+36. {"type": "switch_view", "tab": "planning"|"simulation"|"generation"|"showrunner", "subview": "canvas"|"timeline"|"score"|"video"|"location"|"floorplan"|"assets"}
 
 OUTPUT FORMAT:
 You MUST respond with a single, valid, raw JSON object matching:
@@ -127,7 +131,11 @@ export async function POST(req: NextRequest) {
               const locInfo = locked
                 ? `Locked Venue: "${locked.name}" ($${(locked.estimated_cost?.day_rate || 0).toLocaleString()}/day, ${locked.region || s.shootRegion || "Production Base"})`
                 : `Setting: "${s.location || "TBD"}" (Region: ${s.shootRegion || project.shootRegion || "Base"}, Budget: $${s.locationBudget ? s.locationBudget.toLocaleString() : "Default"}, Scouted Candidates: ${s.locationCandidates?.length || 0})`;
-              return `  - Scene ${s.sceneNumber || idx + 1}: "${s.title || "Scene"}" (${s.slugline || ""}) | Duration: ${s.durationSeconds || 120}s | Cast: ${(s.castPresent || []).join(", ") || "None"} | Stakes: ${s.summary || "N/A"}${s.id === project.activeSceneId ? " [CURRENT ACTIVE SCENE]" : ""}\n    Location: ${locInfo}\n    Script snippet: "${scriptSnip.replace(/\n/g, ' ')}"`;
+              const momentsCount = s.timelineMoments?.length || 0;
+              const scoresCount = s.scoreTakes?.length || 0;
+              const activeScore = s.scoreTakes?.find((t: any) => t.isMaster) || s.scoreTakes?.[0];
+              const scoreInfo = scoresCount > 0 ? `${scoresCount} score takes (Active: "${activeScore?.title || "Score"}", ${activeScore?.model || "Lyria 3"})` : "No score composed";
+              return `  - Scene ${s.sceneNumber || idx + 1}: "${s.title || "Scene"}" (${s.slugline || ""}) | Duration: ${s.durationSeconds || 120}s | Cast: ${(s.castPresent || []).join(", ") || "None"} | Stakes: ${s.summary || "N/A"}${s.id === project.activeSceneId ? " [CURRENT ACTIVE SCENE]" : ""}\n    Location: ${locInfo}\n    Audio & Visual Staging: [Timeline Moments: ${momentsCount} generated stills] | [Music: ${scoreInfo}]\n    Script snippet: "${scriptSnip.replace(/\n/g, ' ')}"`;
             }
           )
           .join("\n")
@@ -139,6 +147,11 @@ export async function POST(req: NextRequest) {
           .map((e: any) => `  - Beat at ${e.atSeconds || 0}s: ${e.characterName || "Character"} (${e.eventType || "event"})`)
           .join("\n")
       : "  - No story beat markers";
+
+    const assetsList = Array.isArray(project.assets) ? project.assets : [];
+    const assetsContext = assetsList.length > 0
+      ? assetsList.slice(0, 12).map((a: any) => `  - "${a.name}" [Category: ${a.category}] [Tags: ${(a.tags || []).join(", ")}]`).join("\n")
+      : "  - Seeded plates & character portraits available in Asset Hub";
 
     // Build comprehensive project context for Gemini
     const projectContext = `
@@ -152,8 +165,10 @@ CURRENT PROJECT CONTEXT:
 - Active Scene Title: ${project.sceneTitle || "Scene 01"}
 - Active Scene Stakes: ${project.sceneSummary || "N/A"}
 - Characters: ${(project.characters || []).map((c: any) => `${c.name} (${c.archetype}, ${c.role})`).join(", ") || "None"}
-- Multi-Scene Sequence Reel (with locations & script snippets):
+- Multi-Scene Sequence Reel (with locations, music cues & timeline moments):
 ${scenesContext}
+- Available Studio Assets (Asset Hub):
+${assetsContext}
 - Timeline Story Beats:
 ${eventsContext}
 - Existing Nodes: ${(project.nodes || []).map((n: any) => `${n.id} (${n.type})`).join(", ")}
@@ -374,6 +389,75 @@ ${precedentContext}
       });
       thought += `Updated project metadata. `;
       reply = `Updated project configuration${metaPatch.title ? ` (Title: "${metaPatch.title}")` : ""}${metaPatch.genre ? ` (Genre: "${metaPatch.genre}")` : ""}.`;
+    }
+
+    // Lyria 3 score take command
+    if (promptLower.includes("score") || promptLower.includes("music") || promptLower.includes("soundtrack") || promptLower.includes("lyria")) {
+      const sceneNumMatch = userPrompt.match(/(?:scene\s+)(\d+)/i);
+      const sceneNum = sceneNumMatch ? parseInt(sceneNumMatch[1], 10) : undefined;
+      const isPro = promptLower.includes("pro") || promptLower.includes("60") || promptLower.includes("full");
+      localActions.push({
+        type: "create_score_take",
+        sceneIdentifier: sceneNum,
+        title: `Lyria 3 Cinematic Score Cue`,
+        prompt: `High-tension orchestral strings and sub-bass pulse tailored for dramatic cinema`,
+        durationSec: isPro ? 60 : 30,
+        model: isPro ? "Lyria 3 Pro" : "Lyria 3 Clip",
+        scoreType: promptLower.includes("vocal") ? "vocal" : promptLower.includes("source") ? "source" : "score",
+        dynamicArc: "Slow-burn escalation to peak climax",
+        instruments: ["Cinematic Strings", "Synthesizer", "Sub-Bass"],
+      });
+      thought += `Generated Lyria 3 score cue take${sceneNum ? ` for Scene ${sceneNum}` : ""}. `;
+      reply = `Composed and attached a new **${isPro ? "Lyria 3 Pro (60s)" : "Lyria 3 Clip (30s)"}** cinematic score take with dynamic arc and orchestral instruments.`;
+    }
+
+    // Timeline image generation command
+    if (promptLower.includes("timeline") || (promptLower.includes("frame") && promptLower.includes("at")) || promptLower.includes("still")) {
+      const timeMatch = userPrompt.match(/(\d+)\s*(?:s|sec|seconds)?/i);
+      const timeSec = timeMatch ? parseInt(timeMatch[1], 10) : 30;
+      const sceneNumMatch = userPrompt.match(/(?:scene\s+)(\d+)/i);
+      const sceneNum = sceneNumMatch ? parseInt(sceneNumMatch[1], 10) : undefined;
+      localActions.push({
+        type: "generate_timeline_moment",
+        sceneIdentifier: sceneNum || 1,
+        timestampSec: timeSec,
+        prompt: `Cinematic anamorphic widescreen film still captured at ${timeSec}s: high atmospheric tension, volumetric lighting`,
+        stylePreset: "anamorphic_35mm",
+        cameraFraming: "wide_master",
+      });
+      thought += `Staged timeline keyframe moment at ${timeSec}s. `;
+      reply = `Generated and staged a 35mm anamorphic timeline still at **${timeSec}s** on the sequence reel.`;
+    }
+
+    // Asset attachment command
+    if (promptLower.includes("attach") || promptLower.includes("link asset") || promptLower.includes("use asset")) {
+      const isChar = promptLower.includes("character") || promptLower.includes("marcus") || promptLower.includes("elena");
+      localActions.push({
+        type: "attach_asset",
+        assetName: promptLower.includes("vault") ? "Sub-Level Concrete Vault" : promptLower.includes("pier") ? "Rain-Slicked Pier Docks" : "Marcus — Chiaroscuro",
+        targetType: isChar ? "character" : "scene",
+        targetIdentifier: isChar ? (promptLower.includes("elena") ? "Elena" : "Marcus") : 1,
+        role: isChar ? "face" : "plate",
+      });
+      thought += `Linked asset to ${isChar ? "character" : "scene"}. `;
+      reply = `Attached reference plate asset from Asset Hub to ${isChar ? "character profile" : "Scene 1 visual board"}.`;
+    }
+
+    // View switching command
+    if (promptLower.includes("open") || promptLower.includes("switch") || promptLower.includes("go to") || promptLower.includes("show")) {
+      if (promptLower.includes("score") || promptLower.includes("music") || promptLower.includes("audio")) {
+        localActions.push({ type: "switch_view", tab: "simulation", subview: "score" });
+        thought += `Navigated to score studio. `;
+        reply = `Switched workspace to the **Lyria 3 Music Score Studio**.`;
+      } else if (promptLower.includes("timeline")) {
+        localActions.push({ type: "switch_view", tab: "generation", subview: "timeline" });
+        thought += `Navigated to timeline canvas. `;
+        reply = `Switched workspace to the **Scene Timeline Canvas**.`;
+      } else if (promptLower.includes("asset")) {
+        localActions.push({ type: "switch_view", tab: "planning", subview: "assets" });
+        thought += `Navigated to asset hub. `;
+        reply = `Switched workspace to the **Studio Asset Hub**.`;
+      }
     }
 
     const fallbackResponse: CommanderExecutionResponse = {

@@ -36,7 +36,8 @@ export async function POST(req: NextRequest) {
 
     // If agent-service is unreachable or rate-limited, provide an elegant high-quality cinematic fallback tailored to the requested shot type
     const lowerPrompt = promptStr.toLowerCase();
-    let fallbackUrl = "https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=1280&q=80"; // 16:9 widescreen landscape
+    // Default fallback: AI-generated 16:9 widescreen landscape plate
+    let fallbackUrl = "/assets/locations/ai_vault_plate.jpg";
 
     if (
       lowerPrompt.includes("full-body") ||
@@ -46,8 +47,8 @@ export async function POST(req: NextRequest) {
       lowerPrompt.includes("stance") ||
       aspectRatioStr === "9:16"
     ) {
-      // High quality cinematic full body character portrait
-      fallbackUrl = "https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&w=800&q=80";
+      // High quality cinematic full body character portrait (AI generated)
+      fallbackUrl = "/assets/characters/ai_elena_fullbody.jpg";
     } else if (
       lowerPrompt.includes("portrait") ||
       lowerPrompt.includes("face") ||
@@ -56,10 +57,10 @@ export async function POST(req: NextRequest) {
       aspectRatioStr === "1:1" ||
       aspectRatioStr === "3:4"
     ) {
-      // High quality cinematic dramatic face portrait
+      // High quality cinematic dramatic face portrait (AI generated)
       fallbackUrl = lowerPrompt.includes("female") || lowerPrompt.includes("woman") || lowerPrompt.includes("elena")
-        ? "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80"
-        : "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=800&q=80";
+        ? "/assets/characters/ai_elena_face.jpg"
+        : "/assets/characters/ai_marcus_face.jpg";
     }
 
     return NextResponse.json({
