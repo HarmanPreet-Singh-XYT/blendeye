@@ -10,8 +10,7 @@ ENV UV_COMPILE_BYTECODE=1 \
 # separately from source so app code changes don't invalidate this layer ---
 FROM base AS deps
 COPY pyproject.toml uv.lock ./
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-install-project --no-dev
+RUN uv sync --frozen --no-install-project --no-dev
 
 # --- runtime: app code + the synced environment, non-root user ---
 FROM base AS runtime

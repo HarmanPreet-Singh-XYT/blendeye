@@ -74,6 +74,7 @@ jobs:
             --timeout 900 \
             --memory 2Gi \
             --cpu 2 \
+            --quiet \
             --set-env-vars "${ENV_VARS}"
 
           # Extract and output the live service URL
