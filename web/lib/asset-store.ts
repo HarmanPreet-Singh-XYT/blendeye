@@ -14,9 +14,14 @@ export type AssetCategory =
   | "audio"
   | "general";
 
+import { getActiveUserId } from "@/lib/project-store";
+
 export type AssetType = "image" | "video" | "map" | "audio";
 
-const STORAGE_KEY = "agentic_cinema_assets_v1";
+export function getAssetsStorageKey(userId?: string | null): string {
+  const uid = userId !== undefined ? userId : getActiveUserId();
+  return uid ? `agentic_cinema_assets_u_${uid}` : "agentic_cinema_assets_v1";
+}
 
 // Seeded Curated Assets for instantaneous preview (Maps are left empty for user uploads)
 export const SEED_ASSETS: CinemaAsset[] = [
@@ -134,13 +139,14 @@ export const SEED_ASSETS: CinemaAsset[] = [
 /**
  * Read all stored assets from browser storage, merged with seeded assets.
  */
-export function getLocalAssets(): CinemaAsset[] {
+export function getLocalAssets(userId?: string | null): CinemaAsset[] {
   if (typeof window === "undefined") return SEED_ASSETS;
 
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const key = getAssetsStorageKey(userId);
+    const raw = localStorage.getItem(key);
     if (!raw) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(SEED_ASSETS));
+      localStorage.setItem(key, JSON.stringify(SEED_ASSETS));
       return SEED_ASSETS;
     }
     const parsed: CinemaAsset[] = JSON.parse(raw);
@@ -158,11 +164,12 @@ export function getLocalAssets(): CinemaAsset[] {
 /**
  * Save an asset to local storage and dispatch update event.
  */
-export function saveLocalAsset(asset: CinemaAsset): CinemaAsset[] {
+export function saveLocalAsset(asset: CinemaAsset, userId?: string | null): CinemaAsset[] {
   if (typeof window === "undefined") return [asset];
 
   try {
-    const current = getLocalAssets();
+    const key = getAssetsStorageKey(userId);
+    const current = getLocalAssets(userId);
     const existingIndex = current.findIndex((a) => a.id === asset.id);
     let updated: CinemaAsset[];
     if (existingIndex >= 0) {
@@ -171,30 +178,31 @@ export function saveLocalAsset(asset: CinemaAsset): CinemaAsset[] {
     } else {
       updated = [asset, ...current];
     }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    localStorage.setItem(key, JSON.stringify(updated));
     window.dispatchEvent(new CustomEvent("cinema-assets-updated", { detail: updated }));
     return updated;
   } catch (err) {
     console.warn("[AssetStore] Could not save local asset:", err);
-    return getLocalAssets();
+    return getLocalAssets(userId);
   }
 }
 
 /**
  * Delete an asset from local storage and dispatch update event.
  */
-export function deleteLocalAsset(assetId: string): CinemaAsset[] {
+export function deleteLocalAsset(assetId: string, userId?: string | null): CinemaAsset[] {
   if (typeof window === "undefined") return [];
 
   try {
-    const current = getLocalAssets();
+    const key = getAssetsStorageKey(userId);
+    const current = getLocalAssets(userId);
     const updated = current.filter((a) => a.id !== assetId);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    localStorage.setItem(key, JSON.stringify(updated));
     window.dispatchEvent(new CustomEvent("cinema-assets-updated", { detail: updated }));
     return updated;
   } catch (err) {
     console.warn("[AssetStore] Could not delete local asset:", err);
-    return getLocalAssets();
+    return getLocalAssets(userId);
   }
 }
 

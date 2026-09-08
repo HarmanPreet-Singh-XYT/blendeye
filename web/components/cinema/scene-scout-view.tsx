@@ -45,6 +45,7 @@ import {
   Upload,
 } from "lucide-react";
 import { AssetPickerModal } from "@/components/cinema/asset-picker-modal";
+import { saveLocalAsset } from "@/lib/asset-store";
 import {
   LOCATION_STYLE_PRESETS,
   LOCATION_CAMERA_FRAMINGS,
@@ -244,6 +245,25 @@ export function SceneScoutView({
         setHeroImage(newImgEntries[0].url);
         setHeroPrompt(newImgEntries[0].prompt);
         setHeroTitle(newImgEntries[0].title);
+
+        // Auto-register scouted plates in Asset Hub under 'location' category
+        newImgEntries.forEach((entry) => {
+          saveLocalAsset({
+            id: entry.id,
+            name: entry.title || `${locName} — Scout Plate`,
+            type: "image",
+            category: "location",
+            url: entry.url,
+            sizeBytes: 0,
+            mimeType: "image/png",
+            tags: ["location", "plate", locName.toLowerCase(), "scout"],
+            metadata: {
+              prompt: entry.prompt,
+              locationName: locName,
+            },
+            createdAt: entry.createdAt || Date.now(),
+          });
+        });
 
         const existingImgs = activeScene.sceneImages || [];
 

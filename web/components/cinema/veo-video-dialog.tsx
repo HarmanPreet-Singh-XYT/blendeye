@@ -38,6 +38,7 @@ import {
   Upload,
 } from "lucide-react";
 import { AssetPickerModal } from "@/components/cinema/asset-picker-modal";
+import { saveLocalAsset } from "@/lib/asset-store";
 import type { Node } from "@xyflow/react";
 import type { ProjectCharacter } from "@/lib/project-store";
 import {
@@ -352,6 +353,26 @@ export function VeoVideoDialog({
     setActiveTakeId(newTake.id);
     setVideoUrl(newTake.videoUrl);
     setCurrentTime(0);
+
+    // Auto-register in Asset Hub under 'video' category
+    saveLocalAsset({
+      id: newTake.id,
+      name: newTake.title,
+      type: "video",
+      category: "video",
+      url: newTake.videoUrl,
+      sizeBytes: 0,
+      mimeType: "video/mp4",
+      tags: ["veo-3.1", "video-take", "take"],
+      metadata: {
+        cameraMotion,
+        stylePreset,
+        durationSec,
+        prompt: customPrompt,
+        characterName: selectedCharName,
+      },
+      createdAt: Date.now(),
+    });
 
     toast.add({
       title: `Take #${nextNum} Saved to Project Vault`,

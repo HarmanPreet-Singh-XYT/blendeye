@@ -203,14 +203,15 @@ BEGIN
         WITH CHECK (true);
 
     -- Storage RLS policies for cinema_assets bucket
+    -- NOTE: Because cinema_assets is a PUBLIC bucket, public URLs (CDN downloads)
+    -- work automatically without a SELECT policy. Omitting a broad SELECT policy on
+    -- storage.objects prevents unauthorized users from listing/scraping directory contents.
     DROP POLICY IF EXISTS "Public view cinema_assets" ON storage.objects;
     DROP POLICY IF EXISTS "Public insert cinema_assets" ON storage.objects;
     DROP POLICY IF EXISTS "Public update cinema_assets" ON storage.objects;
     DROP POLICY IF EXISTS "Public delete cinema_assets" ON storage.objects;
 
-    CREATE POLICY "Public view cinema_assets" ON storage.objects
-        FOR SELECT USING (bucket_id = 'cinema_assets');
-
+    -- Only allow inserting, updating, and deleting
     CREATE POLICY "Public insert cinema_assets" ON storage.objects
         FOR INSERT WITH CHECK (bucket_id = 'cinema_assets');
 

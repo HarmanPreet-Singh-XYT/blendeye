@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateMediaImage } from "@/lib/agent-service";
 import { getCachedGeneration, setCachedGeneration } from "@/lib/generation-cache";
+import { persistDataUriToBucket } from "@/lib/media-storage-service";
 
 export async function POST(req: NextRequest) {
   let promptStr = "";
@@ -27,6 +28,31 @@ export async function POST(req: NextRequest) {
 
     const result = await generateMediaImage(promptStr, aspectRatioStr);
     if (result && result.image_url) {
+      if (result.image_url.startsWith("data:")) {
+        const lower = promptStr.toLowerCase();
+        const category = lower.includes("portrait") || lower.includes("face") || lower.includes("headshot")
+          ? "character_face"
+          : lower.includes("wardrobe") || lower.includes("full body") || lower.includes("full-body")
+          ? "character_body"
+          : lower.includes("location") || lower.includes("plate") || lower.includes("building")
+          ? "location"
+          : "general";
+
+        const { publicUrl } = await persistDataUriToBucket(result.image_url, {
+          name: `Image: ${promptStr.slice(0, 40)}`,
+          category,
+          targetFolder: "images",
+          tags: ["ai-generated", "imagen-3", category],
+          metadata: {
+            prompt: promptStr,
+            aspect_ratio: aspectRatioStr,
+            model: result.model,
+          },
+        });
+        if (publicUrl) {
+          result.image_url = publicUrl;
+        }
+      }
       await setCachedGeneration("image", cachePayload, result);
     }
     return NextResponse.json(result);

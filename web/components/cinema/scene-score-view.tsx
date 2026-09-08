@@ -41,6 +41,7 @@ import {
   Upload,
 } from "lucide-react";
 import { AssetPickerModal } from "@/components/cinema/asset-picker-modal";
+import { saveLocalAsset } from "@/lib/asset-store";
 import type { Node } from "@xyflow/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -539,6 +540,27 @@ export function SceneScoreView({
         const updatedTakes = getScoreTakes(projectId, activeScene?.id);
         setCurrentScoreTakes(updatedTakes);
         setActiveScoreTake(newTake);
+
+        // Auto-register in Asset Hub under 'audio' category
+        if (newTake.audioUrl) {
+          saveLocalAsset({
+            id: newTake.id,
+            name: newTake.title,
+            type: "audio",
+            category: "audio",
+            url: newTake.audioUrl,
+            sizeBytes: 0,
+            mimeType: newTake.audioUrl.endsWith(".wav") ? "audio/wav" : "audio/mp3",
+            tags: ["lyria-3", "music-score", "audio"],
+            metadata: {
+              sceneId: activeScene?.id,
+              prompt: promptText,
+              durationSec: durationSeconds,
+              model: modelUsed,
+            },
+            createdAt: Date.now(),
+          });
+        }
 
         if (activeScene && onUpdateScene && receivedAudioUrl) {
           onUpdateScene({

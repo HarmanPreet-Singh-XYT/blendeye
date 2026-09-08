@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateMediaTTS } from "@/lib/agent-service";
 import { getCachedGeneration, setCachedGeneration } from "@/lib/generation-cache";
+import { persistDataUriToBucket } from "@/lib/media-storage-service";
 
 export async function POST(req: NextRequest) {
   try {
@@ -50,6 +51,23 @@ export async function POST(req: NextRequest) {
       reverbSend: reverb_send,
     });
     if (result && result.audio_url) {
+      if (result.audio_url.startsWith("data:")) {
+        const { publicUrl } = await persistDataUriToBucket(result.audio_url, {
+          name: `TTS Line: ${speaker || "Narrator"}: ${text.slice(0, 30)}`,
+          category: "audio",
+          targetFolder: "audio/tts",
+          mimeType: "audio/wav",
+          tags: ["gemini-tts", "dialogue", "ai-generated"],
+          metadata: {
+            speaker,
+            voiceName: voice_name,
+            text,
+          },
+        });
+        if (publicUrl) {
+          result.audio_url = publicUrl;
+        }
+      }
       await setCachedGeneration("tts", cachePayload, result);
     }
     return NextResponse.json(result);

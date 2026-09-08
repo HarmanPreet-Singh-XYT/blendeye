@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateMediaMusic } from "@/lib/agent-service";
 import { getCachedGeneration, setCachedGeneration } from "@/lib/generation-cache";
+import { persistLocalMediaToBucket, persistDataUriToBucket } from "@/lib/media-storage-service";
 
 export async function POST(req: NextRequest) {
   try {
@@ -42,6 +43,37 @@ export async function POST(req: NextRequest) {
     });
 
     if (result && result.audio_url) {
+      if (result.audio_url.startsWith("data:")) {
+        const { publicUrl } = await persistDataUriToBucket(result.audio_url, {
+          name: `Score: ${prompt.slice(0, 40)}`,
+          category: "audio",
+          targetFolder: "audio/scores",
+          tags: ["lyria-3", "music-score", "ai-generated"],
+          metadata: {
+            prompt,
+            durationMode,
+            lyrics,
+          },
+        });
+        if (publicUrl) {
+          result.audio_url = publicUrl;
+        }
+      } else if (!result.audio_url.startsWith("http")) {
+        const { publicUrl } = await persistLocalMediaToBucket(result.audio_url, {
+          name: `Score: ${prompt.slice(0, 40)}`,
+          category: "audio",
+          targetFolder: "audio/scores",
+          tags: ["lyria-3", "music-score", "ai-generated"],
+          metadata: {
+            prompt,
+            durationMode,
+            lyrics,
+          },
+        });
+        if (publicUrl) {
+          result.audio_url = publicUrl;
+        }
+      }
       await setCachedGeneration("music", cachePayload, result);
     }
 

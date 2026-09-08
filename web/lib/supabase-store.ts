@@ -514,6 +514,8 @@ export async function fetchAssetsFromSupabase(
 
     if (userId) {
       query = query.or(`user_id.is.null,user_id.eq.${userId}`);
+    } else {
+      query = query.is("user_id", null);
     }
     if (projectId) {
       query = query.or(`project_id.is.null,project_id.eq.${projectId}`);

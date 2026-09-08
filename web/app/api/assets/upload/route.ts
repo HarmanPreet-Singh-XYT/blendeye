@@ -56,7 +56,8 @@ export async function POST(req: NextRequest) {
       try {
         const client = getSupabaseAdminClient() || getSupabaseClient();
         if (client) {
-          const storagePath = `uploads/${uniqueFileName}`;
+          const userFolder = userId ? `users/${userId}` : "shared";
+          const storagePath = `uploads/${userFolder}/${uniqueFileName}`;
           const { error: uploadError } = await client.storage
             .from("cinema_assets")
             .upload(storagePath, buffer, {
@@ -81,11 +82,12 @@ export async function POST(req: NextRequest) {
 
     // 2. Local disk fallback if not uploaded to cloud
     if (!publicUrl) {
-      const publicUploadsDir = path.join(process.cwd(), "public", "uploads", "assets");
+      const userFolder = userId ? `users/${userId}` : "shared";
+      const publicUploadsDir = path.join(process.cwd(), "public", "uploads", "assets", userFolder);
       await mkdir(publicUploadsDir, { recursive: true });
       const localFilePath = path.join(publicUploadsDir, uniqueFileName);
       await writeFile(localFilePath, buffer);
-      publicUrl = `/uploads/assets/${uniqueFileName}`;
+      publicUrl = `/uploads/assets/${userFolder}/${uniqueFileName}`;
     }
 
     const assetId = `asset-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;

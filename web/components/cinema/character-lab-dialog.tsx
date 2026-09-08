@@ -36,6 +36,7 @@ import {
   Upload,
 } from "lucide-react";
 import { AssetPickerModal } from "@/components/cinema/asset-picker-modal";
+import { saveLocalAsset } from "@/lib/asset-store";
 import { toast } from "@/components/ui/toast";
 import { notifyIfFallback } from "@/lib/fallback-notice";
 import {
@@ -393,6 +394,21 @@ export function CharacterLabDialog({
         const data = await res.json();
         if (data.image_url) {
           handleUpdateActiveChar({ imageUrl: data.image_url });
+          saveLocalAsset({
+            id: `char-face-${activeChar.name.toLowerCase().replace(/[^a-z0-9]/g, "-")}-${Date.now()}`,
+            name: `${activeChar.name} — Face Portrait`,
+            type: "image",
+            category: "character_face",
+            url: data.image_url,
+            sizeBytes: 0,
+            mimeType: "image/png",
+            tags: ["face", activeChar.name.toLowerCase(), "character", "ai-generated"],
+            metadata: {
+              characterName: activeChar.name,
+              actorComp: activeChar.actorComp,
+            },
+            createdAt: Date.now(),
+          });
           toast.add({
             title: "Face Portrait Generated",
             description: `Rendered cinematic face portrait for ${activeChar.name}.`,
@@ -443,6 +459,21 @@ export function CharacterLabDialog({
         const data = await res.json();
         if (data.image_url) {
           handleUpdateActiveChar({ fullBodyImageUrl: data.image_url });
+          saveLocalAsset({
+            id: `char-body-${activeChar.name.toLowerCase().replace(/[^a-z0-9]/g, "-")}-${Date.now()}`,
+            name: `${activeChar.name} — Wardrobe & Stance`,
+            type: "image",
+            category: "character_body",
+            url: data.image_url,
+            sizeBytes: 0,
+            mimeType: "image/png",
+            tags: ["wardrobe", "full-body", activeChar.name.toLowerCase(), "character", "ai-generated"],
+            metadata: {
+              characterName: activeChar.name,
+              wardrobe: activeChar.wardrobe,
+            },
+            createdAt: Date.now(),
+          });
           toast.add({
             title: "Full-Body Look Generated",
             description: `Rendered full-body stance and wardrobe for ${activeChar.name}.`,

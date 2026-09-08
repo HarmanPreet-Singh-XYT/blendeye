@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateMultiSpeakerTTS, type GenerateMultiSpeakerTTSOptions } from "@/lib/agent-service";
 import { getCachedGeneration, setCachedGeneration } from "@/lib/generation-cache";
+import { persistDataUriToBucket } from "@/lib/media-storage-service";
 
 export async function POST(req: NextRequest) {
   try {
@@ -35,6 +36,22 @@ export async function POST(req: NextRequest) {
     });
 
     if (result && result.audio_url) {
+      if (result.audio_url.startsWith("data:")) {
+        const { publicUrl } = await persistDataUriToBucket(result.audio_url, {
+          name: `Table Read: ${result.speakers?.join(" & ") || "Multi-Cast"}`,
+          category: "audio",
+          targetFolder: "audio/tts",
+          mimeType: "audio/wav",
+          tags: ["gemini-tts", "table-read", "multi-speaker", "ai-generated"],
+          metadata: {
+            speakers: result.speakers,
+            lineCount: result.line_count,
+          },
+        });
+        if (publicUrl) {
+          result.audio_url = publicUrl;
+        }
+      }
       await setCachedGeneration("tts_multi", cachePayload, result);
     }
 
