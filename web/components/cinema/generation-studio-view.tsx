@@ -49,7 +49,7 @@ import {
   Music,
   Trash2,
 } from "lucide-react";
-import type { Node } from "@xyflow/react";
+import type { Node, Edge } from "@xyflow/react";
 import { cn } from "@/lib/utils";
 import type { ProjectCharacter, FilmScene } from "@/lib/project-store";
 import { getVideoTakes, saveVideoTake, setMasterVideoTake, deleteVideoTake, type VideoTake } from "@/lib/project-store";
@@ -69,12 +69,14 @@ import {
   type NodeContribution,
 } from "@/lib/cinema-prompt-synthesizer";
 import { SceneScoutView } from "@/components/cinema/scene-scout-view";
+import { SceneTimelineCanvas } from "@/components/cinema/scene-timeline-canvas";
 import { SceneScoreView } from "@/components/cinema/scene-score-view";
 import { cleanCandidateName } from "@/components/cinema/location-board";
 
 interface GenerationStudioViewProps {
   projectId?: string;
   nodes?: Node[];
+  edges?: Edge[];
   sceneTitle: string;
   sceneSummary: string;
   screenplayText: string;
@@ -148,6 +150,7 @@ interface RenderedTake {
 export function GenerationStudioView({
   projectId,
   nodes = [],
+  edges = [],
   sceneTitle,
   sceneSummary,
   screenplayText,
@@ -165,7 +168,7 @@ export function GenerationStudioView({
   const effectiveProjectId = projectId || "default-production";
 
   // Studio Mode: Veo Video Takes vs Dedicated Scene Scouting vs Lyria 3 Music Scoring
-  const [studioMode, setStudioMode] = React.useState<"video" | "scout" | "score">("video");
+  const [studioMode, setStudioMode] = React.useState<"video" | "scout" | "timeline" | "score">("video");
   const [conditioningSource, setConditioningSource] = React.useState<"character" | "scene">("character");
   const [activeSceneRefTitle, setActiveSceneRefTitle] = React.useState<string | null>(null);
 
@@ -198,6 +201,7 @@ export function GenerationStudioView({
     (charName: string | null = selectedCharacterName, imgPref: "face" | "body" | "auto" = "auto") => {
       const res = synthesizeCinemaPrompt({
         nodes,
+        edges,
         characters,
         sceneTitle,
         sceneSummary,
@@ -214,7 +218,7 @@ export function GenerationStudioView({
       setActiveConditioningImage(res.conditioningImageUrl);
       setActiveImageType(res.conditioningImageType === "scene" ? null : res.conditioningImageType);
     },
-    [nodes, characters, sceneTitle, sceneSummary, screenplayText, genre, cameraMotion, stylePreset, selectedCharacterName]
+    [nodes, edges, characters, sceneTitle, sceneSummary, screenplayText, genre, cameraMotion, stylePreset, selectedCharacterName]
   );
 
   const [prompt, setPrompt] = React.useState<string>(
@@ -291,12 +295,31 @@ export function GenerationStudioView({
   }, [effectiveProjectId, sceneTitle]);
 
   const [recentTakes, setRecentTakes] = React.useState<RenderedTake[]>(initialSavedTakes);
+
   const [activeVideoUrl, setActiveVideoUrl] = React.useState<string>(
     initialSavedTakes[0]?.videoUrl || "/videos/vault_heist_take_01.mp4"
   );
   const [activeTakeId, setActiveTakeId] = React.useState<string>(
     initialSavedTakes[0]?.id || "take-1"
   );
+
+  // Derive VideoTake[] from recentTakes for the score view's Video Sync picker.
+  // recentTakes is the live source of truth (backed by project-store on every save).
+  const projectVideoTakes = React.useMemo<VideoTake[]>(() =>
+    recentTakes.map((t, i) => ({
+      id: t.id,
+      takeNumber: t.takeNumber,
+      title: t.title,
+      cameraMotion: t.camera,
+      stylePreset: t.style,
+      durationSec: t.durationSec,
+      createdAt: Date.now() - i * 1000,
+      videoUrl: t.videoUrl,
+      prompt: t.prompt,
+      isMaster: t.id === activeTakeId,
+    })),
+  [recentTakes, activeTakeId]);
+
   const [isPlaying, setIsPlaying] = React.useState<boolean>(false);
   const [currentTime, setCurrentTime] = React.useState<number>(0);
   const [videoDuration, setVideoDuration] = React.useState<number>(6);
@@ -954,6 +977,8 @@ export function GenerationStudioView({
               <Clapperboard className="h-4 w-4 text-purple-400 shrink-0" />
             ) : studioMode === "scout" ? (
               <Compass className="h-4 w-4 text-amber-400 shrink-0" />
+            ) : studioMode === "timeline" ? (
+              <Layers className="h-4 w-4 text-amber-400 shrink-0" />
             ) : (
               <Music className="h-4 w-4 text-purple-400 shrink-0" />
             )}
@@ -962,6 +987,8 @@ export function GenerationStudioView({
                 ? "Screening Room & Dailies"
                 : studioMode === "scout"
                 ? "Scene Scouting Studio"
+                : studioMode === "timeline"
+                ? "Scene Timeline Canvas"
                 : "Scene Score & Soundtrack"}
             </span>
             <span className="text-muted-foreground text-xs">·</span>
@@ -977,6 +1004,10 @@ export function GenerationStudioView({
           ) : studioMode === "scout" ? (
             <Badge variant="outline" className="hidden sm:inline-flex border-amber-500/40 bg-amber-500/10 text-amber-300 font-mono text-[10px]">
               Imagen 3 Photoreal
+            </Badge>
+          ) : studioMode === "timeline" ? (
+            <Badge variant="outline" className="hidden sm:inline-flex border-amber-500/40 bg-amber-500/10 text-amber-300 font-mono text-[10px]">
+              Imagen 3 · Per-Scene
             </Badge>
           ) : (
             <Badge variant="outline" className="hidden sm:inline-flex border-purple-500/40 bg-purple-500/10 text-purple-300 font-mono text-[10px]">
@@ -1016,6 +1047,19 @@ export function GenerationStudioView({
           >
             <ImageIcon className="h-3.5 w-3.5" />
             <span>Scene Scouting</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setStudioMode("timeline")}
+            className={cn(
+              "px-3 py-1 rounded-md text-xs font-heading font-semibold transition-all flex items-center gap-1.5 cursor-pointer",
+              studioMode === "timeline"
+                ? "bg-amber-500 text-black shadow-xs font-bold"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Layers className="h-3.5 w-3.5" />
+            <span>Timeline</span>
           </button>
           <button
             type="button"
@@ -1108,6 +1152,15 @@ export function GenerationStudioView({
             });
           }}
         />
+      ) : studioMode === "timeline" ? (
+        <SceneTimelineCanvas
+          scene={activeSceneObj || null}
+          onUpdateScene={onUpdateScene}
+          aspectRatio={aspectRatio === "9:16" ? "9:16" : "16:9"}
+          scenes={scenes}
+          activeSceneId={activeSceneId}
+          onSelectScene={onSelectScene}
+        />
       ) : studioMode === "score" ? (
         <SceneScoreView
           projectId={effectiveProjectId}
@@ -1119,6 +1172,7 @@ export function GenerationStudioView({
           genre={genre}
           projectTitle={projectTitle}
           nodes={nodes}
+          videoTakes={projectVideoTakes}
         />
       ) : (
         /* Main 2-Column Director Workstation */

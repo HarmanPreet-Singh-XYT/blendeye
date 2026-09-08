@@ -616,6 +616,24 @@ export interface FilmScene {
   activeScoreUrl?: string;
   scoreTakes?: ScoreTake[];
   shots?: Shot[];
+  timelineMoments?: TimelineMoment[];
+}
+
+// A still image generated for a specific timestamp within a scene's runtime,
+// used by the Scene Timeline canvas mode. Multiple moments can share the same
+// timestampSec, in which case they stack vertically under that point.
+export interface TimelineMoment {
+  id: string;
+  timestampSec: number;
+  imageUrl: string;
+  prompt: string;
+  createdAt: number;
+  /** Style preset id used during generation (e.g. "anamorphic_35mm") */
+  styleId?: string;
+  /** Camera framing id used during generation (e.g. "wide_master") */
+  framingId?: string;
+  /** Human-readable label shown in gallery (e.g. "Opening · 35mm · Wide") */
+  label?: string;
 }
 
 export interface ProjectData {
@@ -2954,6 +2972,38 @@ export function deleteScoreTake(projectId: string, takeId: string, sceneId?: str
     scenes: updatedScenes,
     activeScoreUrl: newActiveUrl,
     scoreTakes: remainingProjectTakes,
+  });
+}
+
+/**
+ * Renames a specific score take (updates title only, preserves all other fields).
+ */
+export function renameScoreTake(
+  projectId: string,
+  takeId: string,
+  newTitle: string,
+  sceneId?: string
+): void {
+  const project = getProjectById(projectId);
+  if (!project) return;
+
+  const renameTake = (takes: ScoreTake[]) =>
+    takes.map((t) => (t.id === takeId ? { ...t, title: newTitle.trim() || t.title } : t));
+
+  let updatedScenes = project.scenes;
+  if (sceneId && project.scenes) {
+    updatedScenes = project.scenes.map((s) => {
+      if (s.id === sceneId && s.scoreTakes) {
+        return { ...s, scoreTakes: renameTake(s.scoreTakes) };
+      }
+      return s;
+    });
+  }
+
+  saveProject({
+    ...project,
+    scenes: updatedScenes,
+    scoreTakes: renameTake(project.scoreTakes || []),
   });
 }
 

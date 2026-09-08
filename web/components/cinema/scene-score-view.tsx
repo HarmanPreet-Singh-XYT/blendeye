@@ -35,6 +35,9 @@ import {
   Zap,
   SlidersHorizontal,
   Trash2,
+  Pencil,
+  Check as CheckIcon,
+  X,
 } from "lucide-react";
 import type { Node } from "@xyflow/react";
 import { Badge } from "@/components/ui/badge";
@@ -44,7 +47,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import type { FilmScene, ProjectCharacter, ScoreTake } from "@/lib/project-store";
-import { getScoreTakes, saveScoreTake, setMasterScoreTake, deleteScoreTake } from "@/lib/project-store";
+import { getScoreTakes, saveScoreTake, setMasterScoreTake, deleteScoreTake, renameScoreTake } from "@/lib/project-store";
 import {
   analyzeSceneMusicContext,
   synthesizeSceneScorePrompt,
@@ -57,7 +60,7 @@ export interface MoodboardCandidate {
   id: string;
   url: string;
   label: string;
-  type: "scene_keyframe" | "scene_scout" | "character" | "other_scene";
+  type: "scene_keyframe" | "scene_scout" | "timeline_moment" | "character" | "other_scene";
 }
 
 export type ResponseModalityChoice = "AUDIO_TEXT" | "AUDIO_ONLY" | "TEXT_ONLY";
@@ -72,6 +75,8 @@ interface SceneScoreViewProps {
   genre?: string;
   projectTitle?: string;
   nodes?: Node[];
+  /** Project-level video takes (from Veo 3.1 generation) for Video Sync mode */
+  videoTakes?: import("@/lib/project-store").VideoTake[];
 }
 
 const INSTRUMENT_OPTIONS = [
@@ -124,9 +129,18 @@ export function SceneScoreView({
   genre = "Cinematic Drama",
   projectTitle = "Production",
   nodes = [],
+  videoTakes = [],
 }: SceneScoreViewProps) {
   const activeScene =
     scenes.find((s) => s.id === activeSceneId) || scenes[0] || null;
+
+  // ── Selected video for Video Sync mode ──────────────────────────────────
+  const defaultVideoUrl = React.useMemo(() => {
+    const master = videoTakes.find((t) => t.isMaster);
+    return master?.videoUrl || videoTakes[0]?.videoUrl || "/videos/vault_heist_take_01.mp4";
+  }, [videoTakes]);
+  const [selectedVideoUrl, setSelectedVideoUrl] = React.useState<string>(defaultVideoUrl);
+  React.useEffect(() => { setSelectedVideoUrl(defaultVideoUrl); }, [defaultVideoUrl]);
 
   // Music configuration state
   const [scoreType, setScoreType] = React.useState<"score" | "source" | "vocal">("score");
@@ -153,7 +167,9 @@ export function SceneScoreView({
   const [copiedLyrics, setCopiedLyrics] = React.useState<boolean>(false);
   const [showReadinessDetails, setShowReadinessDetails] = React.useState<boolean>(false);
 
-  // Harvest available candidate images from active scene, character sheets, and project
+  // ── Moodboard candidates — scoped strictly to the active scene ──────────
+  // Characters and other scenes are excluded: Lyria 3 visual conditioning
+  // should reflect this scene's aesthetic, not cross-scene visual noise.
   const moodboardCandidates = React.useMemo<MoodboardCandidate[]>(() => {
     const list: MoodboardCandidate[] = [];
     const seen = new Set<string>();
@@ -165,28 +181,25 @@ export function SceneScoreView({
       }
     };
 
+    // 1. Scene master keyframe
     if (activeScene?.preview_image_url) {
-      add(activeScene.preview_image_url, `${activeScene.title || "Scene"} Keyframe`, "scene_keyframe");
+      add(activeScene.preview_image_url, "Scene Keyframe", "scene_keyframe");
     }
 
+    // 2. Scene scouting / custom generated images
     activeScene?.sceneImages?.forEach((img, idx) => {
-      add(img.url, `Scouting Take #${idx + 1}`, "scene_scout");
+      const label = img.title || `Scout Image ${idx + 1}`;
+      add(img.url, label, "scene_scout");
     });
 
-    characters.forEach((char) => {
-      if (char.imageUrl) {
-        add(char.imageUrl, `Character: ${char.name}`, "character");
-      }
-    });
-
-    scenes.forEach((s) => {
-      if (s.id !== activeScene?.id && s.preview_image_url) {
-        add(s.preview_image_url, `${s.title || "Scene"} Keyframe`, "other_scene");
-      }
+    // 3. Timeline still frames generated for this scene
+    activeScene?.timelineMoments?.forEach((m, idx) => {
+      const label = (m as typeof m & { label?: string }).label || `Timeline Frame ${idx + 1}`;
+      add(m.imageUrl, label, "timeline_moment");
     });
 
     return list;
-  }, [activeScene, characters, scenes]);
+  }, [activeScene]);
 
   // Prepopulate selected moodboard with active scene keyframe or first scout
   React.useEffect(() => {
@@ -690,8 +703,41 @@ export function SceneScoreView({
     );
   };
 
-  const activeVideoTakeUrl = activeScene?.activeScoreUrl ? undefined : undefined;
-  const sceneVideoUrl = activeScene?.sceneImages?.find((i) => i.source === "veo_ref")?.url || "/videos/vault_heist_take_01.mp4";
+  // ── Inline rename state ──────────────────────────────────────────────────
+  const [renamingTakeId, setRenamingTakeId] = React.useState<string | null>(null);
+  const [draftTitle, setDraftTitle] = React.useState<string>("");
+  const renameInputRef = React.useRef<HTMLInputElement>(null);
+
+  const startRename = (take: ScoreTake, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setRenamingTakeId(take.id);
+    setDraftTitle(take.title);
+    // Focus on next tick after render
+    setTimeout(() => renameInputRef.current?.focus(), 30);
+  };
+
+  const commitRename = (takeId: string) => {
+    const trimmed = draftTitle.trim();
+    if (trimmed && projectId) {
+      renameScoreTake(projectId, takeId, trimmed, activeScene?.id);
+      const updated = getScoreTakes(projectId, activeScene?.id);
+      setCurrentScoreTakes(updated);
+      // Update active take title in state if it was the one being renamed
+      if (activeScoreTake?.id === takeId) {
+        setActiveScoreTake((prev) => prev ? { ...prev, title: trimmed } : prev);
+      }
+    }
+    setRenamingTakeId(null);
+    setDraftTitle("");
+  };
+
+  const cancelRename = () => {
+    setRenamingTakeId(null);
+    setDraftTitle("");
+  };
+
+
+
 
   return (
     <div className="flex flex-1 flex-col min-h-0 bg-background overflow-hidden">
@@ -1176,19 +1222,27 @@ export function SceneScoreView({
                   </div>
 
                   <p className="text-[10px] text-muted-foreground leading-relaxed">
-                    Lyria 3 extracts color palettes, lighting temperature, and narrative tension from up to 10 visual reference images.
+                    Images from <span className="text-foreground font-medium">this scene only</span> — keyframes, scouting shots, and timeline stills. Lyria 3 reads colour palette, lighting, and mood from each selected image.
                   </p>
 
                   {includeImageConditioning && (
                     <div className="pt-2">
                       {moodboardCandidates.length === 0 ? (
                         <div className="p-3 text-center rounded border border-dashed border-border/70 text-[11px] text-muted-foreground">
-                          No images detected yet in this scene. Generate images in Scene Scouting or character portraits to attach them as conditioning.
+                          No images for this scene yet. Generate scouting shots in <span className="text-foreground">Scene Scouting</span> or capture timeline frames in the <span className="text-foreground">Timeline</span> tab.
                         </div>
                       ) : (
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-h-48 overflow-y-auto pr-1">
                           {moodboardCandidates.map((candidate) => {
                             const isSelected = selectedMoodboardUrls.includes(candidate.url);
+                            const sourceLabel =
+                              candidate.type === "scene_keyframe" ? "Keyframe" :
+                              candidate.type === "scene_scout" ? "Scout" :
+                              candidate.type === "timeline_moment" ? "Timeline" : candidate.type;
+                            const sourceBadgeClass =
+                              candidate.type === "scene_keyframe" ? "bg-amber-500/80 text-black" :
+                              candidate.type === "scene_scout" ? "bg-blue-500/80 text-white" :
+                              "bg-purple-500/80 text-white";
                             return (
                               <button
                                 key={candidate.id}
@@ -1206,6 +1260,11 @@ export function SceneScoreView({
                                   alt={candidate.label}
                                   className="w-full h-full object-cover"
                                 />
+
+                                {/* Source type chip */}
+                                <div className={cn("absolute top-1 left-1 px-1 py-0.5 rounded text-[8px] font-mono font-bold", sourceBadgeClass)}>
+                                  {sourceLabel}
+                                </div>
 
                                 {/* Checkmark Overlay */}
                                 <div
@@ -1612,32 +1671,99 @@ export function SceneScoreView({
               <CardContent className="p-4 space-y-4">
                 {/* Media Monitor: Video Sync vs Standalone Audio Visualizer */}
                 {mediaDeliveryMode === "sync_video" ? (
-                  <div className="relative rounded-lg overflow-hidden bg-black aspect-video border border-border flex items-center justify-center group">
-                    <video
-                      ref={videoRef}
-                      src={sceneVideoUrl}
-                      className="w-full h-full object-cover"
-                      playsInline
-                      loop
-                      muted={isMuted || videoBalance === 1}
-                    />
+                  <div className="space-y-2">
+                    {/* Video Monitor */}
+                    <div className="relative rounded-lg overflow-hidden bg-black aspect-video border border-border flex items-center justify-center group">
+                      <video
+                        ref={videoRef}
+                        src={selectedVideoUrl}
+                        className="w-full h-full object-cover"
+                        playsInline
+                        loop
+                        muted={isMuted || videoBalance === 1}
+                      />
 
-                    {/* Play Overlay */}
-                    <button
-                      type="button"
-                      onClick={togglePlay}
-                      className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                    >
-                      <div className="p-3.5 rounded-full bg-purple-600/90 text-white shadow-lg hover:scale-105 transition-transform">
-                        {isPlaying ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6 ml-0.5" />}
+                      {/* Play Overlay */}
+                      <button
+                        type="button"
+                        onClick={togglePlay}
+                        className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                      >
+                        <div className="p-3.5 rounded-full bg-purple-600/90 text-white shadow-lg hover:scale-105 transition-transform">
+                          {isPlaying ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6 ml-0.5" />}
+                        </div>
+                      </button>
+
+                      <div className="absolute top-2 left-2 flex items-center gap-1.5">
+                        <Badge className="bg-black/70 backdrop-blur-md text-[10px] font-mono text-white border-white/10">
+                          Synced ({durationSeconds}s Score + {videoClipDuration}s Video)
+                        </Badge>
                       </div>
-                    </button>
-
-                    <div className="absolute top-2 left-2 flex items-center gap-1.5">
-                      <Badge className="bg-black/70 backdrop-blur-md text-[10px] font-mono text-white border-white/10">
-                        Synced ({durationSeconds}s Score + {videoClipDuration}s Video)
-                      </Badge>
                     </div>
+
+                    {/* Video clip selector — pick which take to sync with */}
+                    {videoTakes.length > 0 ? (
+                      <div className="rounded-lg border border-border/70 bg-secondary/10 p-2.5 space-y-1.5">
+                        <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                          <Video className="h-3 w-3" />
+                          Select Video Clip to Sync
+                          <Badge variant="secondary" className="font-mono text-[9px] ml-auto">
+                            {videoTakes.length} clip{videoTakes.length !== 1 ? "s" : ""}
+                          </Badge>
+                        </p>
+                        <div className="space-y-1">
+                          {videoTakes.map((vt) => {
+                            const isSelected = selectedVideoUrl === vt.videoUrl;
+                            return (
+                              <button
+                                key={vt.id}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedVideoUrl(vt.videoUrl);
+                                  if (isPlaying && videoRef.current) {
+                                    videoRef.current.src = vt.videoUrl;
+                                    videoRef.current.play().catch(() => {});
+                                  }
+                                }}
+                                className={cn(
+                                  "w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md border text-left transition-all cursor-pointer",
+                                  isSelected
+                                    ? "border-purple-500/70 bg-purple-500/10 text-foreground"
+                                    : "border-border/50 bg-secondary/20 text-muted-foreground hover:bg-secondary/40 hover:text-foreground"
+                                )}
+                              >
+                                <div className="p-1 rounded bg-secondary/80 text-purple-400 shrink-0">
+                                  <Video className="h-3 w-3" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[11px] font-semibold truncate">{vt.title}</span>
+                                    {vt.isMaster && (
+                                      <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/40 text-[8px] font-mono px-1 py-0 shrink-0">
+                                        Master
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-1.5 mt-0.5">
+                                    <span className="text-[9px] font-mono text-muted-foreground/60">{vt.durationSec}s</span>
+                                    {vt.cameraMotion && (
+                                      <span className="text-[9px] font-mono text-muted-foreground/50 truncate">· {vt.cameraMotion}</span>
+                                    )}
+                                  </div>
+                                </div>
+                                {isSelected && (
+                                  <CheckIcon className="h-3.5 w-3.5 text-purple-400 shrink-0" />
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="rounded-lg border border-dashed border-border/60 p-3 text-center text-[11px] text-muted-foreground">
+                        No video takes yet. Generate a video in the Veo 3.1 studio — it will appear here for sync.
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="relative rounded-lg overflow-hidden bg-gradient-to-br from-purple-950/40 via-background to-blue-950/40 aspect-[16/8] border border-border flex flex-col items-center justify-center p-6 text-center space-y-3">
@@ -1815,92 +1941,214 @@ export function SceneScoreView({
             <Card className="border-border bg-card">
               <CardHeader className="pb-2 pt-3 px-4">
                 <CardTitle className="text-xs font-heading uppercase tracking-wider text-muted-foreground flex items-center justify-between">
-                  <span>Score Takes Vault ({currentScoreTakes.length})</span>
-                  <Badge variant="outline" className="font-mono text-[9px]">
-                    Saved Takes
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Music className="h-3.5 w-3.5 text-purple-400" />
+                    <span>Score Takes Vault</span>
+                    <Badge variant="secondary" className="font-mono text-[9px]">
+                      {currentScoreTakes.length} {currentScoreTakes.length === 1 ? "take" : "takes"}
+                    </Badge>
+                  </div>
+                  <span className="text-[9px] font-normal normal-case tracking-normal text-muted-foreground/60">
+                    click row to audition · pencil to rename
+                  </span>
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4 pt-1 space-y-2">
                 {currentScoreTakes.length === 0 ? (
                   <div className="p-6 text-center text-xs text-muted-foreground border border-dashed border-border rounded-lg">
-                    No score takes rendered yet for this scene. Configure prompt and click &quot;Generate Scene Score&quot;.
+                    No score takes yet for this scene. Configure the prompt and click &quot;Generate Scene Score&quot;.
                   </div>
                 ) : (
-                  currentScoreTakes.map((take) => (
-                    <div
-                      key={take.id}
-                      className={cn(
-                        "p-2.5 rounded-lg border text-xs flex items-center justify-between gap-3 transition-all",
-                        activeScoreTake?.id === take.id
-                          ? "border-purple-500/80 bg-purple-500/10 shadow-xs"
-                          : "border-border/60 hover:bg-secondary/40"
-                      )}
-                    >
+                  currentScoreTakes.map((take) => {
+                    const isActive = activeScoreTake?.id === take.id;
+                    const isRenaming = renamingTakeId === take.id;
+                    return (
                       <div
-                        className="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer"
-                        onClick={() => {
-                          setActiveScoreTake(take);
-                          setIsPlaying(false);
-                        }}
+                        key={take.id}
+                        className={cn(
+                          "rounded-lg border text-xs transition-all",
+                          isActive
+                            ? "border-purple-500/80 bg-purple-500/10 shadow-xs"
+                            : "border-border/60 hover:bg-secondary/40"
+                        )}
                       >
-                        <div className="p-2 rounded bg-secondary/80 text-purple-400 shrink-0">
-                          {take.audioUrl ? <Music className="h-3.5 w-3.5" /> : <FileText className="h-3.5 w-3.5 text-blue-400" />}
-                        </div>
-                        <div className="min-w-0 flex-1 space-y-0.5">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-semibold text-foreground truncate">{take.title}</span>
-                            {take.isMaster && (
-                              <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/40 text-[8px] font-mono px-1 py-0">
-                                Master
-                              </Badge>
-                            )}
-                            {take.conditioningImageUrls && take.conditioningImageUrls.length > 0 && (
-                              <Badge variant="outline" className="text-[8px] font-mono px-1 py-0 text-blue-300 border-blue-500/30">
-                                {take.conditioningImageUrls.length} imgs
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="text-[10px] text-muted-foreground truncate font-mono">
-                            {take.prompt}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1 shrink-0">
-                        <Badge variant="secondary" className="font-mono text-[9px]">
-                          {take.durationSec}s
-                        </Badge>
-                        {take.audioUrl && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
+                        {/* Main row */}
+                        <div className="flex items-center gap-2.5 p-2.5">
+                          {/* Icon */}
+                          <button
+                            type="button"
+                            className="p-2 rounded bg-secondary/80 text-purple-400 shrink-0 cursor-pointer hover:bg-secondary"
                             onClick={() => {
                               setActiveScoreTake(take);
-                              togglePlay();
+                              setIsPlaying(false);
                             }}
-                            className="h-7 w-7 p-0 cursor-pointer text-muted-foreground hover:text-foreground"
-                            title={activeScoreTake?.id === take.id && isPlaying ? "Pause" : "Play"}
+                            title="Select take"
                           >
-                            {activeScoreTake?.id === take.id && isPlaying ? (
-                              <Pause className="h-3.5 w-3.5" />
+                            {take.audioUrl ? <Music className="h-3.5 w-3.5" /> : <FileText className="h-3.5 w-3.5 text-blue-400" />}
+                          </button>
+
+                          {/* Title / rename field */}
+                          <div className="min-w-0 flex-1">
+                            {isRenaming ? (
+                              <div className="flex items-center gap-1">
+                                <input
+                                  ref={renameInputRef}
+                                  type="text"
+                                  value={draftTitle}
+                                  onChange={(e) => setDraftTitle(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") { e.preventDefault(); commitRename(take.id); }
+                                    if (e.key === "Escape") cancelRename();
+                                  }}
+                                  onBlur={() => commitRename(take.id)}
+                                  className="flex-1 min-w-0 px-1.5 py-0.5 rounded border border-purple-500/60 bg-purple-950/20 text-xs font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-purple-500/50"
+                                  placeholder="Take name…"
+                                />
+                                <button
+                                  type="button"
+                                  onMouseDown={(e) => { e.preventDefault(); commitRename(take.id); }}
+                                  className="p-1 rounded text-emerald-400 hover:bg-emerald-500/10 cursor-pointer"
+                                  title="Save name"
+                                >
+                                  <CheckIcon className="h-3 w-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onMouseDown={(e) => { e.preventDefault(); cancelRename(); }}
+                                  className="p-1 rounded text-muted-foreground hover:text-foreground cursor-pointer"
+                                  title="Cancel rename"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </div>
                             ) : (
-                              <Play className="h-3.5 w-3.5" />
+                              <div
+                                className="flex items-center gap-1.5 cursor-pointer"
+                                onClick={() => { setActiveScoreTake(take); setIsPlaying(false); }}
+                              >
+                                <span className="font-semibold text-foreground truncate max-w-[160px]">
+                                  {take.title}
+                                </span>
+                                {take.isMaster && (
+                                  <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/40 text-[8px] font-mono px-1 py-0 shrink-0">
+                                    Master
+                                  </Badge>
+                                )}
+                                {take.conditioningImageUrls && take.conditioningImageUrls.length > 0 && (
+                                  <Badge variant="outline" className="text-[8px] font-mono px-1 py-0 text-blue-300 border-blue-500/30 shrink-0">
+                                    {take.conditioningImageUrls.length}img
+                                  </Badge>
+                                )}
+                              </div>
                             )}
-                          </Button>
+
+                            {/* Subtitle meta row */}
+                            {!isRenaming && (
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className="text-[10px] font-mono text-muted-foreground/60">
+                                  {take.durationSec}s
+                                </span>
+                                {take.scoreType && (
+                                  <span className="text-[9px] font-mono text-purple-400/60 capitalize">
+                                    · {take.scoreType}
+                                  </span>
+                                )}
+                                {take.model && (
+                                  <span className="text-[9px] font-mono text-muted-foreground/40 truncate">
+                                    · {take.model}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Action buttons */}
+                          <div className="flex items-center gap-0.5 shrink-0">
+                            {/* Rename */}
+                            {!isRenaming && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e) => startRename(take, e)}
+                                className="h-7 w-7 p-0 cursor-pointer text-muted-foreground hover:text-purple-300 hover:bg-purple-500/10"
+                                title="Rename take"
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </Button>
+                            )}
+
+                            {/* Play/Pause */}
+                            {take.audioUrl && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  setActiveScoreTake(take);
+                                  togglePlay();
+                                }}
+                                className="h-7 w-7 p-0 cursor-pointer text-muted-foreground hover:text-foreground"
+                                title={isActive && isPlaying ? "Pause" : "Play"}
+                              >
+                                {isActive && isPlaying ? (
+                                  <Pause className="h-3.5 w-3.5" />
+                                ) : (
+                                  <Play className="h-3.5 w-3.5" />
+                                )}
+                              </Button>
+                            )}
+
+                            {/* Download */}
+                            {take.audioUrl && (
+                              <a
+                                href={take.audioUrl}
+                                download={`score_${take.title.replace(/\s+/g, "_").toLowerCase()}.wav`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary cursor-pointer"
+                                title="Download audio"
+                              >
+                                <Download className="h-3.5 w-3.5" />
+                              </a>
+                            )}
+
+                            {/* Set master */}
+                            {!take.isMaster && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e) => { e.stopPropagation(); handleSetMaster(take); }}
+                                className="h-7 w-7 p-0 cursor-pointer text-muted-foreground hover:text-amber-300 hover:bg-amber-500/10"
+                                title="Set as master score"
+                              >
+                                <Star className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+
+                            {/* Delete */}
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={(e) => handleDeleteScoreTake(take.id, e)}
+                              className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
+                              title="Delete take"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Lyrics preview if available */}
+                        {isActive && take.lyricsText && !isRenaming && (
+                          <div className="px-3 pb-2.5 pt-0">
+                            <div className="px-2.5 py-1.5 rounded-md bg-secondary/30 border border-border/50">
+                              <p className="text-[9px] font-mono text-muted-foreground/70 line-clamp-2 leading-relaxed">
+                                {take.lyricsText}
+                              </p>
+                            </div>
+                          </div>
                         )}
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={(e) => handleDeleteScoreTake(take.id, e)}
-                          className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
-                          title="Delete this score take"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </CardContent>
             </Card>

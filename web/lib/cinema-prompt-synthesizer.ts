@@ -1,4 +1,4 @@
-import type { Node } from "@xyflow/react";
+import type { Node, Edge } from "@xyflow/react";
 import type { ProjectCharacter } from "@/lib/project-store";
 
 export interface NodeContribution {
@@ -11,6 +11,7 @@ export interface NodeContribution {
 
 export interface SynthesisOptions {
   nodes?: Node[];
+  edges?: Edge[];
   characters?: ProjectCharacter[];
   sceneTitle: string;
   sceneSummary?: string;
@@ -64,12 +65,57 @@ function extractScreenplayBeat(screenplayText?: string, targetCharacter?: string
 }
 
 /**
+ * Walk the ReactFlow edge graph from `startNodeId` and collect all reachable
+ * nodes. Traversal is bidirectional (both source→target and target→source edges
+ * are followed) so that a Style Ref Clip wired INTO the Scene Master is still
+ * reachable even though the edge points from Clip → Scene.
+ *
+ * Falls back to returning ALL nodes when:
+ *  - no `startNodeId` is provided (no Scene Master on canvas), or
+ *  - `edges` is empty (nothing wired — legacy behaviour preserved)
+ */
+function resolveConnectedNodes(
+  nodes: Node[],
+  edges: Edge[],
+  startNodeId?: string
+): Node[] {
+  // No anchor node or no wiring at all → legacy glob (all nodes contribute)
+  if (!startNodeId || edges.length === 0) return nodes;
+
+  const adjacency = new Map<string, string[]>();
+
+  for (const e of edges) {
+    if (!adjacency.has(e.source)) adjacency.set(e.source, []);
+    if (!adjacency.has(e.target)) adjacency.set(e.target, []);
+    adjacency.get(e.source)!.push(e.target);
+    adjacency.get(e.target)!.push(e.source);
+  }
+
+  const visited = new Set<string>();
+  const queue = [startNodeId];
+  visited.add(startNodeId);
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    for (const neighbor of adjacency.get(current) || []) {
+      if (!visited.has(neighbor)) {
+        visited.add(neighbor);
+        queue.push(neighbor);
+      }
+    }
+  }
+
+  return nodes.filter((n) => visited.has(n.id));
+}
+
+/**
  * Intelligently synthesize a comprehensive cinematic prompt and image conditioning
  * by aggregating data across all Canvas Nodes and Character profiles.
  */
 export function synthesizeCinemaPrompt(options: SynthesisOptions): SynthesisResult {
   const {
     nodes = [],
+    edges = [],
     characters = [],
     sceneTitle,
     sceneSummary = "",
@@ -87,7 +133,12 @@ export function synthesizeCinemaPrompt(options: SynthesisOptions): SynthesisResu
   const sceneNode = nodes.find((n) => n.type === "scene");
   const slugline = (sceneNode?.data?.slugline as string) || "INT. PRODUCTION - CINEMATIC LIGHT";
   const sceneStakes = (sceneNode?.data?.stakes as string) || sceneSummary;
-  
+
+  // Compute the connected subgraph — only nodes reachable from the Scene Master
+  // via wired edges contribute to the prompt. Falls back to all nodes when there
+  // is no scene anchor or when the canvas has no edges at all (legacy compat).
+  const connectedNodes = resolveConnectedNodes(nodes, edges, sceneNode?.id);
+
   contributions.push({
     id: sceneNode?.id || "node-scene-master",
     type: "scene",
@@ -97,7 +148,7 @@ export function synthesizeCinemaPrompt(options: SynthesisOptions): SynthesisResu
   });
 
   // 2. Style Reference Clip Node Context (Lighting, Palette, Pacing)
-  const clipNode = nodes.find((n) => n.type === "clip");
+  const clipNode = connectedNodes.find((n) => n.type === "clip");
   const lightingStudy = (clipNode?.data?.lightingStyle as string) || "High-contrast cinematic chiaroscuro, volumetric rim lighting";
   const colorPalette = (clipNode?.data?.palette as string[]) || ["#0b132b", "#1c2541", "#3a506b"];
   const pacingStyle = (clipNode?.data?.pacing as string) || "Taut cinematic slow-burn";
@@ -113,7 +164,7 @@ export function synthesizeCinemaPrompt(options: SynthesisOptions): SynthesisResu
   }
 
   // 3. Storyboard Node Context
-  const storyboardNode = nodes.find((n) => n.type === "storyboard");
+  const storyboardNode = connectedNodes.find((n) => n.type === "storyboard");
   const storyboardFraming = (storyboardNode?.data?.shotType as string) || "2.39:1 Anamorphic Scope";
   const storyboardPrompt = (storyboardNode?.data?.prompt as string) || "";
   if (storyboardNode) {
@@ -127,7 +178,7 @@ export function synthesizeCinemaPrompt(options: SynthesisOptions): SynthesisResu
   }
 
   // 4. Tension Curve Node Context
-  const tensionNode = nodes.find((n) => n.type === "tensionCurve");
+  const tensionNode = connectedNodes.find((n) => n.type === "tensionCurve");
   const peakTension = tensionNode?.data?.peakTension as number | undefined;
   if (tensionNode && peakTension) {
     contributions.push({
@@ -140,7 +191,7 @@ export function synthesizeCinemaPrompt(options: SynthesisOptions): SynthesisResu
   }
 
   // 5. Chemistry Node Context
-  const chemistryNode = nodes.find((n) => n.type === "chemistry");
+  const chemistryNode = connectedNodes.find((n) => n.type === "chemistry");
   const chemistryScenario = chemistryNode?.data?.scenario as string | undefined;
   if (chemistryNode && chemistryScenario) {
     contributions.push({
@@ -153,7 +204,7 @@ export function synthesizeCinemaPrompt(options: SynthesisOptions): SynthesisResu
   }
 
   // 6. Screenplay Draft Node Context
-  const scriptNode = nodes.find((n) => n.type === "script");
+  const scriptNode = connectedNodes.find((n) => n.type === "script");
   const scriptBeat = extractScreenplayBeat(screenplayText, focusCharacterName || undefined);
   if (scriptBeat) {
     contributions.push({
@@ -198,7 +249,7 @@ export function synthesizeCinemaPrompt(options: SynthesisOptions): SynthesisResu
     });
 
     // Check for actor comp or quirks node
-    const quirkNode = nodes.find((n) => n.id === `node-quirks-${activeCharacter.name.toLowerCase()}`);
+    const quirkNode = connectedNodes.find((n) => n.id === `node-quirks-${activeCharacter.name.toLowerCase()}`);
     if (quirkNode) {
       contributions.push({
         id: quirkNode.id,

@@ -3132,6 +3132,7 @@ export default function StudioPage() {
           <GenerationStudioView
             projectId={projectId}
             nodes={nodes}
+            edges={edges}
             sceneTitle={sceneTitle}
             sceneSummary={sceneSummary}
             screenplayText={screenplayText}
