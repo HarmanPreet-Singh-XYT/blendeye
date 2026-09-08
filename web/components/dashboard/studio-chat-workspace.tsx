@@ -25,6 +25,11 @@ import {
   ChevronRight,
   ArrowUp,
   X,
+  Clapperboard,
+  Orbit,
+  Brain,
+  Layers,
+  Aperture,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -64,6 +69,68 @@ interface StudioChatWorkspaceProps {
 
 const STORAGE_CHAT_KEY = "agentic_cinema_dashboard_chat_history_v4";
 const STORAGE_ACTIVE_PROJECT_KEY = "agentic_cinema_dashboard_active_project_id_v4";
+
+export type AtmosphereKey = "screening" | "cyberpunk" | "orbital" | "vault" | "minimal";
+
+export interface StudioAtmosphere {
+  id: AtmosphereKey;
+  name: string;
+  tagline: string;
+  image: string | null;
+  themeColor: string;
+  glowClass: string;
+}
+
+export const STUDIO_ATMOSPHERES: Record<AtmosphereKey, StudioAtmosphere> = {
+  screening: {
+    id: "screening",
+    name: "Screening Lounge",
+    tagline: "Dolby Vision · 35mm Master",
+    image: "/cinema/showrunner_room_bg.jpg",
+    themeColor: "amber",
+    glowClass: "from-amber-500/20 via-orange-500/10 to-transparent",
+  },
+  cyberpunk: {
+    id: "cyberpunk",
+    name: "Cyberpunk Backlot",
+    tagline: "Anamorphic 2.39:1 · Rain Neon",
+    image: "/cinema/cyberpunk_noir_bg.jpg",
+    themeColor: "teal",
+    glowClass: "from-teal-500/20 via-cyan-500/10 to-transparent",
+  },
+  orbital: {
+    id: "orbital",
+    name: "Orbital Airlock",
+    tagline: "Deep Space Observation Deck",
+    image: "/cinema/space_airlock.jpg",
+    themeColor: "cyan",
+    glowClass: "from-cyan-500/20 via-blue-500/10 to-transparent",
+  },
+  vault: {
+    id: "vault",
+    name: "High-Sec Vault",
+    tagline: "Subterranean Heist Facility",
+    image: "/cinema/vault_heist.jpg",
+    themeColor: "amber",
+    glowClass: "from-amber-600/20 via-yellow-500/10 to-transparent",
+  },
+  minimal: {
+    id: "minimal",
+    name: "Minimalist Studio",
+    tagline: "Deep OLED Void · Clean Focus",
+    image: null,
+    themeColor: "slate",
+    glowClass: "from-purple-500/10 via-cyan-500/10 to-transparent",
+  },
+};
+
+export const GENRE_ATMOSPHERE_MAP: Record<string, AtmosphereKey> = {
+  "Crime Heist": "vault",
+  "Deep Space Sci-Fi": "orbital",
+  "Cyberpunk Noir": "cyberpunk",
+  "Psychological Drama": "screening",
+  "Action Thriller": "screening",
+};
 
 const GENRE_STYLES: Record<string, { gradient: string; accent: string; badge: string }> = {
   heist: {
@@ -814,9 +881,13 @@ export function StudioChatWorkspace({
   const [isThinking, setIsThinking] = React.useState(false);
   const [selectedGenre, setSelectedGenre] = React.useState("Crime Heist");
   const [selectedDirectorStyle, setSelectedDirectorStyle] = React.useState("Denis Villeneuve (Atmospheric)");
+  const [activeAtmosphereKey, setActiveAtmosphereKey] = React.useState<AtmosphereKey>("screening");
+  const [showAtmosphereMenu, setShowAtmosphereMenu] = React.useState(false);
   const [openThoughts, setOpenThoughts] = React.useState<Record<string, boolean>>({});
   const [showMentionMenu, setShowMentionMenu] = React.useState(false);
   const [mentionQuery, setMentionQuery] = React.useState("");
+
+  const activeAtmosphere = STUDIO_ATMOSPHERES[activeAtmosphereKey] || STUDIO_ATMOSPHERES.screening;
 
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
@@ -1363,35 +1434,139 @@ export function StudioChatWorkspace({
   // ──────────────────────────────────────────────────────────────
   if (messages.length === 0) {
     return (
-      <div className="flex-1 flex flex-col justify-center items-center px-4 sm:px-6 py-12 relative overflow-y-auto bg-[#090a0d]">
-        {/* Subtle Background Glow */}
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <div className="h-[380px] w-[640px] rounded-full bg-gradient-to-r from-cyan-600/10 via-amber-500/10 to-purple-600/10 blur-[120px] opacity-60" />
+      <div className="flex-1 flex flex-col justify-center items-center px-4 sm:px-6 py-12 relative overflow-y-auto bg-[#090a0d] min-h-0">
+        {/* ── Cinematic Atmosphere Backdrop ── */}
+        <div className="pointer-events-none absolute inset-0 overflow-hidden z-0">
+          {activeAtmosphere.image ? (
+            <div
+              key={activeAtmosphere.id}
+              className="absolute inset-0 bg-cover bg-center transition-all duration-1000 ease-out transform scale-105 opacity-35 filter brightness-75 contrast-125 pointer-events-none"
+              style={{ backgroundImage: `url('${activeAtmosphere.image}')` }}
+            />
+          ) : null}
+
+          {/* Deep cinematic radial vignette */}
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_38%,rgba(9,10,13,0.3)_0%,rgba(9,10,13,0.78)_58%,#090a0d_100%)] pointer-events-none" />
+
+          {/* Top & Bottom seamless gradient blend */}
+          <div className="absolute inset-0 bg-gradient-to-b from-[#090a0d] via-transparent to-[#090a0d] pointer-events-none" />
+
+          {/* Volumetric Projector Beam / Glowing Spotlight */}
+          <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-[760px] h-[380px] bg-gradient-to-b from-amber-400/12 via-cyan-400/5 to-transparent blur-3xl opacity-75 pointer-events-none" />
+
+          {/* Film Grain Texture */}
+          <div className="film-grain absolute inset-0 opacity-40 pointer-events-none" />
+
+          {/* Cinematic Viewfinder HUD Overlay */}
+          <div className="absolute inset-4 sm:inset-8 border border-white/[0.04] rounded-2xl pointer-events-none hidden lg:block">
+            {/* Top-left: Camera Roll / Scope Spec */}
+            <div className="absolute top-3 left-3 text-[9px] font-mono tracking-widest text-muted-foreground/45 flex items-center gap-2">
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
+              <span>REC 24.00 FPS</span>
+              <span>·</span>
+              <span>2.39:1 SCOPE</span>
+              <span>·</span>
+              <span>8K RAW</span>
+            </div>
+            {/* Top-right: Lens Spec */}
+            <div className="absolute top-3 right-3 text-[9px] font-mono tracking-widest text-muted-foreground/45 flex items-center gap-1.5">
+              <Aperture className="h-2.5 w-2.5 text-accent/70" />
+              <span>T1.5 · 50MM ANAMORPHIC</span>
+            </div>
+            {/* Bottom-left: Color LUT */}
+            <div className="absolute bottom-3 left-3 text-[9px] font-mono tracking-widest text-muted-foreground/45">
+              <span>LUT: SHOWRUNNER_VISION3_500T</span>
+            </div>
+            {/* Bottom-right: Telemetry Status */}
+            <div className="absolute bottom-3 right-3 text-[9px] font-mono tracking-widest text-muted-foreground/45 flex items-center gap-1.5">
+              <Database className="h-2.5 w-2.5 text-emerald-400/70" />
+              <span>CLICKHOUSE PRECEDENTS: ONLINE</span>
+            </div>
+          </div>
         </div>
 
+        {/* ── Main Hero Content ── */}
         <div className="relative z-10 max-w-2xl mx-auto flex flex-col items-center text-center w-full">
-          {/* Status Badge */}
-          <div className="inline-flex items-center gap-2 rounded-full border border-border/80 bg-secondary/30 px-3 py-1 text-xs font-mono text-muted-foreground mb-5 shadow-xs">
+          {/* Status & Atmosphere Selector Pill */}
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-[#12141c]/80 backdrop-blur-xl px-3.5 py-1 text-xs font-mono text-muted-foreground mb-6 shadow-xl relative">
             <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span>Showrunner AI · Google ADK & ClickHouse Active</span>
+            <span className="text-foreground/90 font-medium">Showrunner AI</span>
+            <span className="text-white/20">·</span>
+            <span className="text-muted-foreground/80 hidden sm:inline">ADK & ClickHouse</span>
+            <span className="text-white/20 hidden sm:inline">·</span>
+
+            {/* Atmosphere Menu Trigger */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowAtmosphereMenu((prev) => !prev)}
+                className="inline-flex items-center gap-1.5 text-[11px] text-accent hover:text-accent/80 font-medium transition-colors cursor-pointer"
+                title="Switch Studio Atmosphere"
+              >
+                <Film className="h-3 w-3" />
+                <span>{activeAtmosphere.name}</span>
+                <ChevronDown className="h-2.5 w-2.5 opacity-70" />
+              </button>
+
+              {showAtmosphereMenu && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setShowAtmosphereMenu(false)}
+                  />
+                  <div className="absolute top-full right-0 mt-2 w-64 rounded-xl border border-white/10 bg-[#14161f]/95 backdrop-blur-2xl shadow-2xl p-1.5 z-50 text-left">
+                    <div className="px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider text-muted-foreground/70 border-b border-white/5 mb-1">
+                      Select Studio Atmosphere
+                    </div>
+                    {(Object.keys(STUDIO_ATMOSPHERES) as AtmosphereKey[]).map((key) => {
+                      const atm = STUDIO_ATMOSPHERES[key];
+                      const isSelected = activeAtmosphereKey === key;
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => {
+                            setActiveAtmosphereKey(key);
+                            setShowAtmosphereMenu(false);
+                          }}
+                          className={`w-full flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs transition-colors cursor-pointer ${
+                            isSelected
+                              ? "bg-accent/20 text-accent font-medium"
+                              : "text-neutral-300 hover:bg-white/5 hover:text-white"
+                          }`}
+                        >
+                          <div className="flex flex-col text-left">
+                            <span>{atm.name}</span>
+                            <span className="text-[10px] text-muted-foreground/60">{atm.tagline}</span>
+                          </div>
+                          {isSelected && <Check className="h-3.5 w-3.5 shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
-          {/* Hero Title */}
-          <h1 className="font-heading text-3xl sm:text-4xl md:text-5xl font-black tracking-tight text-foreground text-balance">
-            The Showrunner&apos;s Room
+          {/* Hero Title with Metallic Cinema Shimmer */}
+          <h1 className="font-heading text-4xl sm:text-5xl md:text-6xl font-black tracking-tight text-balance">
+            <span className="bg-gradient-to-b from-white via-white/95 to-neutral-300/80 bg-clip-text text-transparent drop-shadow-[0_4px_30px_rgba(0,0,0,0.8)]">
+              The Showrunner&apos;s Room
+            </span>
           </h1>
-          <p className="mt-2.5 text-sm md:text-base text-muted-foreground max-w-lg text-balance leading-relaxed">
+          <p className="mt-3.5 text-sm md:text-base text-neutral-300/85 max-w-xl text-balance leading-relaxed">
             Brainstorm concepts, develop character psychologies, and shape screenplays. When you&apos;re ready, initialize an interactive production slate.
           </p>
 
           {/* ── Director Prompt Input Box ── */}
-          <div className="mt-8 w-full rounded-2xl border border-border/90 bg-[#12141a]/95 backdrop-blur-xl shadow-2xl p-3 text-left focus-within:border-accent/60 transition-all">
+          <div className="mt-8 w-full rounded-2xl border border-white/10 bg-[#0e1118]/85 backdrop-blur-2xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.95),0_0_35px_rgba(212,160,84,0.07)] p-3.5 text-left focus-within:border-accent/60 focus-within:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.95),0_0_40px_rgba(212,160,84,0.18)] transition-all">
             <textarea
               ref={textareaRef}
               value={input}
               onChange={handleInputChange}
               placeholder="Ask a story question, pitch a scene, or brainstorm a premise (e.g. 'I want to write a high-tension heist where the two leads realize they're both working for rival cartels...')"
-              className="w-full min-h-[76px] bg-transparent text-sm md:text-base text-foreground placeholder:text-muted-foreground/50 resize-none focus:outline-none leading-relaxed"
+              className="w-full min-h-[82px] bg-transparent text-sm md:text-base text-foreground placeholder:text-muted-foreground/60 resize-none focus:outline-none leading-relaxed"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
@@ -1401,33 +1576,45 @@ export function StudioChatWorkspace({
             />
 
             {/* Bottom toolbar */}
-            <div className="flex items-center justify-between gap-2 pt-2.5 border-t border-border/40">
+            <div className="flex items-center justify-between gap-2 pt-3 border-t border-white/5">
               <div className="flex items-center gap-2">
                 {/* Genre Selector */}
-                <select
-                  value={selectedGenre}
-                  onChange={(e) => setSelectedGenre(e.target.value)}
-                  className="h-7 rounded-lg border border-border/80 bg-secondary/40 px-2 text-xs text-foreground focus:outline-none cursor-pointer"
-                >
-                  <option value="Crime Heist">Crime Heist</option>
-                  <option value="Deep Space Sci-Fi">Deep Space Sci-Fi</option>
-                  <option value="Cyberpunk Noir">Cyberpunk Noir</option>
-                  <option value="Psychological Drama">Psychological Drama</option>
-                  <option value="Action Thriller">Action Thriller</option>
-                </select>
+                <div className="relative flex items-center">
+                  <select
+                    value={selectedGenre}
+                    onChange={(e) => {
+                      const nextGenre = e.target.value;
+                      setSelectedGenre(nextGenre);
+                      if (GENRE_ATMOSPHERE_MAP[nextGenre]) {
+                        setActiveAtmosphereKey(GENRE_ATMOSPHERE_MAP[nextGenre]);
+                      }
+                    }}
+                    className="h-7.5 rounded-lg border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] px-2.5 text-xs text-foreground focus:outline-none cursor-pointer appearance-none pr-6 font-medium transition-colors"
+                  >
+                    <option value="Crime Heist" className="bg-[#12141a] text-foreground">Crime Heist</option>
+                    <option value="Deep Space Sci-Fi" className="bg-[#12141a] text-foreground">Deep Space Sci-Fi</option>
+                    <option value="Cyberpunk Noir" className="bg-[#12141a] text-foreground">Cyberpunk Noir</option>
+                    <option value="Psychological Drama" className="bg-[#12141a] text-foreground">Psychological Drama</option>
+                    <option value="Action Thriller" className="bg-[#12141a] text-foreground">Action Thriller</option>
+                  </select>
+                  <ChevronDown className="absolute right-1.5 h-3 w-3 text-muted-foreground pointer-events-none" />
+                </div>
 
                 {/* Director Style */}
-                <select
-                  value={selectedDirectorStyle}
-                  onChange={(e) => setSelectedDirectorStyle(e.target.value)}
-                  className="h-7 rounded-lg border border-border/80 bg-secondary/40 px-2 text-xs text-foreground focus:outline-none cursor-pointer hidden sm:block"
-                >
-                  <option value="Denis Villeneuve (Atmospheric)">Denis Villeneuve</option>
-                  <option value="David Fincher (Procedural)">David Fincher</option>
-                  <option value="Christopher Nolan (Temporal)">Christopher Nolan</option>
-                  <option value="Michael Mann (High Tension)">Michael Mann</option>
-                  <option value="A24 Indie (Psychological)">A24 Indie</option>
-                </select>
+                <div className="relative items-center hidden sm:flex">
+                  <select
+                    value={selectedDirectorStyle}
+                    onChange={(e) => setSelectedDirectorStyle(e.target.value)}
+                    className="h-7.5 rounded-lg border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] px-2.5 text-xs text-foreground focus:outline-none cursor-pointer appearance-none pr-6 font-medium transition-colors"
+                  >
+                    <option value="Denis Villeneuve (Atmospheric)" className="bg-[#12141a] text-foreground">Denis Villeneuve</option>
+                    <option value="David Fincher (Procedural)" className="bg-[#12141a] text-foreground">David Fincher</option>
+                    <option value="Christopher Nolan (Temporal)" className="bg-[#12141a] text-foreground">Christopher Nolan</option>
+                    <option value="Michael Mann (High Tension)" className="bg-[#12141a] text-foreground">Michael Mann</option>
+                    <option value="A24 Indie (Psychological)" className="bg-[#12141a] text-foreground">A24 Indie</option>
+                  </select>
+                  <ChevronDown className="absolute right-1.5 h-3 w-3 text-muted-foreground pointer-events-none" />
+                </div>
               </div>
 
               <Button
@@ -1435,7 +1622,7 @@ export function StudioChatWorkspace({
                 size="sm"
                 onClick={() => handleSendMessage()}
                 disabled={isThinking || !input.trim()}
-                className="h-7 px-3.5 bg-foreground text-background hover:bg-foreground/90 font-medium text-xs gap-1.5 shadow-sm ml-auto"
+                className="h-7.5 px-4 bg-foreground text-background hover:bg-foreground/90 font-semibold text-xs gap-1.5 shadow-md ml-auto rounded-lg transition-transform active:scale-95"
               >
                 <span>Send</span>
                 <ArrowUp className="h-3.5 w-3.5" />
@@ -1444,44 +1631,62 @@ export function StudioChatWorkspace({
           </div>
 
           {/* Quick Conversational Starter Chips */}
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-2.5">
             <button
-              onClick={() => handleSendMessage("Let's brainstorm a neo-noir crime thriller set in a rain-slicked port city")}
-              className="rounded-full border border-border/80 bg-secondary/30 hover:bg-secondary/60 hover:border-amber-500/40 px-3.5 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-all shadow-xs"
+              onClick={() => {
+                setSelectedGenre("Cyberpunk Noir");
+                setActiveAtmosphereKey("cyberpunk");
+                handleSendMessage("Let's brainstorm a neo-noir crime thriller set in a rain-slicked port city");
+              }}
+              className="rounded-full border border-teal-500/25 bg-[#12151c]/80 hover:bg-teal-950/40 hover:border-teal-400/60 px-3.5 py-1.5 text-xs text-neutral-300 hover:text-white transition-all shadow-md flex items-center gap-1.5 group backdrop-blur-md cursor-pointer"
             >
-              Neo-noir crime thriller
+              <Clapperboard className="h-3 w-3 text-teal-400 group-hover:rotate-6 transition-transform" />
+              <span>Neo-noir crime thriller</span>
             </button>
 
             <button
-              onClick={() => handleSendMessage("How do I build tension between two estranged operators trapped in a locked airlock?")}
-              className="rounded-full border border-border/80 bg-secondary/30 hover:bg-secondary/60 hover:border-cyan-500/40 px-3.5 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-all shadow-xs"
+              onClick={() => {
+                setSelectedGenre("Deep Space Sci-Fi");
+                setActiveAtmosphereKey("orbital");
+                handleSendMessage("How do I build tension between two estranged operators trapped in a locked airlock?");
+              }}
+              className="rounded-full border border-cyan-500/25 bg-[#12151c]/80 hover:bg-cyan-950/40 hover:border-cyan-400/60 px-3.5 py-1.5 text-xs text-neutral-300 hover:text-white transition-all shadow-md flex items-center gap-1.5 group backdrop-blur-md cursor-pointer"
             >
-              Sci-fi airlock tension
+              <Orbit className="h-3 w-3 text-cyan-400 group-hover:scale-110 transition-transform" />
+              <span>Sci-fi airlock tension</span>
             </button>
 
             <button
-              onClick={() => handleSendMessage("Help me write an interrogation scene with an unreliable narrator")}
-              className="rounded-full border border-border/80 bg-secondary/30 hover:bg-secondary/60 hover:border-purple-500/40 px-3.5 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-all shadow-xs"
+              onClick={() => {
+                setSelectedGenre("Psychological Drama");
+                setActiveAtmosphereKey("screening");
+                handleSendMessage("Help me write an interrogation scene with an unreliable narrator");
+              }}
+              className="rounded-full border border-purple-500/25 bg-[#12151c]/80 hover:bg-purple-950/40 hover:border-purple-400/60 px-3.5 py-1.5 text-xs text-neutral-300 hover:text-white transition-all shadow-md flex items-center gap-1.5 group backdrop-blur-md cursor-pointer"
             >
-              Psychological interrogation
+              <Brain className="h-3 w-3 text-purple-400 group-hover:scale-110 transition-transform" />
+              <span>Psychological interrogation</span>
             </button>
 
             <button
               onClick={onOpenNewProjectDialog}
-              className="rounded-full border border-border/80 bg-secondary/30 hover:bg-secondary/60 px-3.5 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-all shadow-xs flex items-center gap-1"
+              className="rounded-full border border-white/10 bg-[#12151c]/80 hover:bg-white/10 px-3.5 py-1.5 text-xs text-neutral-300 hover:text-white transition-all shadow-md flex items-center gap-1.5 backdrop-blur-md cursor-pointer"
             >
-              <Plus className="h-3 w-3" />
+              <Plus className="h-3 w-3 text-accent" />
               <span>Blank Slate</span>
             </button>
           </div>
 
-          <div className="mt-4 flex items-center gap-3 text-xs text-muted-foreground/80">
+          {/* Sub-links / Quick Telemetry */}
+          <div className="mt-5 flex items-center gap-3 text-xs text-muted-foreground/80">
             <span>or jump to:</span>
-            <button onClick={onOpenToolbox} className="hover:text-foreground underline decoration-dotted">
+            <button onClick={onOpenToolbox} className="hover:text-foreground underline decoration-dotted transition-colors flex items-center gap-1 cursor-pointer">
+              <Database className="h-3 w-3 text-accent" />
               ClickHouse Precedents
             </button>
             <span>·</span>
-            <Link href="/canvas-demo" className="hover:text-foreground underline decoration-dotted">
+            <Link href="/canvas-demo" className="hover:text-foreground underline decoration-dotted transition-colors flex items-center gap-1">
+              <Layers className="h-3 w-3 text-cyan-400" />
               Interactive Canvas
             </Link>
           </div>
@@ -1495,6 +1700,19 @@ export function StudioChatWorkspace({
   // ──────────────────────────────────────────────────────────────
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#090a0d] text-foreground relative">
+      {/* Subtle cinematic backdrop in chat mode */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden z-0">
+        {activeAtmosphere.image ? (
+          <div
+            key={activeAtmosphere.id}
+            className="absolute inset-0 bg-cover bg-center transition-all duration-1000 ease-out opacity-20 filter brightness-60 contrast-125 pointer-events-none"
+            style={{ backgroundImage: `url('${activeAtmosphere.image}')` }}
+          />
+        ) : null}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_40%,rgba(9,10,13,0.7)_0%,rgba(9,10,13,0.95)_70%,#090a0d_100%)] pointer-events-none" />
+        <div className="film-grain absolute inset-0 opacity-30 pointer-events-none" />
+      </div>
+
       {/* ── Ultra-Slim Sub-Header Strip (h-10) ── */}
       <div className="h-10 border-b border-border/70 px-4 sm:px-6 flex items-center justify-between bg-[#0c0d10]/95 backdrop-blur shrink-0 z-10">
         <div className="flex items-center gap-2.5 min-w-0">
@@ -1533,6 +1751,58 @@ export function StudioChatWorkspace({
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Atmosphere Selector in Chat Strip */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowAtmosphereMenu((prev) => !prev)}
+              className="h-6 text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1 px-2 rounded border border-border/60 hover:bg-secondary/40 transition-colors cursor-pointer"
+              title="Switch studio atmosphere"
+            >
+              <Film className="h-3 w-3 text-accent" />
+              <span className="hidden sm:inline">{activeAtmosphere.name}</span>
+              <ChevronDown className="h-2.5 w-2.5 opacity-60" />
+            </button>
+            {showAtmosphereMenu && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setShowAtmosphereMenu(false)}
+                />
+                <div className="absolute top-full right-0 mt-1.5 w-64 rounded-xl border border-white/10 bg-[#14161f]/95 backdrop-blur-2xl shadow-2xl p-1.5 z-50 text-left">
+                  <div className="px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider text-muted-foreground/70 border-b border-white/5 mb-1">
+                    Select Studio Atmosphere
+                  </div>
+                  {(Object.keys(STUDIO_ATMOSPHERES) as AtmosphereKey[]).map((key) => {
+                    const atm = STUDIO_ATMOSPHERES[key];
+                    const isSelected = activeAtmosphereKey === key;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => {
+                          setActiveAtmosphereKey(key);
+                          setShowAtmosphereMenu(false);
+                        }}
+                        className={`w-full flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs transition-colors cursor-pointer ${
+                          isSelected
+                            ? "bg-accent/20 text-accent font-medium"
+                            : "text-neutral-300 hover:bg-white/5 hover:text-white"
+                        }`}
+                      >
+                        <div className="flex flex-col text-left">
+                          <span>{atm.name}</span>
+                          <span className="text-[10px] text-muted-foreground/60">{atm.tagline}</span>
+                        </div>
+                        {isSelected && <Check className="h-3.5 w-3.5 shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+
           {activeProject && (
             <Button
               variant="outline"
@@ -1559,7 +1829,7 @@ export function StudioChatWorkspace({
       </div>
 
       {/* ── Chat Messages Scroll Feed (Takes 85%+ Screen Height) ── */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 sm:px-6 py-6 space-y-6 max-w-3xl mx-auto w-full">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 sm:px-6 py-6 space-y-6 max-w-3xl mx-auto w-full relative z-10">
         {messages.map((msg, idx) => {
           const isUser = msg.role === "user";
           const isLastAssistant = !isUser && (idx === messages.length - 1 || (idx === messages.length - 2 && messages[messages.length - 1].role === "user"));
@@ -1586,10 +1856,10 @@ export function StudioChatWorkspace({
 
                 {/* Message Bubble */}
                 <div
-                  className={`rounded-2xl px-4 py-3 text-sm leading-relaxed min-w-0 max-w-full overflow-hidden ${
+                  className={`rounded-2xl px-4 py-3 text-sm leading-relaxed min-w-0 max-w-full overflow-hidden backdrop-blur-xl ${
                     isUser
-                      ? "bg-secondary/80 border border-border text-foreground shadow-xs rounded-tr-xs"
-                      : "bg-[#13151b] border border-border text-foreground shadow-md rounded-tl-xs"
+                      ? "bg-secondary/90 border border-white/10 text-foreground shadow-sm rounded-tr-xs"
+                      : "bg-[#12141c]/90 border border-white/10 text-foreground shadow-xl rounded-tl-xs"
                   }`}
                 >
                   {/* Showrunner Telemetry Accordion (Collapsed by Default) */}
@@ -1778,12 +2048,12 @@ export function StudioChatWorkspace({
       </div>
 
       {/* ── Compact, Modern Floating Chat Input (Height ~60px) ── */}
-      <div className="border-t border-border/70 bg-[#0c0d10]/95 backdrop-blur-md px-4 py-3 shrink-0 z-20">
+      <div className="border-t border-white/10 bg-[#0c0d12]/85 backdrop-blur-2xl px-4 py-3 shrink-0 z-20 shadow-2xl">
         <div className="max-w-3xl mx-auto">
           {/* Autocomplete Dropdown for @ mentions */}
           {showMentionMenu && (
-            <div className="mb-2 w-72 rounded-xl border border-border bg-[#161820] shadow-2xl p-1.5 z-30 space-y-1">
-              <div className="px-2 py-1 text-[10px] font-mono uppercase text-muted-foreground border-b border-border/40">
+            <div className="mb-2 w-72 rounded-xl border border-white/10 bg-[#161822]/95 backdrop-blur-xl shadow-2xl p-1.5 z-30 space-y-1">
+              <div className="px-2 py-1 text-[10px] font-mono uppercase text-muted-foreground border-b border-white/5">
                 Mention Slate
               </div>
               <div className="max-h-40 overflow-y-auto space-y-0.5">
@@ -1804,7 +2074,7 @@ export function StudioChatWorkspace({
           )}
 
           {/* Sleek Pill Input Container */}
-          <div className="relative rounded-2xl border border-border bg-[#12141a] px-3.5 py-1.5 text-left focus-within:border-accent/60 shadow-lg transition-all flex items-center gap-2 min-h-[46px]">
+          <div className="relative rounded-2xl border border-white/10 bg-[#12141c]/90 backdrop-blur-xl px-3.5 py-1.5 text-left focus-within:border-accent/60 shadow-xl transition-all flex items-center gap-2 min-h-[46px]">
             <textarea
               ref={textareaRef}
               value={input}

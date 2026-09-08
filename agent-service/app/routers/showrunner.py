@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 from fastapi import APIRouter
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from app.agents.runner import run_agent_once
 from app.agents.showrunner import build_showrunner_agent
@@ -29,13 +29,14 @@ class ShowrunnerChatRequest(BaseModel):
 
 
 class PrecedentItem(BaseModel):
-    genre: str
-    trope: str
-    historical_reference: str
-    tension_level: int
-    commercial_territory: str
-    audience_retention_pct: float
-    precedent_example: str
+    model_config = ConfigDict(extra="ignore")
+    genre: str = ""
+    trope: str = ""
+    historical_reference: str = ""
+    tension_level: int = 5
+    commercial_territory: str = ""
+    audience_retention_pct: float = 80.0
+    precedent_example: str = ""
 
 
 class ShowrunnerChatResponse(BaseModel):
@@ -49,7 +50,13 @@ class ShowrunnerChatResponse(BaseModel):
 async def get_precedents(genre: str = "") -> list[PrecedentItem]:
     store = get_clickhouse_store()
     raw = store.get_cinematic_precedents(genre)
-    return [PrecedentItem(**item) for item in raw]
+    precedents: list[PrecedentItem] = []
+    for item in raw:
+        try:
+            precedents.append(PrecedentItem(**item))
+        except Exception:
+            pass
+    return precedents
 
 
 @router.post("/chat", response_model=ShowrunnerChatResponse)
@@ -60,7 +67,12 @@ async def chat_with_showrunner(body: ShowrunnerChatRequest) -> ShowrunnerChatRes
     # Query ClickHouse for cinematic precedents & box office metrics (Grounding Flourish)
     sql_executed = "SELECT genre, trope, historical_reference, tension_level, commercial_territory, audience_retention_pct, precedent_example FROM cinematic_precedents ORDER BY audience_retention_pct DESC;"
     raw_precedents = store.get_cinematic_precedents()
-    precedents = [PrecedentItem(**p) for p in raw_precedents]
+    precedents: list[PrecedentItem] = []
+    for p in raw_precedents:
+        try:
+            precedents.append(PrecedentItem(**p))
+        except Exception:
+            pass
 
     precedent_context = "\n".join(
         f"- Reference: {p.historical_reference} | Trope: {p.trope} | Tension: {p.tension_level}/10 | Retention: {p.audience_retention_pct}% ({p.commercial_territory})\n  Notes: {p.precedent_example}"
