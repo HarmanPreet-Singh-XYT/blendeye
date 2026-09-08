@@ -57,7 +57,7 @@ jobs:
           ENV_VARS="${ENV_VARS},CLICKHOUSE_PASSWORD=${{ secrets.CLICKHOUSE_PASSWORD }}"
           ENV_VARS="${ENV_VARS},CLICKHOUSE_DATABASE=${{ secrets.CLICKHOUSE_DATABASE || 'default' }}"
           ENV_VARS="${ENV_VARS},CLICKHOUSE_SECURE=${{ secrets.CLICKHOUSE_SECURE || 'true' }}"
-          ENV_VARS="${ENV_VARS},ALLOWED_ORIGINS=${{ secrets.ALLOWED_ORIGINS || '[\"*\"]' }}"
+          ENV_VARS="${ENV_VARS},ALLOWED_ORIGINS=${{ secrets.ALLOWED_ORIGINS || '*' }}"
           ENV_VARS="${ENV_VARS},GOOGLE_API_KEY=${{ secrets.GOOGLE_API_KEY }}"
 
           if [ -n "${{ secrets.GOOGLE_CLOUD_PROJECT }}" ]; then

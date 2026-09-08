@@ -1,6 +1,8 @@
+import json
 from functools import lru_cache
 
 from dotenv import load_dotenv
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # pydantic-settings' env_file loading only populates the Settings object
@@ -50,7 +52,26 @@ class Settings(BaseSettings):
     clickhouse_secure: bool = False
 
     # CORS — only the Next.js frontend calls this service.
-    allowed_origins: list[str] = ["http://localhost:3000"]
+    allowed_origins: str | list[str] = ["http://localhost:3000"]
+
+    @field_validator("allowed_origins", mode="after")
+    @classmethod
+    def parse_allowed_origins(cls, v: str | list[str]) -> list[str]:
+        if isinstance(v, list):
+            return v
+        if isinstance(v, str):
+            v_clean = v.strip()
+            if v_clean in ("*", "[*]", "['*']", '["*"]'):
+                return ["*"]
+            if v_clean.startswith("[") and v_clean.endswith("]"):
+                try:
+                    parsed = json.loads(v_clean)
+                    if isinstance(parsed, list):
+                        return [str(x).strip() for x in parsed]
+                except Exception:
+                    v_clean = v_clean[1:-1]
+            return [origin.strip().strip("'").strip('"') for origin in v_clean.split(",") if origin.strip()]
+        return ["*"]
 
     environment: str = "development"
 
