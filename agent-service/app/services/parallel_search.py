@@ -91,6 +91,14 @@ def _search_parallel_sync(
             })
 
         logger.info("Parallel API returned %d results for '%s'", len(results), query)
+        try:
+            from app.services.observability import emit_grafana_annotation
+            emit_grafana_annotation(
+                f"🌐 Parallel Web: Grounded '{query[:50]}' ({len(results)} results)",
+                ["parallel-web", "location-scouting"],
+            )
+        except Exception:  # noqa: BLE001
+            pass
         return results
 
     except Exception as e:  # noqa: BLE001
