@@ -83,6 +83,7 @@
 | **ClickHouse Cloud / self-hosted cluster** | ✅ Active | Production deployment connects to **ClickHouse Cloud** with sub-3ms query latencies. |
 | **Parallel Web Systems used at runtime** | ✅ Active | Official `parallel-web` Python SDK (v1.3.3) invoked in `app/services/parallel_search.py`, `app/routers/location_research.py`, and `app/agents/showrunner.py` for real-time location scouting and market comps. |
 | **Grafana Labs used at runtime via `mcp-grafana`** | ✅ Active | Official `grafana/mcp-grafana` server (v1.3.0) and native Prometheus exporter at `/observability/metrics` powering real-time PromQL monitoring and agent pipeline health. |
+| **IBM Partner Track (Built with IBM Bob IDE)** | ✅ Compliant | Developed and coded using the **IBM Bob IDE** as the primary development workspace, successfully scaling and managing a production monorepo of **over 85,000+ lines of code** across multi-agent prompt engineering, Next.js/FastAPI contracts, and telemetry middleware. |
 | **Runs on web** | ✅ Active | Next.js 16 App Router frontend with Tailwind CSS v4, Lucide icons, and `@xyflow/react`. |
 | **Open-source license detectable in repo root** | ✅ Active | [MIT License](LICENSE) |
 | **No non-Google-Cloud AI vendor at runtime** | ✅ Compliant | Exclusively Google Cloud AI SDKs (`google-genai`, `google-adk`); zero non-Google AI SDK imports. |

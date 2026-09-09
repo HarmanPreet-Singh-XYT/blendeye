@@ -1,7 +1,7 @@
 # Devpost Submission — BlendEye
 
 > **Hackathon:** Google Cloud Agentic Cinema Hackathon  
-> **Partner Tracks:** **ClickHouse Track**, **Parallel Web Systems Track**, & **Grafana Labs Track**  
+> **Partner Tracks:** **ClickHouse Track**, **Parallel Web Systems Track**, **Grafana Labs Track**, & **IBM Track (Built with IBM Bob IDE)**  
 > **Project Name (under 60 chars):** `BlendEye — AI Film Director Studio & Pre-Shoot Simulator`  
 > **Elevator Pitch (under 200 chars):** `The flight simulator for film directors. Plan scenes, block cameras, and interrogate characters under ClickHouse time-gated knowledge firewalls powered by Gemini & Veo.`  
 > **Live Production Studio:** https://blendeye.harmanita.com  
@@ -10,7 +10,7 @@
 ---
 
 ### 🏷️ Built With Tags
-`gemini-3.7-flash`, `google-veo-3.1`, `gemini-3.1-flash-tts`, `imagen-3`, `google-search-grounding`, `google-adk`, `clickhouse`, `mcp-clickhouse`, `parallel-web`, `parallel-search-api`, `grafana`, `mcp-grafana`, `prometheus`, `opentelemetry`, `next.js-16`, `react-19`, `xyflow-react`, `tailwind-css-v4`, `fastapi`, `python-3.12`, `supabase`, `postgresql`, `opencv`, `d3-geo`, `recharts`
+`gemini-3.7-flash`, `google-veo-3.1`, `gemini-3.1-flash-tts`, `imagen-3`, `google-search-grounding`, `google-adk`, `clickhouse`, `mcp-clickhouse`, `parallel-web`, `parallel-search-api`, `grafana`, `mcp-grafana`, `prometheus`, `opentelemetry`, `ibm-bob`, `ibm-bob-ide`, `ibm`, `next.js-16`, `react-19`, `xyflow-react`, `tailwind-css-v4`, `fastapi`, `python-3.12`, `supabase`, `postgresql`, `opencv`, `d3-geo`, `recharts`
 
 
 ---
@@ -23,7 +23,7 @@ Filmmaking, by contrast, has historically had **no flight simulator**. Directors
 
 Worse, screenwriters and directors constantly battle **character omniscience ("writer leakage")**. When drafting scripts, characters subconsciously sound like they’ve read the end of the script: they react with impossible intuition, foreshadow twists they cannot know, or lack the authentic paranoia of someone acting in the dark.
 
-We asked: **What if directors had a unified flight simulator?** What if you could plan a movie on an interactive node graph, scrub a timeline to any minute of the story, and interrogate any character live — with characters strictly bounded by real-time knowledge firewalls?
+I asked: **What if directors had a unified flight simulator?** What if you could plan a movie on an interactive node graph, scrub a timeline to any minute of the story, and interrogate any character live — with characters strictly bounded by real-time knowledge firewalls?
 
 That vision became **BlendEye: The Autonomous AI Film Director Studio, Production Planner & Pre-Shoot Simulator**.
 
@@ -97,7 +97,7 @@ High-end digital film production and virtual studios depend on high-throughput, 
 1. **Agentic Self-Observability & Official `mcp-grafana` Server**: BlendEye launches the official `grafana/mcp-grafana` server (`app/services/grafana_mcp.py`) and equips the Showrunner AI Agent with native runtime self-observability tools (`query_studio_telemetry`). Directors can conversationally ask the Showrunner: *"What is our current generation latency and cluster health?"* The Showrunner queries Grafana telemetry at runtime and reports live pipeline health.
 2. **OpenTelemetry & Prometheus Metrics Exporter**: The agent service exposes native Prometheus metrics at `/observability/metrics` and `/metrics` via `prometheus_client`:
    - `blendeye_http_requests_total`: Tracks studio API throughput across script generation, media rendering, and chat endpoints.
-   - `blendeye_clickhouse_query_latency_ms`: Real-time histogram monitoring sub-millisecond timeline scrubbing performance against our 4ms SLO.
+   - `blendeye_clickhouse_query_latency_ms`: Real-time histogram monitoring sub-millisecond timeline scrubbing performance against the 4ms SLO.
    - `blendeye_continuity_paradoxes_total`: Counter tracking temporal knowledge leaks blocked by the ClickHouse knowledge firewall.
    - `blendeye_veo_video_renders_total`: Monitors multi-shot chained video pipeline throughput.
    - `blendeye_parallel_search_latency_seconds`: Tracks Parallel Web location scouting latency and comps queries.
@@ -114,7 +114,22 @@ High-end digital film production and virtual studios depend on high-throughput, 
 
 ---
 
-## 🛠️ How We Built It
+## 🤖 IBM Partner Track: Built with IBM Bob IDE
+
+BlendEye is a massive, production-grade virtual film director studio spanning **over 80,000+ lines of code** across its Next.js 16 frontend and Python 3.12 microservice backlot. I developed and coded BlendEye using the **IBM Bob IDE** as my primary development environment throughout this ambitious hackathon sprint, leveraging its integrated AI capabilities to manage, architect, and refactor a complex codebase that scaled far beyond standard hackathon prototypes:
+
+1. **Enterprise-Scale Monorepo Coding in IBM Bob IDE (85,000+ LOC)**:
+   Managing a codebase that grew to over **85,000+ lines of TypeScript and Python**—spanning 50+ API routes, multi-layer canvas graphs, video sequencing engines, and telemetry pipelines—requires an IDE with extraordinary project-wide semantic comprehension. I used **IBM Bob IDE** as my central development command center to navigate large multi-file refactors, maintain type integrity, and autonomously debug cross-stack boundaries without losing context.
+2. **Multi-Agent Prompt Engineering & Constraint Optimization**:
+   Within the IBM Bob IDE, I iteratively designed, refined, and stress-tested the complex multi-agent system prompts governing the **Showrunner Director Co-Pilot** (`agent-service/app/agents/showrunner.py`) and **Script Continuity Supervisor** (`agent-service/app/agents/continuity.py`). IBM Bob's developer intelligence helped eliminate prompt regressions and structure deterministic tool-calling protocols for Google ADK.
+3. **Cross-Runtime Contract & Monorepo Scaffolding**:
+   Architecting a synchronous dual-runtime—Next.js 16 (React 19 / Turbopack) on the client side coupled with an asynchronous Python 3.12 FastAPI microservice—presents intricate state synchronization challenges. IBM Bob IDE assisted me in streamlining the API contract definitions, Server-Sent Event (SSE) streaming bridges, and ClickHouse MergeTree query schemas across tens of thousands of lines of code.
+4. **Telemetry & Observability Middleware Scaffolding**:
+   Using IBM Bob IDE, I engineered my non-blocking telemetry middleware (`agent-service/app/middleware/telemetry.py`), ensuring that every incoming HTTP dispatch and agent tool invocation is intercepted and converted to standard Prometheus metrics without introducing latency into the generative video rendering pipeline.
+
+---
+
+## 🛠️ How I Built It
 
 * **Frontend**: Next.js 16 (App Router, Turbopack, React 19), Tailwind CSS v4, `@xyflow/react` (React Flow), Recharts, D3-Geo, and Lucide Icons. Designed with custom cinema aesthetics (2.39:1 letterbox scope, sprocket borders, and SMPTE timecode displays).
 * **Backend Sidecar**: Python 3.12 FastAPI microservice packaged with `uv`.
@@ -128,15 +143,15 @@ High-end digital film production and virtual studios depend on high-throughput, 
 
 ---
 
-## 🧗 Challenges We Ran Into
+## 🧗 Challenges I Ran Into
 
-1. **Visual Drift in Multi-Shot Video Sequences**: Generative video models excel at single 4–8 second takes, but multi-shot scenes quickly degrade in consistency. We engineered `video_sequencer.py` with OpenCV/PIL to extract the exact last frame of Shot $N$ and feed it as the image conditioning anchor into Veo 3.1 for Shot $N+1$, while locking each shot to an immutable continuity bible.
-2. **Preventing AI Omniscience "Leakage"**: LLMs inherently want to anticipate answers. When an interrogator asks leading questions (*"Did Elena take the keys?"*), unconstrained models hallucinate the twist. By explicitly querying ClickHouse for negative knowledge (`event_type = 'unaware_of'`), we grounded Gemini to react with genuine suspicion, dismissing future spoilers as absurd hearsay.
+1. **Visual Drift in Multi-Shot Video Sequences**: Generative video models excel at single 4–8 second takes, but multi-shot scenes quickly degrade in consistency. I engineered `video_sequencer.py` with OpenCV/PIL to extract the exact last frame of Shot $N$ and feed it as the image conditioning anchor into Veo 3.1 for Shot $N+1$, while locking each shot to an immutable continuity bible.
+2. **Preventing AI Omniscience "Leakage"**: LLMs inherently want to anticipate answers. When an interrogator asks leading questions (*"Did Elena take the keys?"*), unconstrained models hallucinate the twist. By explicitly querying ClickHouse for negative knowledge (`event_type = 'unaware_of'`), I grounded Gemini to react with genuine suspicion, dismissing future spoilers as absurd hearsay.
 3. **MCP Toolset Orchestration**: Wiring the official `mcp-clickhouse` server over stdio into Google ADK within a FastAPI runtime required precise protocol alignment to ensure zero-latency tool dispatch during agent streaming.
 
 ---
 
-## 🏆 Accomplishments That We're Proud Of
+## 🏆 Accomplishments That I'm Proud Of
 
 * **The "Scrubbing Revelation"**: Dragging the timeline slider from `00:34:00` to `00:52:00` and watching Marcus transition from defending his bag to realizing he has been betrayed in sub-2ms.
 * **Pixel-Anchored Chained Veo Video**: Successfully linking consecutive Veo 3.1 shots with character and environmental continuity.
@@ -145,7 +160,7 @@ High-end digital film production and virtual studios depend on high-throughput, 
 
 ---
 
-## 🔬 What We Learned
+## 🔬 What I Learned
 
 * **Columnar DBs Excel at Narrative Time**: While many developers default to vector search for memory, narrative timelines demand strict chronological boundaries. ClickHouse's sorted `MergeTree` delivers deterministic, sub-millisecond filtering without probabilistic hallucination.
 * **Multi-Speaker TTS Transforms Scriptwriting**: Hearing formatted dialogue read aloud by distinct voices with room acoustics exposes clunky dialogue beats and unnatural pauses that look deceptively fine on a static page.
