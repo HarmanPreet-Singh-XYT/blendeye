@@ -578,32 +578,34 @@ agentic_cinema/
 - **Python**: v3.12+ with [uv](https://docs.astral.sh/uv/) installed
 - **Docker**: For running ClickHouse locally
 - **Google Cloud API Key**: A valid `GOOGLE_API_KEY` enabled for Gemini models
-- **Supabase Account**: (Optional for demo, recommended for persistent multi-user accounts)
+- **Parallel Web Systems API Key**: `PARALLEL_API_KEY` for live location scouting search grounding (Parallel Partner Track)
+- **Grafana Token**: (Optional) `GRAFANA_SERVICE_ACCOUNT_TOKEN` and `GRAFANA_URL` for MCP Grafana observability (Grafana Partner Track)
+- **Supabase Account**: (Optional for demo, recommended for persistent multi-user accounts and media storage)
 
 ---
 
 ### Step 1: Clone the Repository & Configure Root Environment
 
 ```bash
-git clone https://github.com/your-org/agentic_cinema.git
-cd agentic_cinema
+git clone https://github.com/HarmanPreet-Singh-XYT/blendeye.git
+cd blendeye
 
-# Copy the root environment file
+# Copy the root environment template
 cp .env.example .env
 ```
 
-Ensure `CLICKHOUSE_PASSWORD` in `.env` is set (e.g. `CLICKHOUSE_PASSWORD=devpassword`). ClickHouse HTTP authentication requires a real password.
+Ensure `CLICKHOUSE_PASSWORD` in `.env` is set (e.g. `CLICKHOUSE_PASSWORD=devpassword`). ClickHouse HTTP authentication requires a password.
 
 ---
 
 ### Step 2: Start ClickHouse in Docker
 
-Run ClickHouse in background:
+Run ClickHouse in the background:
 ```bash
 docker compose up -d clickhouse
 ```
-- ClickHouse HTTP interface will be available at: `http://localhost:8123`
-- Native TCP interface will be at: `localhost:9000`
+- ClickHouse HTTP interface: `http://localhost:8123`
+- Native TCP interface: `localhost:9000`
 
 ---
 
@@ -614,25 +616,44 @@ cd agent-service
 cp .env.example .env
 ```
 
-Edit `agent-service/.env` to include your `GOOGLE_API_KEY` and verify `CLICKHOUSE_PASSWORD` matches the root `.env`:
+Edit `agent-service/.env` with your API keys and configuration:
 ```env
+# Google Cloud AI (Required per Hackathon Rules)
 GOOGLE_API_KEY=your_gemini_api_key_here
+GEMINI_MODEL=gemini-3.7-flash
+
+# ClickHouse Database (Required Partner Track Integration)
 CLICKHOUSE_HOST=localhost
 CLICKHOUSE_PORT=8123
 CLICKHOUSE_USER=default
 CLICKHOUSE_PASSWORD=devpassword
 CLICKHOUSE_DATABASE=default
 CLICKHOUSE_SECURE=false
+
+# Parallel Web Systems (Partner Track Integration — Real-Time Search Grounding)
+PARALLEL_API_KEY=your_parallel_api_key_here
+
+# Grafana Labs (Partner Track Integration — Observability & MCP)
+GRAFANA_URL=https://your-stack.grafana.net
+GRAFANA_SERVICE_ACCOUNT_TOKEN=your_grafana_service_account_token_here
+
+# Supabase Storage (Persists Veo 3.1 Videos & Generated Audio)
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SECRET_KEY=your_supabase_secret_or_service_role_key
+
+# CORS & Runtime Environment
+ALLOWED_ORIGINS=["http://localhost:3000"]
+ENVIRONMENT=development
 ```
 
-Sync dependencies and start the FastAPI dev server:
+Sync dependencies and start the FastAPI development server:
 ```bash
 uv sync
 uv run uvicorn app.main:app --reload --port 8000
 ```
 - Interactive API Documentation: `http://localhost:8000/docs`
 - Health Check: `http://localhost:8000/health`
-- Studio Telemetry: `http://localhost:8000/metrics`
+- Studio Telemetry & Prometheus Metrics: `http://localhost:8000/metrics`
 
 ---
 
@@ -644,12 +665,14 @@ cd web
 cp .env.example .env
 ```
 
-Edit `web/.env` with your URLs and Supabase credentials:
+Edit `web/.env` with your backend endpoint and Supabase credentials:
 ```env
 AGENT_SERVICE_URL=http://localhost:8000
+
+# Supabase — App state persistence, project versioning, and auth
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_or_anon_key
+SUPABASE_SECRET_KEY=your_supabase_secret_or_service_role_key
 ```
 
 Install packages and run the Next.js development server:
@@ -691,21 +714,53 @@ docker compose --profile full up --build
 
 ## ⚙️ Environment Variables Reference
 
+### Google Cloud AI Platform (Required)
 | Variable | Scope | Description | Default |
 | :--- | :--- | :--- | :--- |
-| `GOOGLE_API_KEY` | Agent Service | Google Cloud GenAI API Key | *(Required)* |
-| `GEMINI_MODEL` | Agent Service | Primary Gemini model identifier | `gemini-3.7-flash` |
-| `GOOGLE_GENAI_USE_VERTEXAI` | Agent Service | Set `true` to authenticate via Vertex AI | `false` |
-| `CLICKHOUSE_HOST` | Agent Service | Hostname of ClickHouse server | `localhost` / `clickhouse` |
-| `CLICKHOUSE_PORT` | Agent Service | ClickHouse HTTP port | `8123` |
-| `CLICKHOUSE_USER` | Agent Service | ClickHouse username | `default` |
-| `CLICKHOUSE_PASSWORD` | Agent Service / Root | ClickHouse password | `devpassword` |
-| `CLICKHOUSE_DATABASE` | Agent Service | Database name | `default` |
-| `CLICKHOUSE_SECURE` | Agent Service | Enable SSL/TLS (set true for ClickHouse Cloud) | `false` |
-| `AGENT_SERVICE_URL` | Web App | URL to access Python sidecar | `http://localhost:8000` |
-| `NEXT_PUBLIC_SUPABASE_URL` | Web App | Supabase Project URL | *(Optional)* |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Web App | Supabase Anonymous Client Key | *(Optional)* |
-| `SUPABASE_SERVICE_ROLE_KEY` | Web App | Supabase Service Role Secret Key | *(Optional)* |
+| `GOOGLE_API_KEY` | Agent Service / Web | Google Cloud GenAI API Key for Gemini & Veo models | *(Required)* |
+| `GEMINI_MODEL` | Agent Service | Primary reasoning agent model identifier | `gemini-3.7-flash` |
+| `GOOGLE_GENAI_USE_VERTEXAI` | Agent Service | Set `true` to authenticate via Google Cloud Vertex AI | `false` |
+| `GOOGLE_CLOUD_PROJECT` | Agent Service | Google Cloud Project ID (when using Vertex AI) | *(Optional)* |
+| `GOOGLE_CLOUD_LOCATION` | Agent Service | Google Cloud Region (when using Vertex AI) | `us-central1` |
+
+### ClickHouse Database (Partner Track Centerpiece)
+| Variable | Scope | Description | Default |
+| :--- | :--- | :--- | :--- |
+| `CLICKHOUSE_HOST` | Agent Service | Hostname of ClickHouse server (local or Cloud) | `localhost` / `clickhouse` |
+| `CLICKHOUSE_PORT` | Agent Service | ClickHouse HTTP port (`8123` for local, `8443` for Cloud) | `8123` |
+| `CLICKHOUSE_USER` | Agent Service | ClickHouse database username | `default` |
+| `CLICKHOUSE_PASSWORD` | Agent Service / Root | ClickHouse password (required for HTTP auth) | `devpassword` |
+| `CLICKHOUSE_DATABASE` | Agent Service | ClickHouse database name | `default` |
+| `CLICKHOUSE_SECURE` | Agent Service | Enable TLS encryption (must be `true` for ClickHouse Cloud) | `false` |
+
+### Parallel Web Systems (Partner Track Integration)
+| Variable | Scope | Description | Default |
+| :--- | :--- | :--- | :--- |
+| `PARALLEL_API_KEY` | Agent Service | Parallel Web Systems Search API Key for real-time location scouting and municipal fee lookups | *(Required for live search)* |
+
+### Grafana Labs (Partner Track Integration)
+| Variable | Scope | Description | Default |
+| :--- | :--- | :--- | :--- |
+| `GRAFANA_URL` | Agent Service | Hosted Grafana instance URL for PromQL telemetry | `https://your-stack.grafana.net` |
+| `GRAFANA_SERVICE_ACCOUNT_TOKEN` | Agent Service | Service account token for official `mcp-grafana` server | *(Optional)* |
+
+### Supabase (State, Auth & Media Cloud Storage)
+| Variable | Scope | Description | Default |
+| :--- | :--- | :--- | :--- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Web App | Public Supabase project URL | *(Optional / Demo)* |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Web App | Modern Supabase publishable client API key | *(Optional / Demo)* |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Web App | Legacy Supabase anonymous client API key | *(Optional / Demo)* |
+| `SUPABASE_SECRET_KEY` | Web App / Agent Service | Supabase secret key / service role key for RLS bypass | *(Optional / Demo)* |
+| `SUPABASE_SERVICE_ROLE_KEY` | Web App | Legacy Supabase service role secret key | *(Optional / Demo)* |
+| `SUPABASE_URL` | Agent Service | Supabase project URL for persisting Veo videos to storage | *(Optional / Demo)* |
+
+### Networking & Runtime Environment
+| Variable | Scope | Description | Default |
+| :--- | :--- | :--- | :--- |
+| `AGENT_SERVICE_URL` | Web App | HTTP endpoint to access Python FastAPI backend sidecar | `http://localhost:8000` |
+| `ALLOWED_ORIGINS` | Agent Service | JSON array or comma-separated list of allowed CORS origins | `["http://localhost:3000"]` |
+| `ENVIRONMENT` | Agent Service | Runtime environment descriptor (`development` / `production`) | `development` |
+
 
 ---
 
