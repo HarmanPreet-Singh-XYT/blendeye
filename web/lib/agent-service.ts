@@ -77,11 +77,22 @@ async function getJson<TResponse>(
   return res.json() as Promise<TResponse>;
 }
 
+export interface HealthResponse {
+  status: string;
+  environment?: string;
+  [key: string]: unknown;
+}
+
+export function checkAgentHealth(timeoutMs: number = 15_000) {
+  return getJson<HealthResponse>("/health", timeoutMs);
+}
+
 export interface GenerateScriptResponse {
   screenplay_text: string;
 }
 
 export function generateScript(premise: string) {
+
   return postJson<GenerateScriptResponse>("/script/generate", { premise });
 }
 

@@ -224,6 +224,11 @@ export function StudioDashboard() {
     } catch {}
   }, [authLoading, user]);
 
+  // Pre-warm agent-service sidecar on dashboard load to mitigate cold starts
+  React.useEffect(() => {
+    fetch("/api/health").catch(() => {});
+  }, []);
+
   const handleOnboardingOpenChange = (nextOpen: boolean) => {
     setOnboardingOpen(nextOpen);
     if (!nextOpen) {

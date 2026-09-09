@@ -299,6 +299,13 @@ export default function StudioPage() {
     hasLocalEditRef.current = true;
   }, [scenes, activeSceneId, screenplayText]);
 
+  // Warm up agent-service sidecar on studio open to eliminate container/serverless cold starts
+  React.useEffect(() => {
+    fetch("/api/health").catch(() => {
+      // Non-blocking fire-and-forget ping to wake agent-service
+    });
+  }, []);
+
   // When logged in, hydrate from Supabase Cloud once at mount only — cloud is
   // the source of truth for authenticated users, but this must never fire
   // after the user starts editing (see hasLocalEditRef above), and must only
