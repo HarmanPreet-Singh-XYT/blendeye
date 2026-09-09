@@ -13,18 +13,20 @@ export async function GET(req: NextRequest) {
   try {
     const result = await getVideoStatus(operationName);
     if (result && result.status === "completed" && result.video_url) {
-      const { publicUrl } = await persistLocalMediaToBucket(result.video_url, {
-        name: `Veo Render: ${operationName.split("/").pop() || "Take"}`,
-        category: "video",
-        targetFolder: "videos",
-        mimeType: "video/mp4",
-        tags: ["veo-3.1", "video-take", "ai-generated"],
-        metadata: {
-          operationName,
-        },
-      });
-      if (publicUrl) {
-        result.video_url = publicUrl;
+      // If the agent service already pushed to Supabase (cloud URL), use it as-is.
+      // Only attempt local→Supabase migration for the dev-fallback /videos/ path.
+      if (!result.video_url.startsWith("http://") && !result.video_url.startsWith("https://")) {
+        const { publicUrl } = await persistLocalMediaToBucket(result.video_url, {
+          name: `Veo Render: ${operationName.split("/").pop() || "Take"}`,
+          category: "video",
+          targetFolder: "videos",
+          mimeType: "video/mp4",
+          tags: ["veo-3.1", "video-take", "ai-generated"],
+          metadata: { operationName },
+        });
+        if (publicUrl) {
+          result.video_url = publicUrl;
+        }
       }
     }
     return NextResponse.json(result);

@@ -8,6 +8,10 @@
   <strong>The Writers' Room That Knows What Your Characters Know.</strong><br>
   <em>Built for the <strong>Google Cloud Agentic Cinema Hackathon</strong> — ClickHouse Partner Track</em>
 </p>
+
+<p align="center">
+  🌐 <strong><a href="https://blendeye.harmanita.com">Live Demo — blendeye.harmanita.com</a></strong>
+</p>
 <br>
 
 [![Next.js](https://img.shields.io/badge/Next.js-16.3-black?logo=next.js)](https://nextjs.org/)
@@ -23,7 +27,8 @@
 
 ## 📽️ Table of Contents
 
-1. [Executive Overview](#-executive-overview)
+1. [Hackathon Submission Compliance](#-hackathon-submission-compliance) — see also [JUDGE_TESTING.md](JUDGE_TESTING.md)
+2. [Executive Overview](#-executive-overview)
 2. [Why BlendEye? (The Problem)](#-why-blendeye-the-problem)
 3. [System Architecture](#-system-architecture)
 4. [Key Features & Studio Modules](#-key-features--studio-modules)
@@ -47,6 +52,22 @@
 10. [Environment Variables Reference](#-environment-variables-reference)
 11. [Benchmark Productions](#-benchmark-productions)
 12. [License & Acknowledgments](#-license--acknowledgments)
+
+---
+
+## ✅ Hackathon Submission Compliance
+
+| Requirement | Status |
+| :--- | :--- |
+| **Hosted, publicly reachable project** | [blendeye.harmanita.com](https://blendeye.harmanita.com) |
+| **Google Cloud AI used at runtime** | `google-genai` + `google-adk` imported and called in `app/routers/media.py`, `app/services/video_sequencer.py`, `app/agents/*.py` — real `client.models.generate_content(...)` / `generate_videos(...)` calls, not just a model name in config |
+| **ClickHouse used at runtime via `mcp-clickhouse`** | `app/services/clickhouse_mcp.py` launches the official `mcp-clickhouse` server and attaches it as a live `McpToolset` to the Showrunner agent (`app/agents/showrunner.py`) — see [§ ClickHouse Integration](#-clickhouse-integration-partner-track-centerpiece) |
+| **ClickHouse Cloud / self-hosted cluster** | Production deployment connects to **ClickHouse Cloud** |
+| **Runs on web** | Next.js 16 App Router, deployed and reachable above |
+| **Open-source license detectable in repo root** | [MIT License](LICENSE) |
+| **No non-Google-Cloud AI vendor at runtime** | Only `google-genai` / `google-adk` are called by the running application; no other AI SDK is imported or invoked anywhere in the codebase |
+
+📋 **[Judge Testing Guide (JUDGE_TESTING.md)](JUDGE_TESTING.md)** — a 5-minute, step-by-step walkthrough to verify the ClickHouse time-gate mechanic and Google Cloud AI integrations live on the hosted deployment, no code reading required.
 
 ---
 
@@ -304,8 +325,30 @@ CREATE TABLE IF NOT EXISTS cinematic_precedents (
 ORDER BY (genre, trope);
 ```
 
-### 4. `mcp-clickhouse` Integration
-BlendEye includes both direct database connectivity via `clickhouse-connect` (for high-speed internal timeline queries) and official MCP protocol support via `mcp-clickhouse` (allowing Gemini/ADK agents to execute runtime analytical queries dynamically).
+### 4. `mcp-clickhouse` Integration (Runtime Agent Tool-Use)
+BlendEye uses ClickHouse through **two real, runtime-invoked paths** — not a README-only mention:
+
+- **Direct driver** (`clickhouse-connect`): `app/services/clickhouse_store.py` — the Story Event Engine's own reads/writes (timeline scrubbing, event sharding). This is application logic, not agent reasoning.
+- **Official MCP server** (`mcp-clickhouse`): `app/services/clickhouse_mcp.py` launches the official `mcp-clickhouse` console script as a stdio subprocess and wires it into Google ADK as an `McpToolset`. This toolset is attached directly to the **Showrunner agent** (`app/agents/showrunner.py`, `build_showrunner_agent`), so the agent can issue live, read-only ClickHouse queries as part of its own tool-calling loop mid-conversation — e.g. pulling `cinematic_precedents` rows to ground a script note in a real commercial comp — fulfilling the track's requirement that ClickHouse be used "via the official ClickHouse MCP server, connecting to a ClickHouse Cloud or self-hosted cluster" at runtime.
+
+```python
+# app/services/clickhouse_mcp.py
+from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
+from mcp import StdioServerParameters
+
+def build_clickhouse_toolset() -> McpToolset:
+    return McpToolset(
+        connection_params=StdioServerParameters(
+            command="mcp-clickhouse", args=[], env=env,
+        ),
+    )
+
+# app/agents/showrunner.py — attached to the live agent
+tools.append(build_clickhouse_toolset())
+Agent(..., tools=tools)
+```
+
+The production deployment connects to a **ClickHouse Cloud** cluster (not just local Docker), so both the direct-driver time-gate queries and the agent's MCP tool calls run against a real hosted instance at `blendeye.harmanita.com`.
 
 ### 5. Live Query Inspector & Telemetry
 The frontend includes a real-time **ClickHouse Query Inspector** modal displaying:

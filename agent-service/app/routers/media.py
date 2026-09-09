@@ -2,11 +2,14 @@ import base64
 import io
 import json
 import logging
+import os
 import re
 import uuid
 import wave
 from pathlib import Path
 from typing import Any
+
+import httpx
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
@@ -604,8 +607,51 @@ def dispatch_veo_generation(
     return op.name
 
 
+def _upload_bytes_to_supabase(video_bytes: bytes, filename: str) -> str | None:
+    """Upload raw video bytes directly to Supabase Storage via REST API.
+    Returns the public URL on success, or None if Supabase is not configured.
+    """
+    supabase_url = os.environ.get("SUPABASE_URL") or os.environ.get("NEXT_PUBLIC_SUPABASE_URL", "")
+    supabase_key = (
+        os.environ.get("SUPABASE_SECRET_KEY")
+        or os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+        or os.environ.get("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY")
+        or os.environ.get("NEXT_PUBLIC_SUPABASE_ANON_KEY", "")
+    )
+
+    if not supabase_url or not supabase_key:
+        logger.warning("[Veo] Supabase not configured in agent service — video will not be persisted to cloud")
+        return None
+
+    bucket = "cinema_assets"
+    storage_path = f"videos/{filename}"
+    upload_url = f"{supabase_url}/storage/v1/object/{bucket}/{storage_path}"
+
+    try:
+        with httpx.Client(timeout=120) as http:
+            resp = http.post(
+                upload_url,
+                content=video_bytes,
+                headers={
+                    "Authorization": f"Bearer {supabase_key}",
+                    "Content-Type": "video/mp4",
+                    "x-upsert": "true",
+                },
+            )
+            if resp.status_code in (200, 201):
+                public_url = f"{supabase_url}/storage/v1/object/public/{bucket}/{storage_path}"
+                logger.info("[Veo] Uploaded %s to Supabase: %s", filename, public_url)
+                return public_url
+            else:
+                logger.error("[Veo] Supabase upload failed (%s): %s", resp.status_code, resp.text[:300])
+                return None
+    except Exception as exc:
+        logger.error("[Veo] Supabase upload exception: %s", exc)
+        return None
+
+
 def poll_veo_operation(client: "genai.Client", operation_name: str) -> dict[str, Any]:
-    """Single poll of a Veo operation; downloads+saves the video on completion.
+    """Single poll of a Veo operation; downloads video bytes and pushes to Supabase on completion.
     Shared synchronous core behind both the HTTP status endpoint and the
     sequencer's internal polling loop.
     """
@@ -628,17 +674,35 @@ def poll_veo_operation(client: "genai.Client", operation_name: str) -> dict[str,
             videos = op.response.generated_videos
             if videos and len(videos) > 0:
                 try:
-                    target_dir = Path(__file__).resolve().parent.parent.parent.parent / "web" / "public" / "videos"
-                    target_dir.mkdir(parents=True, exist_ok=True)
                     file_id = uuid.uuid4().hex[:12]
                     filename = f"veo_{file_id}.mp4"
-                    target_path = target_dir / filename
 
-                    client.files.download(file=videos[0].video, destination=str(target_path))
-                    if target_path.exists() and target_path.stat().st_size > 0:
-                        video_url = f"/videos/{filename}"
+                    # Download bytes into memory — no disk write needed
+                    buf = io.BytesIO()
+                    client.files.download(file=videos[0].video, destination=buf)
+                    video_bytes = buf.getvalue()
+
+                    if not video_bytes:
+                        raise RuntimeError("Veo download returned empty buffer")
+
+                    # Try Supabase first (works on Vercel / any serverless deploy)
+                    cloud_url = _upload_bytes_to_supabase(video_bytes, filename)
+                    if cloud_url:
+                        video_url = cloud_url
+                    else:
+                        # Fallback: write to local disk only if running locally
+                        try:
+                            target_dir = Path(__file__).resolve().parent.parent.parent.parent / "web" / "public" / "videos"
+                            target_dir.mkdir(parents=True, exist_ok=True)
+                            target_path = target_dir / filename
+                            target_path.write_bytes(video_bytes)
+                            video_url = f"/videos/{filename}"
+                            logger.info("[Veo] Saved locally (no Supabase): %s", video_url)
+                        except OSError as write_err:
+                            logger.error("[Veo] Local disk write also failed: %s", write_err)
+
                 except Exception as dl_err:
-                    logger.error("Could not stream Veo file to disk: %s", dl_err)
+                    logger.error("Could not retrieve Veo video: %s", dl_err)
                     return {
                         "status": "error",
                         "error": f"Video finished rendering but could not be retrieved: {dl_err}",
@@ -885,16 +949,26 @@ async def generate_music(req: GenerateMusicRequest):
                 )
 
             if audio_bytes:
-                # Save physically to web/public/audio/scores/ for persistent static asset serving
-                target_dir = Path(__file__).resolve().parent.parent.parent.parent / "web" / "public" / "audio" / "scores"
-                target_dir.mkdir(parents=True, exist_ok=True)
                 file_id = uuid.uuid4().hex[:12]
                 ext = "mp3" if "mp3" in audio_mime or "mpeg" in audio_mime else "wav"
                 filename = f"score_{file_id}.{ext}"
-                target_path = target_dir / filename
-                target_path.write_bytes(audio_bytes)
+                mime_for_upload = "audio/mpeg" if ext == "mp3" else "audio/wav"
 
-                audio_url = f"/audio/scores/{filename}"
+                # Try Supabase first (Vercel-safe, no disk needed)
+                cloud_url = _upload_bytes_to_supabase(audio_bytes, filename)
+                if cloud_url:
+                    audio_url = cloud_url
+                else:
+                    # Local dev fallback
+                    try:
+                        target_dir = Path(__file__).resolve().parent.parent.parent.parent / "web" / "public" / "audio" / "scores"
+                        target_dir.mkdir(parents=True, exist_ok=True)
+                        (target_dir / filename).write_bytes(audio_bytes)
+                        audio_url = f"/audio/scores/{filename}"
+                    except OSError:
+                        b64 = base64.b64encode(audio_bytes).decode("utf-8")
+                        audio_url = f"data:{mime_for_upload};base64,{b64}"
+
                 return GenerateMusicResponse(
                     audio_url=audio_url,
                     prompt=req.prompt,
@@ -910,16 +984,23 @@ async def generate_music(req: GenerateMusicRequest):
     # High-quality cinematic fallback ambient score
     logger.info("Providing synthetic cinematic ambient score fallback.")
     fallback_wav = _create_cinematic_fallback_score(duration_sec=min(target_duration, 30.0 if resolved_duration_mode == "clip" else 180.0))
-    target_dir = Path(__file__).resolve().parent.parent.parent.parent / "web" / "public" / "audio" / "scores"
-    target_dir.mkdir(parents=True, exist_ok=True)
     file_id = uuid.uuid4().hex[:12]
     filename = f"score_fallback_{file_id}.wav"
-    target_path = target_dir / filename
-    target_path.write_bytes(fallback_wav)
 
-    b64_wav = base64.b64encode(fallback_wav).decode("utf-8")
-    data_uri = f"data:audio/wav;base64,{b64_wav}"
-    audio_url = f"/audio/scores/{filename}" if target_path.exists() else data_uri
+    # Try Supabase first (Vercel-safe)
+    cloud_url = _upload_bytes_to_supabase(fallback_wav, filename)
+    if cloud_url:
+        audio_url = cloud_url
+    else:
+        # Local dev fallback
+        try:
+            target_dir = Path(__file__).resolve().parent.parent.parent.parent / "web" / "public" / "audio" / "scores"
+            target_dir.mkdir(parents=True, exist_ok=True)
+            (target_dir / filename).write_bytes(fallback_wav)
+            audio_url = f"/audio/scores/{filename}"
+        except OSError:
+            b64_wav = base64.b64encode(fallback_wav).decode("utf-8")
+            audio_url = f"data:audio/wav;base64,{b64_wav}"
 
     return GenerateMusicResponse(
         audio_url=audio_url,

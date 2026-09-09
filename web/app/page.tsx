@@ -88,7 +88,7 @@ export default function FilmHubLandingPage() {
 
       saveProject(project);
       setNewProjectOpen(false);
-      router.push(`/studio/${project.id}`);
+      router.push(`/studio/${project.id}?pipeline=1`);
     } catch (err) {
       console.error("Failed to create project:", err);
     } finally {

@@ -274,7 +274,7 @@ export function StudioDashboard() {
 
       saveProject(project);
       refreshProjects();
-      router.push(`/studio/${project.id}`);
+      router.push(`/studio/${project.id}?pipeline=1`);
       // Keep the dialog + loading overlay mounted through navigation so the
       // user isn't left staring at a blank dashboard while the studio route loads.
     } catch (err) {
