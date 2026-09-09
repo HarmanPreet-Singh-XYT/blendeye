@@ -269,6 +269,13 @@ export default function StudioPage() {
     const norm = ensureProjectScenes(initialProject);
     return norm.activeSceneId || norm.scenes?.[0]?.id || "vault-sc-03";
   });
+  // Tracks the live active scene so long-running async work (e.g. runFullPipeline)
+  // can tell whether the user has since navigated away, instead of relying on
+  // a stale closure over activeSceneId captured before any await.
+  const activeSceneIdRef = React.useRef<string>(activeSceneId);
+  React.useEffect(() => {
+    activeSceneIdRef.current = activeSceneId;
+  }, [activeSceneId]);
 
   const [projectSettingsOpen, setProjectSettingsOpen] = React.useState(false);
   const [sceneSettingsOpen, setSceneSettingsOpen] = React.useState(false);
@@ -281,34 +288,6 @@ export default function StudioPage() {
   React.useEffect(() => {
     setAllProjects(getAllProjects());
   }, [projectId]);
-
-  // When logged in, hydrate the authoritative project directly from Supabase Cloud
-  React.useEffect(() => {
-    if (!rawProjectId) return;
-    const uid = getActiveUserId();
-    const token = getActiveAuthToken();
-    if (!uid || !token) return;
-
-    fetch(`/api/projects/${encodeURIComponent(rawProjectId)}`, {
-      headers: getAuthHeaders(),
-    })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.project) {
-          const cloudProj = ensureProjectScenes(data.project);
-          saveProject(cloudProj);
-          setAllProjects(getAllProjects());
-          if (cloudProj.scenes && cloudProj.scenes.length > 0) {
-            setScenes(cloudProj.scenes);
-            scenesRef.current = cloudProj.scenes;
-          }
-          if (cloudProj.activeSceneId) {
-            setActiveSceneId(cloudProj.activeSceneId);
-          }
-        }
-      })
-      .catch((e) => console.warn("[StudioPage] Cloud project sync note:", e));
-  }, [rawProjectId]);
 
   // Ref to hold nodeCallbacks for effects running before/during state initialization
   const nodeCallbacksRef = React.useRef<NodeCallbacks>({});
@@ -1129,6 +1108,14 @@ export default function StudioPage() {
     setIsGenerating(true);
     const controller = new AbortController();
     pipelineAbortRef.current = controller;
+    // Capture the scene this pipeline is generating for once, up front.
+    // Never re-derive it from live activeSceneId/scenes state later in this
+    // function — the user may navigate to a different scene while the
+    // pipeline (several awaited network calls) is still running, and this
+    // function must only ever write into the scene it started generating
+    // for, and must never force-navigate the UI away from wherever the
+    // user has since gone.
+    const pipelineTargetSceneId = activeSceneIdRef.current;
     try {
       setGenerationStage("Drafting Master Screenplay (Gemini 3.7 Flash)...");
       let enrichedPremise = premise;
@@ -1194,11 +1181,11 @@ export default function StudioPage() {
             if (Array.isArray(genData.scenes) && genData.scenes.length > 0) {
               currentScenes = genData.scenes;
               setScenes(genData.scenes);
-              const firstSc = genData.scenes[0];
-              setActiveSceneId(firstSc.id);
-              setSceneTitle(firstSc.title);
-              setSceneSummary(firstSc.summary);
-              setScreenplayText(firstSc.screenplayText);
+              scenesRef.current = genData.scenes;
+              // Do not force-navigate via setActiveSceneId/setSceneTitle/etc here —
+              // this pipeline may still be running after the user has already
+              // navigated elsewhere, and this step only needs to update the
+              // underlying scenes array, not steer the UI.
               if (Array.isArray(genData.characters) && genData.characters.length > 0) {
                 setCharacters(genData.characters);
               }
@@ -1231,7 +1218,9 @@ export default function StudioPage() {
         }
         const scriptData = await scriptRes.json();
         generatedScript = scriptData.screenplay_text;
-        setScreenplayText(generatedScript);
+        if (activeSceneIdRef.current === pipelineTargetSceneId) {
+          setScreenplayText(generatedScript);
+        }
       } else {
         generatedScript = currentScenes
           .map(
@@ -1259,8 +1248,10 @@ export default function StudioPage() {
 
       const newSceneTitle = shardData.scene_title || `${projectTitle} — Scene 01`;
       const newSceneSummary = shardData.scene_summary || premise;
-      setSceneTitle(newSceneTitle);
-      setSceneSummary(newSceneSummary);
+      if (activeSceneIdRef.current === pipelineTargetSceneId) {
+        setSceneTitle(newSceneTitle);
+        setSceneSummary(newSceneSummary);
+      }
 
       let newCharacters: ProjectCharacter[] = characters;
       if (Array.isArray(shardData.characters) && shardData.characters.length > 0) {
@@ -1310,7 +1301,12 @@ export default function StudioPage() {
       await fetchProjectEvents(pid);
 
       const baseScenes = currentScenes.length > 0 ? currentScenes : (scenesRef.current.length > 0 ? scenesRef.current : (existingProject.scenes || []));
-      const effectiveActiveId = activeSceneId && baseScenes.some((s) => s.id === activeSceneId) ? activeSceneId : (baseScenes[0]?.id || "");
+      // Write generated content into the scene this pipeline was started for,
+      // captured before any await — never the live/current activeSceneId,
+      // which may have changed while this pipeline was running.
+      const effectiveActiveId = baseScenes.some((s) => s.id === pipelineTargetSceneId)
+        ? pipelineTargetSceneId
+        : (baseScenes[0]?.id || "");
       const nextScenes = baseScenes.map((sc: FilmScene) =>
         sc.id === effectiveActiveId
           ? {
@@ -1324,7 +1320,6 @@ export default function StudioPage() {
       );
       setScenes(nextScenes);
       scenesRef.current = nextScenes;
-      setActiveSceneId(effectiveActiveId);
 
       const updatedProject: ProjectData = {
         ...existingProject,
@@ -1353,7 +1348,12 @@ export default function StudioPage() {
       };
 
       saveProject(updatedProject);
-      syncGraphWithProject(updatedProject);
+      // Only touch the visible node/edge graph if the user is still on the
+      // scene this pipeline generated for — otherwise this would overwrite
+      // whatever scene's graph they've since navigated to.
+      if (activeSceneIdRef.current === pipelineTargetSceneId) {
+        syncGraphWithProject(updatedProject);
+      }
       setAllProjects(getAllProjects());
       setMainTab("planning");
 
