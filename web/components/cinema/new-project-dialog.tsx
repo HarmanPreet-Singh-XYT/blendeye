@@ -343,8 +343,8 @@ export function NewProjectDialog({
     setIsGeneratingVisual(true);
     try {
       const facePrompt = `Cinematic 85mm character portrait close-up headshot of ${activeChar.name}. ${
-        activeChar.actorComp ? `Likeness resembling ${activeChar.actorComp}. ` : ""
-      }${activeChar.visualDescription || activeChar.archetype}. 35mm anamorphic film still, dramatic chiaroscuro rim lighting, photorealistic.`;
+        activeChar.visualDescription || activeChar.archetype
+      }. 35mm anamorphic film still, dramatic chiaroscuro rim lighting, sharp bone structure, photorealistic.`;
 
       const res = await fetch("/api/media/image", {
         method: "POST",
@@ -432,13 +432,40 @@ export function NewProjectDialog({
       sceneDurationSeconds,
       totalScenesEstimate: NARRATIVE_FORMATS[narrativeFormat]?.typicalScenes || 24,
     });
-
-    onOpenChange(false);
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (isSubmitting) return;
+        onOpenChange(next);
+      }}
+    >
       <DialogContent className="max-w-5xl w-[94vw] h-[88vh] max-h-[90vh] bg-[#0c0d12] border-border/80 p-0 overflow-hidden shadow-2xl flex flex-col rounded-2xl sm:rounded-3xl">
+        {/* Full-screen loading overlay when autonomous showrunner is architecting sequence */}
+        {isSubmitting && (
+          <div className="absolute inset-0 z-50 bg-background/90 backdrop-blur-md flex flex-col items-center justify-center p-8 text-center animate-in fade-in-0 duration-200">
+            <div className="relative mb-6">
+              <div className="h-16 w-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-xl shadow-emerald-500/10">
+                <RefreshCw className="h-8 w-8 animate-spin" />
+              </div>
+              <div className="absolute -bottom-1 -right-1 h-6 w-6 rounded-full bg-accent flex items-center justify-center text-accent-foreground shadow-md">
+                <Sparkles className="h-3.5 w-3.5" />
+              </div>
+            </div>
+            <h3 className="text-xl font-heading font-bold text-foreground mb-2">
+              Architecting Production Slate
+            </h3>
+            <p className="text-sm text-muted-foreground max-w-md leading-relaxed font-sans mb-4">
+              Autonomous Showrunner AI is generating multi-scene sequence reel, cast psychological profiles, and dramatic story beats...
+            </p>
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-border/60 bg-secondary/30 text-[11px] font-mono text-muted-foreground">
+              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span>Gemini 3.7 Flash · Showrunner Engine Active</span>
+            </div>
+          </div>
+        )}
         {/* Header with Step Wizard Indicator */}
         <div className="border-b border-border/70 bg-[#10121a] p-6 pb-4 shrink-0">
           <div className="flex items-center justify-between mb-2">

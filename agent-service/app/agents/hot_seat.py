@@ -13,6 +13,8 @@ are meaningfully different agents, not the same agent with updated state.
 
 from __future__ import annotations
 
+import re
+
 from google.adk import Agent
 from pydantic import BaseModel, Field
 
@@ -71,8 +73,10 @@ def build_hot_seat_agent(
     6. CONCISE: Respond in 1-3 crisp, natural dialogue sentences. No long speeches or essays.
     """
 
+    safe_name = re.sub(r"[^a-zA-Z0-9_]", "_", state.character_name.lower()).strip("_") or "character"
+    safe_time = re.sub(r"[^a-zA-Z0-9_]", "", state.current_timestamp)
     return Agent(
-        name=f"hotseat_{state.character_name.lower().replace(' ', '_')}_{state.current_timestamp.replace(':', '')}",
+        name=f"hotseat_{safe_name}_{safe_time}",
         model=settings.gemini_model,
         instruction=instruction,
     )

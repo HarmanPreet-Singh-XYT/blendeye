@@ -127,7 +127,7 @@ Return strictly valid JSON matching this schema:
           generationConfig: {
             temperature: 0.7,
             responseMimeType: "application/json",
-            maxOutputTokens: 4096,
+            maxOutputTokens: 65536,
           },
         }),
       });

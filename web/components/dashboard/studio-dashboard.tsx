@@ -274,11 +274,11 @@ export function StudioDashboard() {
 
       saveProject(project);
       refreshProjects();
-      setNewProjectOpen(false);
       router.push(`/studio/${project.id}`);
+      // Keep the dialog + loading overlay mounted through navigation so the
+      // user isn't left staring at a blank dashboard while the studio route loads.
     } catch (err) {
       console.error("Failed to create project:", err);
-    } finally {
       setIsGeneratingProject(false);
     }
   };

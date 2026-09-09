@@ -101,6 +101,16 @@ export interface LocationScoutData {
   };
 }
 
+export interface FloorPlanMapConfig {
+  opacity?: number;
+  scale?: number;
+  offsetX?: number;
+  offsetY?: number;
+  rotation?: number;
+  invert?: boolean;
+  showGrid?: boolean;
+}
+
 export interface FloorPlanViewProps {
   sceneTitle: string;
   characters?: Array<{ name: string; archetype?: string }>;
@@ -110,6 +120,9 @@ export interface FloorPlanViewProps {
   className?: string;
   initialMapUrl?: string | null;
   initialMapName?: string;
+  initialMapConfig?: FloorPlanMapConfig;
+  onMapChange?: (mapUrl: string | null, mapName?: string) => void;
+  onMapConfigChange?: (config: FloorPlanMapConfig) => void;
   onSendToVeo?: (camData: {
     camName: string;
     lens: string;
@@ -614,6 +627,9 @@ export function FloorPlanView({
   className,
   initialMapUrl,
   initialMapName,
+  initialMapConfig,
+  onMapChange,
+  onMapConfigChange,
   onSendToVeo,
 }: FloorPlanViewProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -636,23 +652,65 @@ export function FloorPlanView({
   const [mapName, setMapName] = React.useState<string>(
     initialMapName || "No Map Loaded"
   );
-  const [mapOpacity, setMapOpacity] = React.useState<number>(0.55);
-  const [mapScale, setMapScale] = React.useState<number>(1.0);
-  const [mapOffsetX, setMapOffsetX] = React.useState<number>(0);
-  const [mapOffsetY, setMapOffsetY] = React.useState<number>(0);
-  const [mapRotation, setMapRotation] = React.useState<number>(0);
-  const [mapInvert, setMapInvert] = React.useState<boolean>(false);
-  const [showGrid, setShowGrid] = React.useState<boolean>(true);
+  const [mapOpacity, setMapOpacity] = React.useState<number>(
+    initialMapConfig?.opacity ?? 0.55
+  );
+  const [mapScale, setMapScale] = React.useState<number>(
+    initialMapConfig?.scale ?? 1.0
+  );
+  const [mapOffsetX, setMapOffsetX] = React.useState<number>(
+    initialMapConfig?.offsetX ?? 0
+  );
+  const [mapOffsetY, setMapOffsetY] = React.useState<number>(
+    initialMapConfig?.offsetY ?? 0
+  );
+  const [mapRotation, setMapRotation] = React.useState<number>(
+    initialMapConfig?.rotation ?? 0
+  );
+  const [mapInvert, setMapInvert] = React.useState<boolean>(
+    initialMapConfig?.invert ?? false
+  );
+  const [showGrid, setShowGrid] = React.useState<boolean>(
+    initialMapConfig?.showGrid ?? true
+  );
   const [showMapControls, setShowMapControls] = React.useState<boolean>(false);
   const [isAssetPickerOpen, setIsAssetPickerOpen] = React.useState<boolean>(false);
 
-  // Sync if initialMapUrl updates externally
+  // Sync if initialMapUrl or initialMapConfig updates externally
   React.useEffect(() => {
     if (initialMapUrl !== undefined) {
       setMapUrl(initialMapUrl);
       if (initialMapName) setMapName(initialMapName);
     }
   }, [initialMapUrl, initialMapName]);
+
+  React.useEffect(() => {
+    if (initialMapConfig) {
+      if (initialMapConfig.opacity !== undefined) setMapOpacity(initialMapConfig.opacity);
+      if (initialMapConfig.scale !== undefined) setMapScale(initialMapConfig.scale);
+      if (initialMapConfig.offsetX !== undefined) setMapOffsetX(initialMapConfig.offsetX);
+      if (initialMapConfig.offsetY !== undefined) setMapOffsetY(initialMapConfig.offsetY);
+      if (initialMapConfig.rotation !== undefined) setMapRotation(initialMapConfig.rotation);
+      if (initialMapConfig.invert !== undefined) setMapInvert(initialMapConfig.invert);
+      if (initialMapConfig.showGrid !== undefined) setShowGrid(initialMapConfig.showGrid);
+    }
+  }, [initialMapConfig]);
+
+  // Notify parent of control updates
+  const updateMapControls = React.useCallback(
+    (updates: Partial<FloorPlanMapConfig>) => {
+      onMapConfigChange?.({
+        opacity: updates.opacity !== undefined ? updates.opacity : mapOpacity,
+        scale: updates.scale !== undefined ? updates.scale : mapScale,
+        offsetX: updates.offsetX !== undefined ? updates.offsetX : mapOffsetX,
+        offsetY: updates.offsetY !== undefined ? updates.offsetY : mapOffsetY,
+        rotation: updates.rotation !== undefined ? updates.rotation : mapRotation,
+        invert: updates.invert !== undefined ? updates.invert : mapInvert,
+        showGrid: updates.showGrid !== undefined ? updates.showGrid : showGrid,
+      });
+    },
+    [mapOpacity, mapScale, mapOffsetX, mapOffsetY, mapRotation, mapInvert, showGrid, onMapConfigChange]
+  );
 
   // Autonomous Shot List State
   const [shotlistData, setShotlistData] = React.useState<ShotlistResponse | null>(null);
@@ -1333,6 +1391,7 @@ export function FloorPlanView({
                   onClick={() => {
                     setMapUrl(null);
                     setMapName("None");
+                    onMapChange?.(null, undefined);
                   }}
                   className="h-7 text-xs text-muted-foreground hover:text-destructive cursor-pointer"
                 >
@@ -1379,6 +1438,7 @@ export function FloorPlanView({
                         onClick={() => {
                           setMapUrl(null);
                           setMapName("No Map Loaded");
+                          onMapChange?.(null, undefined);
                         }}
                         className="h-6 text-[10px] text-destructive hover:bg-destructive/20 px-2 cursor-pointer"
                       >
@@ -1418,7 +1478,11 @@ export function FloorPlanView({
                   max="1.0"
                   step="0.05"
                   value={mapOpacity}
-                  onChange={(e) => setMapOpacity(parseFloat(e.target.value))}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    setMapOpacity(val);
+                    updateMapControls({ opacity: val });
+                  }}
                   className="w-full accent-accent h-1.5 bg-secondary rounded cursor-pointer"
                 />
               </div>
@@ -1434,7 +1498,11 @@ export function FloorPlanView({
                   max="2.5"
                   step="0.05"
                   value={mapScale}
-                  onChange={(e) => setMapScale(parseFloat(e.target.value))}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    setMapScale(val);
+                    updateMapControls({ scale: val });
+                  }}
                   className="w-full accent-accent h-1.5 bg-secondary rounded cursor-pointer"
                 />
               </div>
@@ -1453,7 +1521,11 @@ export function FloorPlanView({
                   max="150"
                   step="5"
                   value={mapOffsetX}
-                  onChange={(e) => setMapOffsetX(parseInt(e.target.value))}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    setMapOffsetX(val);
+                    updateMapControls({ offsetX: val });
+                  }}
                   className="w-full accent-accent h-1.5 bg-secondary rounded cursor-pointer"
                 />
               </div>
@@ -1469,7 +1541,11 @@ export function FloorPlanView({
                   max="150"
                   step="5"
                   value={mapOffsetY}
-                  onChange={(e) => setMapOffsetY(parseInt(e.target.value))}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    setMapOffsetY(val);
+                    updateMapControls({ offsetY: val });
+                  }}
                   className="w-full accent-accent h-1.5 bg-secondary rounded cursor-pointer"
                 />
               </div>
@@ -1481,7 +1557,11 @@ export function FloorPlanView({
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => setMapRotation((prev) => (prev + 90) % 360)}
+                  onClick={() => {
+                    const nextRot = (mapRotation + 90) % 360;
+                    setMapRotation(nextRot);
+                    updateMapControls({ rotation: nextRot });
+                  }}
                   className="h-7 text-xs gap-1 cursor-pointer"
                   title="Rotate Blueprint 90 degrees"
                 >
@@ -1492,7 +1572,11 @@ export function FloorPlanView({
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => setMapInvert(!mapInvert)}
+                  onClick={() => {
+                    const nextInvert = !mapInvert;
+                    setMapInvert(nextInvert);
+                    updateMapControls({ invert: nextInvert });
+                  }}
                   className={`h-7 text-xs gap-1 cursor-pointer ${
                     mapInvert ? "bg-accent/20 text-accent border-accent/40" : "text-muted-foreground"
                   }`}
@@ -1507,7 +1591,11 @@ export function FloorPlanView({
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => setShowGrid(!showGrid)}
+                  onClick={() => {
+                    const nextGrid = !showGrid;
+                    setShowGrid(nextGrid);
+                    updateMapControls({ showGrid: nextGrid });
+                  }}
                   className={`h-7 text-xs gap-1 cursor-pointer ${
                     showGrid ? "text-foreground" : "text-muted-foreground line-through"
                   }`}
@@ -1524,6 +1612,12 @@ export function FloorPlanView({
                     setMapOffsetX(0);
                     setMapOffsetY(0);
                     setMapRotation(0);
+                    updateMapControls({
+                      scale: 1.0,
+                      offsetX: 0,
+                      offsetY: 0,
+                      rotation: 0,
+                    });
                   }}
                   className="h-7 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
                 >
@@ -2562,6 +2656,7 @@ export function FloorPlanView({
           setMapUrl(asset.url);
           setMapName(asset.name);
           setShowMapControls(true);
+          onMapChange?.(asset.url, asset.name);
         }}
       />
     </div>

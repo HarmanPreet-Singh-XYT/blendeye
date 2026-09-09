@@ -26,28 +26,16 @@ interface ProductionSlate {
 
 const FEATURED_SLATES: ProductionSlate[] = [
   {
-    id: "vault-heist-demo",
-    title: "The Vault Heist",
-    genre: "Heist / Crime Thriller",
-    runtime: "90 Min Feature",
-    imageSrc: "/cinema/vault_heist.jpg",
-    characters: ["Marcus", "Elena", "Teo"],
-    logline: "A heist crew breaches an underground bank vault, but Marcus discovers the exit bypass keys are missing while Elena conceals a syndicate deal.",
-    hook: "Scrub to 00:34:00 to ask Marcus who has the keys (he defends his ignorance). Scrub to 00:52:00 to hear his furious reaction when Elena's betrayal is revealed.",
+    id: "aethelgard-chronos-shift",
+    title: "Aethelgard: The Chronos Shift",
+    genre: "Cosmic Sci-Fi / Space Opera",
+    runtime: "140 Min Feature",
+    imageSrc: "/cinema/scenes/scene_1_storyboard_accretion.jpg",
+    characters: ["Julian Ross", "Dr. Maya Lin", "AURA-9"],
+    logline: "An aging telemetry pilot and an astrophysicist enter the event horizon of a micro-singularity, where every 10 minutes costs 3 Earth years, only to receive a distress signal from their own future ship.",
+    hook: "Scrub to 00:40:00 to hear Julian discover his own voice on the future black-box transmission. Interrogate Maya in the Hot Seat about why she concealed the temporal frame-dragging.",
     badge: "Benchmark Demo",
     badgeVariant: "border-accent/40 bg-accent/15 text-accent",
-  },
-  {
-    id: "space-airlock-demo",
-    title: "Deep Space Airlock",
-    genre: "Sci-Fi / Space Horror",
-    runtime: "90 Min Feature",
-    imageSrc: "/cinema/space_airlock.jpg",
-    characters: ["Commander Vance", "Engineer Ray"],
-    logline: "Oxygen pressure drops in Module 4. Vance discovers the manual purge valve was overridden from inside the chamber.",
-    hook: "At 00:22:00 Ray hides his infection outbreak. At 00:45:00 the station flight telemetry confirms the override codes.",
-    badge: "Sci-Fi Chamber",
-    badgeVariant: "border-warning/40 bg-warning/15 text-warning",
   },
   {
     id: "custom-slate",
@@ -92,7 +80,7 @@ export function FeaturedSlatesShowcase({ onOpenNewProject }: { onOpenNewProject:
       </div>
 
       {/* Slates Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl">
         {FEATURED_SLATES.map((slate) => (
           <div
             key={slate.id}

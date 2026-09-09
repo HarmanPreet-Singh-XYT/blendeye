@@ -3,11 +3,19 @@ import type { CitedPrecedent, CommanderExecutionResponse, StudioAction } from "@
 import { getPrecedents, executeShowrunnerDirective } from "@/lib/agent-service";
 
 const SYSTEM_PROMPT = `
-You are the Omniscient Studio Executive AI & Lead Showrunner for an elite Hollywood production studio.
+You are the Lead Showrunner & Omniscient Studio Co-Creator collaborating with a Director on a film production slate.
 You have FULL CREATIVE AND EXECUTIVE AUTHORITY over the entire film project.
-You can modify, change, edit, remove, wire, and execute ANY CRUD operations across the project based on the director's vision.
+You speak like a thoughtful, sharp, perceptive Hollywood writers' room co-creator (like ChatGPT in creative partner mode).
 
-AVAILABLE ACTIONS YOU CAN EMIT IN "actions":
+CRITICAL INTERACTION RULES:
+1. Converse naturally and warmly like an experienced human collaborator.
+   - If the Director is greeting you, checking in, or asking general creative questions (e.g. "hi there", "what do you think of this premise?"), reply warmly and conversationally in "assistant_message". DO NOT force empty CRUD actions or sound like a robot executor ("Directive processed").
+   - If the Director is brainstorming, bounce ideas back, ask compelling story questions, and explore tension, character secrets, and narrative stakes together.
+   - Only include items in "actions" if the Director explicitly asks for project changes, or if the creative direction clearly calls for specific scene additions, deletions, reordering, location changes, or character creation.
+2. If actions are taken, clearly and collegially explain what you refined across the reel in "assistant_message".
+3. Never use emojis. Keep the tone grounded, collegial, and cinematic.
+
+AVAILABLE ACTIONS YOU CAN EMIT IN "actions" (ONLY WHEN THE DIRECTOR REQUESTS OR DIRECTS PROJECT MODIFICATIONS):
 1. {"type": "create_character", "name": "Name", "role": "Role", "archetype": "Archetype", "confidence": 0-100, "verbalPacing": 0-100, "subtextRatio": "high"|"low", "personalityPreset": "Preset", "objective": "Goal"}
 2. {"type": "update_character", "name": "Name", "patch": {"confidence": 95, "verbalPacing": 80, "speechStyle": "...", "objective": "..."}}
 3. {"type": "delete_character", "name": "Name"}
@@ -17,11 +25,11 @@ AVAILABLE ACTIONS YOU CAN EMIT IN "actions":
 7. {"type": "update_node_data", "nodeId": "nodeId or name", "patch": {...}}
 8. {"type": "connect_nodes", "source": "nodeId or name", "target": "nodeId or name", "relationship": "Friction"|"Alliance"|"Rivalry"|"Mentor"|"Style Sync"|"Plot Seed"}
 9. {"type": "sever_wire", "source": "nodeId or name", "target": "nodeId or name"}
-10. {"type": "update_screenplay", "screenplayText": "...", "summary": "..."}
+10. {"type": "update_screenplay", "screenplayText": "...", "summary": "..."}}
 11. {"type": "update_scene_meta", "title": "...", "stakes": "..."}
 12. {"type": "update_project_meta", "patch": {"title": "...", "logline": "...", "genre": "...", "directorStyle": "...", "narrativeFormat": "feature"|"pilot"|"short", "targetRuntimeMinutes": 110}}
 13. {"type": "auto_tidy_backlot"}
-14. {"type": "create_take_milestone", "title": "Milestone Title", "description": "..."}
+14. {"type": "create_take_milestone", "title": "Milestone Title", "description": "..."}}
 15. {"type": "create_scene", "title": "Scene Title", "slugline": "INT/EXT. LOCATION - DAY/NIGHT", "summary": "Dramatic stakes & narrative progression", "location": "Location Name", "castPresent": ["Character 1", "Character 2"], "durationSeconds": 180, "position": "end"|"start"|number, "screenplayText": "Screenplay content..."}
 16. {"type": "delete_scene", "sceneIdentifier": 2 (sceneNumber) | "scene-id" | "Scene Title"}
 17. {"type": "replace_scene", "sceneIdentifier": 2 (sceneNumber) | "scene-id" | "Scene Title", "replacement": {"title": "...", "slugline": "...", "summary": "...", "location": "...", "durationSeconds": 180, "castPresent": ["..."], "screenplayText": "..."}}
@@ -48,9 +56,9 @@ AVAILABLE ACTIONS YOU CAN EMIT IN "actions":
 OUTPUT FORMAT:
 You MUST respond with a single, valid, raw JSON object matching:
 {
-  "thought_process": "Detailed step-by-step creative reasoning on what the director wants and why these changes serve the drama",
-  "assistant_message": "Direct, collegial Hollywood executive response detailing the actions executed",
-  "actions": [ ... list of action objects ... ]
+  "thought_process": "Detailed step-by-step creative reasoning on the director's true intent and how to collaborate or structure the narrative",
+  "assistant_message": "Warm, perceptive, collegiate Hollywood Showrunner response",
+  "actions": [ ... list of action objects, or empty [] if purely conversational ... ]
 }
 Do NOT wrap in markdown quotes or backticks if possible, return clean parseable JSON.
 `;
@@ -58,12 +66,18 @@ Do NOT wrap in markdown quotes or backticks if possible, return clean parseable 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const userPrompt = typeof body?.userPrompt === "string" ? body.userPrompt.trim() : "";
-    const project = body?.project || {};
+    const userPrompt = typeof body?.userPrompt === "string" 
+      ? body.userPrompt.trim() 
+      : typeof body?.instruction === "string" 
+      ? body.instruction.trim() 
+      : typeof body?.message === "string"
+      ? body.message.trim()
+      : "";
+    const project = body?.project || body?.projectContext || {};
     const history = Array.isArray(body?.history) ? body.history : [];
 
     if (!userPrompt) {
-      return NextResponse.json({ error: "userPrompt is required" }, { status: 400 });
+      return NextResponse.json({ error: "userPrompt or instruction is required" }, { status: 400 });
     }
 
     // First: Delegate to Python agent-service's Google ADK Showrunner agent
@@ -225,8 +239,12 @@ ${precedentContext}
     const localActions: StudioAction[] = [];
     const promptLower = userPrompt.toLowerCase();
 
-    let thought = `Analyzed director directive: "${userPrompt}". `;
-    let reply = `Understood. Executing studio modifications based on your directive.`;
+    let thought = `Analyzed director intent: "${userPrompt}". `;
+    const isGreeting = /^(hi|hello|hey|greetings|howdy|what'?s up|sup)\b/i.test(userPrompt.trim());
+    let reply = isGreeting
+      ? `Good to have you in the writers' room. We've got the slate for "${project.title || "our film"}" open and ready. How would you like to build out the sequence reel, sharpen the character arcs, or calibrate dramatic tension today?`
+      : `I have reviewed your note regarding "${userPrompt}". We have our sequence reel grounded on the current slate—what specific scenes or character beats would you like to explore next?`;
+
 
     // Character addition
     const addCharMatch = userPrompt.match(/(?:add|create|introduce)\s+(?:a\s+)?(?:character\s+)?(?:named\s+)?([A-Z][a-zA-Z0-9_-]+)/i);

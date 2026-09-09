@@ -80,7 +80,7 @@ export function LandingHero({ onOpenNewProject, onOpenFusion }: LandingHeroProps
         </Link>
 
         <Link
-          href="/studio/vault-heist-demo"
+          href="/studio/aethelgard-chronos-shift"
           prefetch={true}
           className={cn(
             buttonVariants({ variant: "outline", size: "lg" }),
@@ -169,16 +169,16 @@ export function LandingHero({ onOpenNewProject, onOpenFusion }: LandingHeroProps
             <div className="absolute bottom-4 left-4 right-4 flex flex-col sm:flex-row sm:items-end justify-between gap-3 text-left">
               <div className="space-y-1 max-w-xl">
                 <span className="text-[10px] font-mono uppercase tracking-wider text-accent font-bold">
-                  Live Interactive Centerpiece Scene
+                  Live Interactive Centerpiece Scene · Chronos Shift
                 </span>
                 <h3 className="text-base sm:text-xl font-heading font-bold text-white leading-tight">
-                  &ldquo;They&apos;re not here. Elena. The bypass keys. They&apos;re not in the bag.&rdquo;
+                  &ldquo;That is my voice dying on Deck Three. Four minutes from now.&rdquo;
                 </h3>
               </div>
 
               <div className="flex items-center gap-2">
                 <Link
-                  href="/studio/vault-heist-demo"
+                  href="/studio/aethelgard-chronos-shift"
                   prefetch={true}
                   className={cn(
                     buttonVariants({ size: "sm" }),
@@ -186,7 +186,7 @@ export function LandingHero({ onOpenNewProject, onOpenFusion }: LandingHeroProps
                   )}
                 >
                   <Play className="h-3 w-3 fill-current mr-1.5" />
-                  Enter Scene 04
+                  Enter Scene 02
                 </Link>
               </div>
             </div>

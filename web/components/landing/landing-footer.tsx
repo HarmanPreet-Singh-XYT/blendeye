@@ -27,11 +27,8 @@ export function LandingFooter() {
           </div>
 
           <div className="flex flex-wrap items-center gap-6 text-xs text-muted-foreground">
-            <Link href="/studio/vault-heist-demo" className="hover:text-foreground transition-colors">
-              The Vault Heist
-            </Link>
-            <Link href="/studio/space-airlock-demo" className="hover:text-foreground transition-colors">
-              Deep Space Airlock
+            <Link href="/studio/aethelgard-chronos-shift" className="hover:text-foreground transition-colors">
+              Aethelgard: Chronos Shift
             </Link>
             <Link href="/canvas-demo" className="hover:text-foreground transition-colors">
               Canvas Sandbox

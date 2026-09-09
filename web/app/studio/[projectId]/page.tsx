@@ -32,7 +32,7 @@ import { FilmFusionDialog } from "@/components/cinema/film-fusion-dialog";
 import { ScreenplayDialog } from "@/components/cinema/screenplay-dialog";
 import { CreateSceneDialog } from "@/components/cinema/create-scene-dialog";
 import { EditProjectDialog } from "@/components/cinema/edit-project-dialog";
-import { FloorPlanView } from "@/components/cinema/floor-plan-view";
+import { FloorPlanView, type FloorPlanMapConfig } from "@/components/cinema/floor-plan-view";
 import { TensionCurveView } from "@/components/cinema/tension-curve-view";
 import { ProjectScenesPage, isBridgeScene } from "@/components/cinema/project-scenes-page";
 import { TableReadPlayer } from "@/components/cinema/table-read-player";
@@ -182,7 +182,21 @@ export default function StudioPage() {
     return getProjectById(rawProjectId);
   }, [rawProjectId]);
 
-  const initialProject = foundProject || SEED_PROJECTS[0];
+  const initialProject: ProjectData =
+    foundProject ||
+    SEED_PROJECTS[0] || {
+      id: rawProjectId || "unknown",
+      title: "Untitled Production",
+      genre: "Drama",
+      premise: "",
+      sceneTitle: "",
+      sceneSummary: "",
+      screenplayText: "",
+      characters: [],
+      initialEvents: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
   const isProjectNotFound = !foundProject;
 
   // Dedicated View Mode: "scenes" (Dedicated Project Overview & Scenes Sequence) vs "studio" (Scene Studio Workspace)
@@ -303,11 +317,17 @@ export default function StudioPage() {
         if (targetSc.events !== undefined) {
           setEvents(targetSc.events);
         }
+        setFloorPlanCustomMapUrl(targetSc.floorPlanMapUrl || normalized.floorPlanMapUrl || null);
+        setFloorPlanCustomMapName(targetSc.floorPlanMapName || normalized.floorPlanMapName || undefined);
+        setFloorPlanCustomMapConfig(targetSc.floorPlanMapConfig || normalized.floorPlanMapConfig || undefined);
       } else {
         setSceneTitle(normalized.sceneTitle);
         setSceneSummary(normalized.sceneSummary);
         setScreenplayText(normalized.screenplayText);
         setPrimaryLocation(normalized.primaryLocation || "");
+        setFloorPlanCustomMapUrl(normalized.floorPlanMapUrl || null);
+        setFloorPlanCustomMapName(normalized.floorPlanMapName || undefined);
+        setFloorPlanCustomMapConfig(normalized.floorPlanMapConfig || undefined);
         const placement = normalized.scenePlacementSeconds ?? 34 * 60;
         setScenePlacementSeconds(placement);
         setTimeSeconds(placement);
@@ -458,8 +478,25 @@ export default function StudioPage() {
   const [characterLabOpen, setCharacterLabOpen] = React.useState(false);
   const [scratchpadOpen, setScratchpadOpen] = React.useState(false);
   const [assetHubOpen, setAssetHubOpen] = React.useState(false);
-  const [floorPlanCustomMapUrl, setFloorPlanCustomMapUrl] = React.useState<string | null>(null);
-  const [floorPlanCustomMapName, setFloorPlanCustomMapName] = React.useState<string | undefined>(undefined);
+  const initialFloorPlanMap = React.useMemo(() => {
+    const norm = ensureProjectScenes(initialProject);
+    const curSc = norm.scenes?.find((s) => s.id === activeSceneId) || norm.scenes?.[0];
+    return {
+      url: curSc?.floorPlanMapUrl || initialProject.floorPlanMapUrl || null,
+      name: curSc?.floorPlanMapName || initialProject.floorPlanMapName || undefined,
+      config: curSc?.floorPlanMapConfig || initialProject.floorPlanMapConfig || undefined,
+    };
+  }, [initialProject, activeSceneId]);
+
+  const [floorPlanCustomMapUrl, setFloorPlanCustomMapUrl] = React.useState<string | null>(
+    initialFloorPlanMap.url
+  );
+  const [floorPlanCustomMapName, setFloorPlanCustomMapName] = React.useState<string | undefined>(
+    initialFloorPlanMap.name
+  );
+  const [floorPlanCustomMapConfig, setFloorPlanCustomMapConfig] = React.useState<FloorPlanMapConfig | undefined>(
+    initialFloorPlanMap.config
+  );
   const [stagedCameraMotion, setStagedCameraMotion] = React.useState<string>("");
   const [stagedPromptNote, setStagedPromptNote] = React.useState<string>("");
 
@@ -604,12 +641,26 @@ export default function StudioPage() {
         directorStyle: directorStyle,
         coreSecret: coreSecret,
         primaryLocation: primaryLocation,
+        floorPlanMapUrl: floorPlanCustomMapUrl || undefined,
+        floorPlanMapName: floorPlanCustomMapName || undefined,
+        floorPlanMapConfig: floorPlanCustomMapConfig || undefined,
         targetTerritories: targetTerritories,
         narrativeFormat: narrativeFormat,
         targetRuntimeMinutes: targetRuntimeMinutes,
         scenePlacementSeconds: scenePlacementSeconds,
         sceneDurationSeconds: sceneDurationSeconds,
-        scenes: scenes,
+        scenes: scenes.map((s) =>
+          s.id === activeSceneId
+            ? {
+                ...s,
+                nodes: nodesRef.current,
+                edges: edgesRef.current,
+                floorPlanMapUrl: floorPlanCustomMapUrl || undefined,
+                floorPlanMapName: floorPlanCustomMapName || undefined,
+                floorPlanMapConfig: floorPlanCustomMapConfig || undefined,
+              }
+            : s
+        ),
         activeSceneId: activeSceneId,
         ...partial,
       };
@@ -630,6 +681,9 @@ export default function StudioPage() {
       directorStyle,
       coreSecret,
       primaryLocation,
+      floorPlanCustomMapUrl,
+      floorPlanCustomMapName,
+      floorPlanCustomMapConfig,
       targetTerritories,
       narrativeFormat,
       targetRuntimeMinutes,
@@ -639,6 +693,10 @@ export default function StudioPage() {
       activeSceneId,
     ]
   );
+
+  React.useEffect(() => {
+    saveCurrentProjectRef.current = saveCurrentProject;
+  }, [saveCurrentProject]);
 
   // Chemistry Test Execution
   const handleRunChemistry = async () => {
@@ -780,6 +838,7 @@ export default function StudioPage() {
 
     const fresh = buildProjectNodesAndEdges(initialProject, nodeCallbacks, isGenerating);
     const savedNodesById = new Map((initialProject.nodes || []).map((n) => [n.id, n]));
+    const freshIds = new Set(fresh.nodes.map((n) => n.id));
     const mergedNodes = fresh.nodes.map((n) => {
       const saved = savedNodesById.get(n.id);
       if (!saved || !saved.data) return n;
@@ -792,11 +851,25 @@ export default function StudioPage() {
       }
       return { ...n, data: mergedData };
     });
-    return { nodes: mergedNodes, edges: fresh.edges };
+    // Ad-hoc nodes the user spawned manually (e.g. via handleAddBlueprintNode)
+    // have no counterpart in the structural rebuild — keep them as-is instead
+    // of silently dropping them.
+    const extraSavedNodes = rehydrateNodeCallbacks(
+      (initialProject.nodes || []).filter((n) => !freshIds.has(n.id)),
+      nodeCallbacks
+    );
+    const extraSavedIds = new Set(extraSavedNodes.map((n) => n.id));
+    const extraSavedEdges = (initialProject.edges || []).filter(
+      (e) => extraSavedIds.has(e.source) || extraSavedIds.has(e.target)
+    );
+    return {
+      nodes: [...mergedNodes, ...extraSavedNodes],
+      edges: [...fresh.edges, ...extraSavedEdges],
+    };
   }, [initialProject, nodeCallbacks, isGenerating]);
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialGraph.nodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialGraph.edges);
+  const [nodes, setNodes, onNodesChangeBase] = useNodesState(initialGraph.nodes);
+  const [edges, setEdges, onEdgesChangeBase] = useEdgesState(initialGraph.edges);
 
   // Refs mirror node/edge state for saveCurrentProject to read without
   // taking nodes/edges as a dependency (which would thrash on every drag).
@@ -808,6 +881,31 @@ export default function StudioPage() {
   React.useEffect(() => {
     edgesRef.current = edges;
   }, [edges]);
+
+  // Populated once saveCurrentProject is defined below; lets onNodesChange/
+  // onEdgesChange (declared before it exists) call the latest version.
+  const saveCurrentProjectRef = React.useRef<(partial?: Partial<ProjectData>) => void>(() => {});
+
+  // Wrap the raw React Flow change handlers so keyboard/UI deletions
+  // (which bypass every other saveCurrentProject call site) get persisted.
+  const onNodesChange = React.useCallback(
+    (changes: Parameters<typeof onNodesChangeBase>[0]) => {
+      onNodesChangeBase(changes);
+      if (changes.some((c) => c.type === "remove")) {
+        saveCurrentProjectRef.current();
+      }
+    },
+    [onNodesChangeBase]
+  );
+  const onEdgesChange = React.useCallback(
+    (changes: Parameters<typeof onEdgesChangeBase>[0]) => {
+      onEdgesChangeBase(changes);
+      if (changes.some((c) => c.type === "remove")) {
+        saveCurrentProjectRef.current();
+      }
+    },
+    [onEdgesChangeBase]
+  );
 
   // Initialize Studio Version Control
   React.useEffect(() => {
@@ -913,6 +1011,9 @@ export default function StudioPage() {
                 durationSeconds: sceneDurationSeconds,
                 startSeconds: scenePlacementSeconds,
                 events: events,
+                floorPlanMapUrl: floorPlanCustomMapUrl || undefined,
+                floorPlanMapName: floorPlanCustomMapName || undefined,
+                floorPlanMapConfig: floorPlanCustomMapConfig || undefined,
               }
             : s
         );
@@ -929,7 +1030,18 @@ export default function StudioPage() {
           setNodes(rehydrateNodeCallbacks(target.nodes || [], nodeCallbacks));
           setEdges(target.edges || []);
           setEvents(target.events || []);
+          setFloorPlanCustomMapUrl(target.floorPlanMapUrl || null);
+          setFloorPlanCustomMapName(target.floorPlanMapName || undefined);
+          setFloorPlanCustomMapConfig(target.floorPlanMapConfig || undefined);
         }
+        // Persist updated scene list and current active scene's floor plan map
+        saveCurrentProject({
+          scenes: updated,
+          activeSceneId: newSceneId,
+          floorPlanMapUrl: target?.floorPlanMapUrl || undefined,
+          floorPlanMapName: target?.floorPlanMapName || undefined,
+          floorPlanMapConfig: target?.floorPlanMapConfig || undefined,
+        });
         return updated;
       });
     },
@@ -942,6 +1054,9 @@ export default function StudioPage() {
       nodes,
       edges,
       events,
+      floorPlanCustomMapUrl,
+      floorPlanCustomMapName,
+      floorPlanCustomMapConfig,
       sceneDurationSeconds,
       scenePlacementSeconds,
       setNodes,
@@ -2084,11 +2199,10 @@ export default function StudioPage() {
         return;
     }
 
-    setNodes((nds) => {
-      const updated = [...nds, newNode];
-      recordTakeChange(`Spawned ${type} blueprint node`, "node_add", { nodes: updated });
-      return updated;
-    });
+    const updated = [...nodesRef.current, newNode];
+    setNodes(updated);
+    recordTakeChange(`Spawned ${type} blueprint node`, "node_add", { nodes: updated });
+    saveCurrentProject({ nodes: updated });
     setSelectedNode(newNode);
   };
 
@@ -2184,9 +2298,6 @@ export default function StudioPage() {
             <div className="h-6 w-6 rounded-md bg-black/60 border border-accent/30 overflow-hidden shadow-sm flex items-center justify-center">
               <img src="/logo.png" alt="BlendEye" className="h-full w-full object-cover" />
             </div>
-            <span className="font-heading font-bold text-xs text-foreground tracking-tight hidden md:inline">
-              BlendEye
-            </span>
           </Link>
 
           <span className="text-border/70 text-xs select-none">/</span>
@@ -2902,6 +3013,59 @@ export default function StudioPage() {
                   directorStyle={directorStyle}
                   initialMapUrl={floorPlanCustomMapUrl}
                   initialMapName={floorPlanCustomMapName}
+                  initialMapConfig={floorPlanCustomMapConfig}
+                  onMapChange={(mapUrl, mapName) => {
+                    setFloorPlanCustomMapUrl(mapUrl);
+                    setFloorPlanCustomMapName(mapName);
+                    setScenes((prev) =>
+                      prev.map((s) =>
+                        s.id === activeSceneId
+                          ? {
+                              ...s,
+                              floorPlanMapUrl: mapUrl || undefined,
+                              floorPlanMapName: mapName || undefined,
+                            }
+                          : s
+                      )
+                    );
+                    saveCurrentProject({
+                      floorPlanMapUrl: mapUrl || undefined,
+                      floorPlanMapName: mapName || undefined,
+                      scenes: scenes.map((s) =>
+                        s.id === activeSceneId
+                          ? {
+                              ...s,
+                              floorPlanMapUrl: mapUrl || undefined,
+                              floorPlanMapName: mapName || undefined,
+                            }
+                          : s
+                      ),
+                    });
+                  }}
+                  onMapConfigChange={(cfg) => {
+                    setFloorPlanCustomMapConfig(cfg);
+                    setScenes((prev) =>
+                      prev.map((s) =>
+                        s.id === activeSceneId
+                          ? {
+                              ...s,
+                              floorPlanMapConfig: cfg,
+                            }
+                          : s
+                      )
+                    );
+                    saveCurrentProject({
+                      floorPlanMapConfig: cfg,
+                      scenes: scenes.map((s) =>
+                        s.id === activeSceneId
+                          ? {
+                              ...s,
+                              floorPlanMapConfig: cfg,
+                            }
+                          : s
+                      ),
+                    });
+                  }}
                   onSendToVeo={handleSendStagingToVeo}
                 />
               )}
@@ -3114,6 +3278,7 @@ export default function StudioPage() {
                         turns={hotSeatTurns}
                         knownFacts={knownFacts}
                         onSend={handleAskHotSeat}
+                        onResetChat={() => setHotSeatTurns([])}
                         isAsking={isAsking}
                         onInsertIntoScript={handleInsertIntoScript}
                         activeSceneTitle={activeScene?.title || sceneTitle}
@@ -3284,6 +3449,14 @@ export default function StudioPage() {
                 messages={showrunnerMessages}
                 isThinking={isShowrunnerThinking}
                 onSendMessage={handleSendShowrunner}
+                onResetChat={() => {
+                  setShowrunnerMessages([
+                    {
+                      role: "showrunner",
+                      content: `Showrunner AI Director session reset for "${projectTitle}". How shall we refine the reel?`,
+                    },
+                  ]);
+                }}
                 suggestedPrompts={[
                   `Analyze dramatic tension for ${projectTitle}`,
                   `Suggest subtext improvements for ${activeCharacterName}'s dialogue`,
@@ -3384,6 +3557,30 @@ export default function StudioPage() {
         onSetFloorPlanMap={(mapUrl, asset) => {
           setFloorPlanCustomMapUrl(mapUrl);
           setFloorPlanCustomMapName(asset.name);
+          setScenes((prev) =>
+            prev.map((s) =>
+              s.id === activeSceneId
+                ? {
+                    ...s,
+                    floorPlanMapUrl: mapUrl || undefined,
+                    floorPlanMapName: asset.name || undefined,
+                  }
+                : s
+            )
+          );
+          saveCurrentProject({
+            floorPlanMapUrl: mapUrl || undefined,
+            floorPlanMapName: asset.name || undefined,
+            scenes: scenes.map((s) =>
+              s.id === activeSceneId
+                ? {
+                    ...s,
+                    floorPlanMapUrl: mapUrl || undefined,
+                    floorPlanMapName: asset.name || undefined,
+                  }
+                : s
+            ),
+          });
           setMainTab("planning");
           setDeckSubTab("blocking");
           setAssetHubOpen(false);
@@ -3503,8 +3700,8 @@ export default function StudioPage() {
         visualPrompt={
           veoCharacterContext
             ? `Cinematic 16:9 take featuring ${veoCharacterContext.name}${
-                veoCharacterContext.actorComp ? ` (likeness resembling ${veoCharacterContext.actorComp})` : ""
-              }${veoCharacterContext.wardrobe ? `, wearing ${veoCharacterContext.wardrobe}` : ""}. ${
+                veoCharacterContext.wardrobe ? `, wearing ${veoCharacterContext.wardrobe}` : ""
+              }. ${
                 veoCharacterContext.visualDescription || ""
               } in ${sceneTitle}. 35mm anamorphic scope.`
             : ((nodes.find((n) => n.type === "storyboard")?.data?.prompt as string) ||

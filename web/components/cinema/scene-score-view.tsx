@@ -140,7 +140,7 @@ export function SceneScoreView({
   // ── Selected video for Video Sync mode ──────────────────────────────────
   const defaultVideoUrl = React.useMemo(() => {
     const master = videoTakes.find((t) => t.isMaster);
-    return master?.videoUrl || videoTakes[0]?.videoUrl || "/videos/vault_heist_take_01.mp4";
+    return master?.videoUrl || videoTakes[0]?.videoUrl || "";
   }, [videoTakes]);
   const [selectedVideoUrl, setSelectedVideoUrl] = React.useState<string>(defaultVideoUrl);
   React.useEffect(() => { setSelectedVideoUrl(defaultVideoUrl); }, [defaultVideoUrl]);
@@ -773,7 +773,7 @@ export function SceneScoreView({
       {/* Hidden audio element */}
       <audio
         ref={audioRef}
-        src={activeScoreTake?.audioUrl || "/audio/demo-score.wav"}
+        src={activeScoreTake?.audioUrl || ""}
         preload="metadata"
       />
 

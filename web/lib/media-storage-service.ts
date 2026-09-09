@@ -103,9 +103,12 @@ export async function persistLocalMediaToBucket(
   }
 
   const cleanPath = localUrlOrPath.replace(/^\//, "");
-  const absolutePath = path.isAbsolute(localUrlOrPath)
-    ? localUrlOrPath
-    : path.join(process.cwd(), "public", cleanPath);
+  const absolutePath =
+    localUrlOrPath.startsWith("/") && !localUrlOrPath.startsWith("/Users") && !localUrlOrPath.startsWith("/app")
+      ? path.join(process.cwd(), "public", cleanPath)
+      : path.isAbsolute(localUrlOrPath)
+      ? localUrlOrPath
+      : path.join(process.cwd(), "public", cleanPath);
 
   try {
     const buffer = await fs.readFile(absolutePath);

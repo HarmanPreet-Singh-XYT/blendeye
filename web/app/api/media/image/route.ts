@@ -62,8 +62,9 @@ export async function POST(req: NextRequest) {
 
     // If agent-service is unreachable or rate-limited, provide an elegant high-quality cinematic fallback tailored to the requested shot type
     const lowerPrompt = promptStr.toLowerCase();
-    // Default fallback: AI-generated 16:9 widescreen landscape plate
-    let fallbackUrl = "/assets/locations/ai_vault_plate.jpg";
+    // Default fallback: AI-generated 16:9 widescreen landscape plate (Aethelgard Singularity)
+    let fallbackUrl =
+      "https://vcbclecweorugfucdubm.supabase.co/storage/v1/object/public/cinema_assets/images/images_1788919223537_jn3px0a0.jpg";
 
     if (
       lowerPrompt.includes("full-body") ||
@@ -74,7 +75,10 @@ export async function POST(req: NextRequest) {
       aspectRatioStr === "9:16"
     ) {
       // High quality cinematic full body character portrait (AI generated)
-      fallbackUrl = "/assets/characters/ai_elena_fullbody.jpg";
+      fallbackUrl =
+        lowerPrompt.includes("maya") || lowerPrompt.includes("woman") || lowerPrompt.includes("female")
+          ? "https://vcbclecweorugfucdubm.supabase.co/storage/v1/object/public/cinema_assets/images/images_1788921623508_803l91ok.jpg"
+          : "https://vcbclecweorugfucdubm.supabase.co/storage/v1/object/public/cinema_assets/images/images_1788921611037_ftq4f1u4.jpg";
     } else if (
       lowerPrompt.includes("portrait") ||
       lowerPrompt.includes("face") ||
@@ -84,9 +88,12 @@ export async function POST(req: NextRequest) {
       aspectRatioStr === "3:4"
     ) {
       // High quality cinematic dramatic face portrait (AI generated)
-      fallbackUrl = lowerPrompt.includes("female") || lowerPrompt.includes("woman") || lowerPrompt.includes("elena")
-        ? "/assets/characters/ai_elena_face.jpg"
-        : "/assets/characters/ai_marcus_face.jpg";
+      fallbackUrl =
+        lowerPrompt.includes("female") || lowerPrompt.includes("woman") || lowerPrompt.includes("maya")
+          ? "https://vcbclecweorugfucdubm.supabase.co/storage/v1/object/public/cinema_assets/images/images_1788918418168_e5m5km6h.jpg"
+          : lowerPrompt.includes("aura") || lowerPrompt.includes("ai")
+          ? "https://vcbclecweorugfucdubm.supabase.co/storage/v1/object/public/cinema_assets/images/images_1788918467328_l0ezdzsw.jpg"
+          : "https://vcbclecweorugfucdubm.supabase.co/storage/v1/object/public/cinema_assets/images/images_1788918378432_6y3nizvf.jpg";
     }
 
     return NextResponse.json({

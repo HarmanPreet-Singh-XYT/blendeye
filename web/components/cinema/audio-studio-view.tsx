@@ -88,52 +88,79 @@ export function AudioStudioView({
   const [activeTab, setActiveTab] = React.useState<"tableread" | "cast" | "acoustics">("tableread");
 
   // Character voice profiles
-  const [channels, setChannels] = React.useState<Record<string, ChannelVoiceState>>({
-    DX1: {
-      id: "DX1",
-      name: "MARCUS",
-      characterKey: "MARCUS",
-      voiceName: "Fenrir",
-      deliveryStyle: "High Stakes Interrogation",
-      speed: 1.0,
-      pitchFine: 0,
-      formantShift: -2,
-      pan: -20,
-      reverbSend: 20,
-      reverbRoom: "Interrogation Vault (Dry Concrete)",
-      isMuted: false,
-      isSolo: false,
-    },
-    DX2: {
-      id: "DX2",
-      name: "ELENA",
-      characterKey: "ELENA",
-      voiceName: "Aoede",
-      deliveryStyle: "Cold Analytical (Detached)",
-      speed: 0.98,
-      pitchFine: 1,
-      formantShift: 1,
-      pan: 20,
-      reverbSend: 25,
-      reverbRoom: "Interrogation Vault (Dry Concrete)",
-      isMuted: false,
-      isSolo: false,
-    },
-    DX3: {
-      id: "DX3",
-      name: "NARRATOR",
-      characterKey: "NARRATOR",
-      voiceName: "Zephyr",
-      deliveryStyle: "Gravelly Neo-Noir",
-      speed: 1.02,
-      pitchFine: -1,
-      formantShift: -4,
-      pan: 0,
-      reverbSend: 15,
-      reverbRoom: "Scoring Sound Stage (Warm Wood)",
-      isMuted: false,
-      isSolo: false,
-    },
+  const [channels, setChannels] = React.useState<Record<string, ChannelVoiceState>>(() => {
+    if (characters && characters.length > 0) {
+      const initial: Record<string, ChannelVoiceState> = {};
+      characters.forEach((c, idx) => {
+        const id = `DX${idx + 1}`;
+        const key = c.name.toUpperCase().replace(/\s+/g, "_");
+        const voiceChoice = AVAILABLE_VOICES[idx % AVAILABLE_VOICES.length];
+        const styleChoice = DELIVERY_STYLES[idx % DELIVERY_STYLES.length];
+        initial[id] = {
+          id,
+          name: c.name.toUpperCase(),
+          characterKey: key,
+          voiceName: (c as any).voiceName || voiceChoice.id,
+          deliveryStyle: styleChoice,
+          speed: 1.0,
+          pitchFine: 0,
+          formantShift: idx % 2 === 0 ? -2 : 1,
+          pan: idx === 0 ? -20 : idx === 1 ? 20 : 0,
+          reverbSend: 20,
+          reverbRoom: "Interrogation Vault (Dry Concrete)",
+          isMuted: false,
+          isSolo: false,
+        };
+      });
+      return initial;
+    }
+    return {
+      DX1: {
+        id: "DX1",
+        name: "MARCUS",
+        characterKey: "MARCUS",
+        voiceName: "Fenrir",
+        deliveryStyle: "High Stakes Interrogation",
+        speed: 1.0,
+        pitchFine: 0,
+        formantShift: -2,
+        pan: -20,
+        reverbSend: 20,
+        reverbRoom: "Interrogation Vault (Dry Concrete)",
+        isMuted: false,
+        isSolo: false,
+      },
+      DX2: {
+        id: "DX2",
+        name: "ELENA",
+        characterKey: "ELENA",
+        voiceName: "Aoede",
+        deliveryStyle: "Cold Analytical (Detached)",
+        speed: 0.98,
+        pitchFine: 1,
+        formantShift: 1,
+        pan: 20,
+        reverbSend: 25,
+        reverbRoom: "Interrogation Vault (Dry Concrete)",
+        isMuted: false,
+        isSolo: false,
+      },
+      DX3: {
+        id: "DX3",
+        name: "NARRATOR",
+        characterKey: "NARRATOR",
+        voiceName: "Zephyr",
+        deliveryStyle: "Gravelly Neo-Noir",
+        speed: 1.02,
+        pitchFine: -1,
+        formantShift: -4,
+        pan: 0,
+        reverbSend: 15,
+        reverbRoom: "Scoring Sound Stage (Warm Wood)",
+        isMuted: false,
+        isSolo: false,
+      },
+    };
   });
 
   // Active character selected in Voice Shaper
@@ -148,6 +175,7 @@ export function AudioStudioView({
     "The vault codes were wiped before we breached the perimeter."
   );
   const [isAuditioning, setIsAuditioning] = React.useState<boolean>(false);
+  const [auditioningSpeaker, setAuditioningSpeaker] = React.useState<string | null>(null);
   const [auditionSuccess, setAuditionSuccess] = React.useState<boolean>(false);
 
   // Client-Side Audio Cache to avoid duplicate API requests and cost
@@ -158,9 +186,10 @@ export function AudioStudioView({
   const getLineKey = React.useCallback(
     (speakerKey: string, text: string) => {
       const speakerUpper = speakerKey.toUpperCase();
-      let ch = channels.DX1;
-      if (speakerUpper.includes("ELENA")) ch = channels.DX2;
-      else if (speakerUpper.includes("NARRATOR")) ch = channels.DX3;
+      const ch =
+        Object.values(channels).find(
+          (c) => c.characterKey.toUpperCase() === speakerUpper || c.name.toUpperCase() === speakerUpper
+        ) || channels.DX1;
       return `${ch.characterKey}:${ch.voiceName}:${ch.deliveryStyle}:${ch.speed}:${ch.formantShift}:${ch.reverbRoom}:${text.trim()}`;
     },
     [channels]
@@ -204,16 +233,36 @@ export function AudioStudioView({
     }));
   };
 
+  // Resolve a channel for a given speaker label, falling back to the first
+  // available channel. Channels are keyed dynamically (DX1, DX2, ...) based on
+  // the character list, so DX2/DX3 are not guaranteed to exist.
+  const resolveChannelForSpeaker = React.useCallback(
+    (speakerKey: string): ChannelVoiceState => {
+      const speakerUpper = speakerKey.toUpperCase();
+      const fallback = channels.DX1 || Object.values(channels)[0];
+      return (
+        Object.values(channels).find(
+          (c) => c.characterKey.toUpperCase() === speakerUpper || c.name.toUpperCase() === speakerUpper
+        ) ||
+        Object.values(channels).find((c) => speakerUpper.includes(c.name.toUpperCase())) ||
+        fallback
+      );
+    },
+    [channels]
+  );
+
   // Audition a specific line or custom text (checking client cache first)
   const handleAuditionLine = async (speakerKey: string, text: string) => {
     if (isAuditioning) return;
     setIsAuditioning(true);
+    setAuditioningSpeaker(speakerKey);
     setAuditionSuccess(false);
 
     const speakerUpper = speakerKey.toUpperCase();
-    let ch = channels.DX1;
-    if (speakerUpper.includes("ELENA")) ch = channels.DX2;
-    else if (speakerUpper.includes("NARRATOR")) ch = channels.DX3;
+    const ch =
+      Object.values(channels).find(
+        (c) => c.characterKey.toUpperCase() === speakerUpper || c.name.toUpperCase() === speakerUpper
+      ) || channels.DX1;
 
     const cacheKey = getLineKey(speakerKey, text);
 
@@ -284,6 +333,7 @@ export function AudioStudioView({
       });
     } finally {
       setIsAuditioning(false);
+      setAuditioningSpeaker(null);
     }
   };
 
@@ -340,11 +390,7 @@ export function AudioStudioView({
       }
 
       const item = scriptLines[idx];
-      const speakerUpper = item.speaker.trim().toUpperCase();
-
-      let targetChannel = channels.DX1;
-      if (speakerUpper.includes("ELENA")) targetChannel = channels.DX2;
-      else if (speakerUpper.includes("NARRATOR")) targetChannel = channels.DX3;
+      const targetChannel = resolveChannelForSpeaker(item.speaker.trim());
 
       const anySoloed = Object.values(channels).some((c) => c.isSolo);
       const isSilenced = targetChannel.isMuted || (anySoloed && !targetChannel.isSolo);
@@ -437,7 +483,7 @@ export function AudioStudioView({
         });
       }
     },
-    [scriptLines, channels, cachedAudioMap, getLineKey]
+    [scriptLines, channels, cachedAudioMap, getLineKey, resolveChannelForSpeaker]
   );
 
   // Pre-cache all dialogue turns in background
@@ -450,10 +496,7 @@ export function AudioStudioView({
         const cacheKey = getLineKey(item.speaker, item.text);
         if (cachedAudioMap[cacheKey]) continue;
 
-        const speakerUpper = item.speaker.trim().toUpperCase();
-        let targetChannel = channels.DX1;
-        if (speakerUpper.includes("ELENA")) targetChannel = channels.DX2;
-        else if (speakerUpper.includes("NARRATOR")) targetChannel = channels.DX3;
+        const targetChannel = resolveChannelForSpeaker(item.speaker.trim());
 
         try {
           const res = await fetch("/api/media/tts", {
@@ -551,17 +594,15 @@ export function AudioStudioView({
 
     setIsMultiSpeakerLoading(true);
     try {
-      const linesPayload = scriptLines.map((l) => {
-        const spkUpper = l.speaker.toUpperCase();
-        let vName = channels.DX1.voiceName;
-        if (spkUpper.includes("ELENA")) vName = channels.DX2.voiceName;
-        else if (spkUpper.includes("NARRATOR")) vName = channels.DX3.voiceName;
-        return {
-          speaker: l.speaker,
-          text: l.text,
-          voice_name: vName,
-        };
-      });
+      const linesPayload = scriptLines.map((l) => ({
+        speaker: l.speaker,
+        text: l.text,
+        voice_name: resolveChannelForSpeaker(l.speaker).voiceName,
+      }));
+
+      const orderedChannels = Object.values(channels);
+      const channelA = orderedChannels[0];
+      const channelB = orderedChannels[1] || orderedChannels[0];
 
       const res = await fetch("/api/media/tts/multi", {
         method: "POST",
@@ -569,10 +610,10 @@ export function AudioStudioView({
         body: JSON.stringify({
           lines: linesPayload,
           scriptText: screenplayText,
-          speakerA: channels.DX1.name,
-          voiceA: channels.DX1.voiceName,
-          speakerB: channels.DX2.name,
-          voiceB: channels.DX2.voiceName,
+          speakerA: channelA.name,
+          voiceA: channelA.voiceName,
+          speakerB: channelB.name,
+          voiceB: channelB.voiceName,
         }),
       });
 
@@ -1133,13 +1174,23 @@ export function AudioStudioView({
 
                   <Button
                     size="sm"
+                    disabled={isAuditioning}
                     onClick={() =>
                       handleAuditionLine(ch.characterKey, `This is an acoustic test of the ${ch.voiceName} voice profile.`)
                     }
                     className="h-6 px-2.5 text-[10px] gap-1 bg-secondary hover:bg-secondary/80 text-foreground cursor-pointer"
                   >
-                    <Volume2 className="h-3 w-3" />
-                    <span>Test Voice</span>
+                    {auditioningSpeaker === ch.characterKey ? (
+                      <>
+                        <RefreshCw className="h-3 w-3 animate-spin text-accent" />
+                        <span>Testing...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Volume2 className="h-3 w-3" />
+                        <span>Test Voice</span>
+                      </>
+                    )}
                   </Button>
                 </div>
               </div>

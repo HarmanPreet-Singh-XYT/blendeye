@@ -25,6 +25,7 @@ from google.genai.types import (
 from pydantic import BaseModel, Field
 
 from app.config import get_settings
+from app.services.prompt_sanitizer import sanitize_character_name_for_veo, sanitize_veo_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -125,8 +126,9 @@ async def generate_image(req: GenerateImageRequest):
 
     client = genai.Client(api_key=api_key)
 
+    clean_prompt = sanitize_veo_prompt(req.prompt)
     cinematic_prompt = (
-        f"{req.prompt.strip().rstrip('.')}. "
+        f"{clean_prompt.strip().rstrip('.')}. "
         f"Aspect ratio {req.aspect_ratio}, photoreal cinematography, high production value, "
         f"sharp focus on the main subject, no text or watermarks, no distorted anatomy."
     )
@@ -568,10 +570,12 @@ def dispatch_veo_generation(
     it's the same call driven in a loop with the previous shot's last frame
     passed in as image_url.
     """
-    character_clause = f" Keep {character_name} as the primary subject in frame throughout." if character_name else ""
-    style_clause = f" Overall visual style: {style_preset}." if style_preset and style_preset.lower() not in prompt.lower() else ""
+    sanitized_prompt = sanitize_veo_prompt(prompt)
+    clean_char_name = sanitize_character_name_for_veo(character_name)
+    character_clause = f" Keep {clean_char_name} as the primary subject in frame throughout." if clean_char_name else ""
+    style_clause = f" Overall visual style: {style_preset}." if style_preset and style_preset.lower() not in sanitized_prompt.lower() else ""
     cinematic_prompt = (
-        f"{prompt.strip().rstrip('.')}.{character_clause}{style_clause} "
+        f"{sanitized_prompt.strip().rstrip('.')}.{character_clause}{style_clause} "
         f"Aspect ratio {aspect_ratio}, photoreal depth, consistent lighting and continuity across frames, "
         f"no text or watermarks, no jump cuts."
     )

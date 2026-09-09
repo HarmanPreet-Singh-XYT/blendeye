@@ -269,41 +269,16 @@ export function GenerationStudioView({
         prompt: t.prompt || "",
       }));
     }
-    return [
-      {
-        id: "take-1",
-        takeNumber: 1,
-        title: `${sceneTitle} — Sample Take 01`,
-        timestamp: "Sample clip",
-        durationSec: 6,
-        camera: "35mm Anamorphic Tracking Shot",
-        style: "35mm Anamorphic Scope",
-        videoUrl: "/videos/vault_heist_take_01.mp4",
-        prompt: `Cinematic establishing shot of ${sceneTitle}. Moody cinematic lighting, shallow depth of field, 35mm anamorphic lens.`,
-        isSample: true,
-      },
-      {
-        id: "take-2",
-        takeNumber: 2,
-        title: `${sceneTitle} — Sample Take 02`,
-        timestamp: "Sample clip",
-        durationSec: 6,
-        camera: "Slow Cinematic Dolly In",
-        style: "Neo-Noir Sodium & Rain",
-        videoUrl: "/videos/directors_suite_take_01.mp4",
-        prompt: `Close intimate push on character during ${sceneTitle}. Neo-noir sodium vapor and high contrast shadows.`,
-        isSample: true,
-      },
-    ];
+    return [];
   }, [effectiveProjectId, sceneTitle]);
 
   const [recentTakes, setRecentTakes] = React.useState<RenderedTake[]>(initialSavedTakes);
 
   const [activeVideoUrl, setActiveVideoUrl] = React.useState<string>(
-    initialSavedTakes[0]?.videoUrl || "/videos/vault_heist_take_01.mp4"
+    initialSavedTakes[0]?.videoUrl || ""
   );
   const [activeTakeId, setActiveTakeId] = React.useState<string>(
-    initialSavedTakes[0]?.id || "take-1"
+    initialSavedTakes[0]?.id || ""
   );
 
   // Derive VideoTake[] from recentTakes for the score view's Video Sync picker.
@@ -1193,181 +1168,182 @@ export function GenerationStudioView({
                 aspectRatio === "9:16" ? "max-w-xs" : "max-w-5xl"
               )}
             >
-              <video
-                ref={videoRef}
-                src={activeVideoUrl}
-                loop={isLooping}
-                muted={isMuted}
-                playsInline
-                onTimeUpdate={handleTimeUpdate}
-                onLoadedMetadata={handleLoadedMetadata}
-                className="w-full h-full object-cover cursor-pointer"
-                onClick={togglePlay}
-                onPlay={() => setIsPlaying(true)}
-                onPause={() => setIsPlaying(false)}
-                onError={() => {
-                  console.warn("Screening bay video load error:", activeVideoUrl);
-                  setActiveVideoUrl("/videos/vault_heist_take_01.mp4");
-                }}
-              />
+              {currentActiveTake && activeVideoUrl ? (
+                <>
+                  <video
+                    ref={videoRef}
+                    src={activeVideoUrl}
+                    loop={isLooping}
+                    muted={isMuted}
+                    playsInline
+                    onTimeUpdate={handleTimeUpdate}
+                    onLoadedMetadata={handleLoadedMetadata}
+                    className="w-full h-full object-cover cursor-pointer"
+                    onClick={togglePlay}
+                    onPlay={() => setIsPlaying(true)}
+                    onPause={() => setIsPlaying(false)}
+                    onError={() => {
+                      console.warn("Screening bay video load error:", activeVideoUrl);
+                    }}
+                  />
 
-              {/* Rule of Thirds / Anamorphic Frame Guides Overlay */}
-              {showFrameGuides && (
-                <div className="absolute inset-0 pointer-events-none border border-amber-500/20 grid grid-cols-3 grid-rows-3">
-                  <div className="border-r border-b border-amber-500/20" />
-                  <div className="border-r border-b border-amber-500/20" />
-                  <div className="border-b border-amber-500/20" />
-                  <div className="border-r border-b border-amber-500/20" />
-                  <div className="border-r border-b border-amber-500/20" />
-                  <div className="border-b border-amber-500/20" />
-                  <div className="border-r border-b border-amber-500/20" />
-                  <div className="border-r border-b border-amber-500/20" />
-                  <div />
-                  {/* Center Optical Crosshair */}
-                  <div className="absolute inset-0 m-auto h-4 w-4 border-t border-l border-amber-400/40 pointer-events-none" />
-                </div>
-              )}
+                  {/* Rule of Thirds / Anamorphic Frame Guides Overlay */}
+                  {showFrameGuides && (
+                    <div className="absolute inset-0 pointer-events-none border border-amber-500/20 grid grid-cols-3 grid-rows-3">
+                      <div className="border-r border-b border-amber-500/20" />
+                      <div className="border-r border-b border-amber-500/20" />
+                      <div className="border-b border-amber-500/20" />
+                      <div className="border-r border-b border-amber-500/20" />
+                      <div className="border-r border-b border-amber-500/20" />
+                      <div className="border-b border-amber-500/20" />
+                      <div className="border-r border-b border-amber-500/20" />
+                      <div className="border-r border-b border-amber-500/20" />
+                      <div />
+                      {/* Center Optical Crosshair */}
+                      <div className="absolute inset-0 m-auto h-4 w-4 border-t border-l border-amber-400/40 pointer-events-none" />
+                    </div>
+                  )}
 
-              {/* Production Slate Burn-In Overlay (Top Bar) */}
-              <div className="absolute top-3 left-4 right-4 flex items-center justify-between text-[11px] font-mono text-white/90 bg-black/70 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 pointer-events-none">
-                <div className="flex items-center gap-2.5">
-                  <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="font-bold text-accent">TAKE 0{currentActiveTake.takeNumber}</span>
-                  <span className="text-white/40">|</span>
-                  <span className="truncate max-w-[150px] sm:max-w-xs">{currentActiveTake.camera}</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-white/60 hidden sm:inline">{activeRatioConfig.safeGuide}</span>
-                  <Badge variant="outline" className="border-white/20 text-white/90 text-[9px] font-mono px-1.5 py-0">
-                    24.00 FPS
-                  </Badge>
-                </div>
-              </div>
-
-              {/* Big Center Play / Pause Indicator */}
-              <button
-                type="button"
-                onClick={togglePlay}
-                className={cn(
-                  "absolute inset-0 m-auto h-16 w-16 rounded-full bg-black/60 border border-white/20 flex items-center justify-center text-white backdrop-blur-md hover:scale-105 hover:bg-accent hover:text-accent-foreground transition-all cursor-pointer",
-                  isPlaying ? "opacity-0 group-hover:opacity-100" : "opacity-90"
-                )}
-                title={isPlaying ? "Pause (Space)" : "Play (Space)"}
-              >
-                {isPlaying ? <Pause className="h-7 w-7" /> : <Play className="h-7 w-7 ml-1 fill-current" />}
-              </button>
-
-              {/* Bottom Transport Scrubber & Timecode Controls */}
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/95 via-black/80 to-transparent p-3 flex flex-col gap-2 opacity-95 group-hover:opacity-100 transition-opacity">
-                {/* Visual Progress Track */}
-                <input
-                  type="range"
-                  min={0}
-                  max={videoDuration || 6}
-                  step={0.01}
-                  value={currentTime}
-                  onChange={handleScrub}
-                  className="w-full h-1 bg-white/20 accent-accent rounded cursor-pointer transition-all hover:h-1.5"
-                />
-
-                {/* Transport Buttons & Telemetry Readout */}
-                <div className="flex items-center justify-between text-xs font-mono text-white/90">
-                  <div className="flex items-center gap-2 sm:gap-3">
-                    {/* Play/Pause */}
-                    <button
-                      type="button"
-                      onClick={togglePlay}
-                      className="p-1 rounded hover:bg-white/10 hover:text-white cursor-pointer transition-colors"
-                      title={isPlaying ? "Pause" : "Play"}
-                    >
-                      {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 fill-current" />}
-                    </button>
-
-                    {/* Step -1 Frame */}
-                    <button
-                      type="button"
-                      onClick={() => stepFrame(-1)}
-                      className="p-1 rounded hover:bg-white/10 hover:text-white cursor-pointer transition-colors"
-                      title="Step -1 Frame (24fps)"
-                    >
-                      <Rewind className="h-3.5 w-3.5" />
-                    </button>
-
-                    {/* Step +1 Frame */}
-                    <button
-                      type="button"
-                      onClick={() => stepFrame(1)}
-                      className="p-1 rounded hover:bg-white/10 hover:text-white cursor-pointer transition-colors"
-                      title="Step +1 Frame (24fps)"
-                    >
-                      <FastForward className="h-3.5 w-3.5" />
-                    </button>
-
-                    {/* Volume / Mute */}
-                    <button
-                      type="button"
-                      onClick={() => setIsMuted(!isMuted)}
-                      className="p-1 rounded hover:bg-white/10 hover:text-white cursor-pointer transition-colors"
-                      title={isMuted ? "Unmute" : "Mute"}
-                    >
-                      {isMuted ? <VolumeX className="h-4 w-4 text-rose-400" /> : <Volume2 className="h-4 w-4" />}
-                    </button>
-
-                    {/* Timecode Readout */}
-                    <div className="flex items-center gap-1.5 pl-1">
-                      <span className="font-bold tracking-wider text-accent">
-                        {formatTimecodeDisplay(currentTime)}
-                      </span>
-                      <span className="text-white/40">/</span>
-                      <span className="text-white/60">
-                        {formatTimecodeDisplay(videoDuration)}
-                      </span>
+                  {/* Production Slate Burn-In Overlay (Top Bar) */}
+                  <div className="absolute top-3 left-4 right-4 flex items-center justify-between text-[11px] font-mono text-white/90 bg-black/70 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 pointer-events-none">
+                    <div className="flex items-center gap-2.5">
+                      <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="font-bold text-accent">TAKE 0{currentActiveTake.takeNumber}</span>
+                      <span className="text-white/40">|</span>
+                      <span className="truncate max-w-[150px] sm:max-w-xs">{currentActiveTake.camera}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-white/60 hidden sm:inline">{activeRatioConfig.safeGuide}</span>
+                      <Badge variant="outline" className="border-white/20 text-white/90 text-[9px] font-mono px-1.5 py-0">
+                        24.00 FPS
+                      </Badge>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    {/* Frame Guides Toggle */}
-                    <button
-                      type="button"
-                      onClick={() => setShowFrameGuides(!showFrameGuides)}
-                      className={cn(
-                        "px-1.5 py-0.5 rounded text-[10px] font-mono border cursor-pointer transition-colors",
-                        showFrameGuides
-                          ? "bg-amber-500/20 border-amber-500/50 text-amber-300"
-                          : "border-white/10 text-white/50 hover:text-white hover:border-white/30"
-                      )}
-                      title="Toggle framing safe area guides"
-                    >
-                      Grid
-                    </button>
+                  {/* Big Center Play / Pause Indicator */}
+                  <button
+                    type="button"
+                    onClick={togglePlay}
+                    className={cn(
+                      "absolute inset-0 m-auto h-16 w-16 rounded-full bg-black/60 border border-white/20 flex items-center justify-center text-white backdrop-blur-md hover:scale-105 hover:bg-accent hover:text-accent-foreground transition-all cursor-pointer",
+                      isPlaying ? "opacity-0 group-hover:opacity-100" : "opacity-90"
+                    )}
+                    title={isPlaying ? "Pause (Space)" : "Play (Space)"}
+                  >
+                    {isPlaying ? <Pause className="h-7 w-7" /> : <Play className="h-7 w-7 ml-1 fill-current" />}
+                  </button>
 
-                    {/* Loop Toggle */}
-                    <button
-                      type="button"
-                      onClick={() => setIsLooping(!isLooping)}
-                      className={cn(
-                        "px-1.5 py-0.5 rounded text-[10px] font-mono border cursor-pointer transition-colors",
-                        isLooping
-                          ? "bg-accent/20 border-accent/40 text-accent"
-                          : "border-white/10 text-white/50 hover:text-white hover:border-white/30"
-                      )}
-                      title="Toggle Video Loop"
-                    >
-                      Loop
-                    </button>
+                  {/* Bottom Transport Scrubber & Timecode Controls */}
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/95 via-black/80 to-transparent p-3 flex flex-col gap-2 opacity-95 group-hover:opacity-100 transition-opacity">
+                    {/* Visual Progress Track */}
+                    <input
+                      type="range"
+                      min={0}
+                      max={videoDuration || 6}
+                      step={0.01}
+                      value={currentTime}
+                      onChange={handleScrub}
+                      className="w-full h-1 bg-white/20 accent-accent rounded cursor-pointer transition-all hover:h-1.5"
+                    />
 
-                    {/* Fullscreen */}
-                    <button
-                      type="button"
-                      onClick={handleToggleFullscreen}
-                      className="p-1 rounded hover:bg-white/10 hover:text-white cursor-pointer transition-colors"
-                      title="Fullscreen Monitor"
-                    >
-                      <Maximize2 className="h-3.5 w-3.5" />
-                    </button>
+                    {/* Transport Buttons & Telemetry Readout */}
+                    <div className="flex items-center justify-between text-xs font-mono text-white/90">
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        <button
+                          type="button"
+                          onClick={togglePlay}
+                          className="p-1 rounded hover:bg-white/10 hover:text-white cursor-pointer transition-colors"
+                          title={isPlaying ? "Pause" : "Play"}
+                        >
+                          {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 fill-current" />}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => stepFrame(-1)}
+                          className="p-1 rounded hover:bg-white/10 hover:text-white cursor-pointer transition-colors"
+                          title="Step -1 Frame (24fps)"
+                        >
+                          <Rewind className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => stepFrame(1)}
+                          className="p-1 rounded hover:bg-white/10 hover:text-white cursor-pointer transition-colors"
+                          title="Step +1 Frame (24fps)"
+                        >
+                          <FastForward className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setIsMuted(!isMuted)}
+                          className="p-1 rounded hover:bg-white/10 hover:text-white cursor-pointer transition-colors"
+                          title={isMuted ? "Unmute" : "Mute"}
+                        >
+                          {isMuted ? <VolumeX className="h-4 w-4 text-rose-400" /> : <Volume2 className="h-4 w-4" />}
+                        </button>
+                        <div className="flex items-center gap-1.5 pl-1">
+                          <span className="font-bold tracking-wider text-accent">
+                            {formatTimecodeDisplay(currentTime)}
+                          </span>
+                          <span className="text-white/40">/</span>
+                          <span className="text-white/60">
+                            {formatTimecodeDisplay(videoDuration)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowFrameGuides(!showFrameGuides)}
+                          className={cn(
+                            "px-1.5 py-0.5 rounded text-[10px] font-mono border cursor-pointer transition-colors",
+                            showFrameGuides
+                              ? "bg-amber-500/20 border-amber-500/50 text-amber-300"
+                              : "border-white/10 text-white/50 hover:text-white hover:border-white/30"
+                          )}
+                          title="Toggle framing safe area guides"
+                        >
+                          Grid
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setIsLooping(!isLooping)}
+                          className={cn(
+                            "px-1.5 py-0.5 rounded text-[10px] font-mono border cursor-pointer transition-colors",
+                            isLooping
+                              ? "bg-accent/20 border-accent/40 text-accent"
+                              : "border-white/10 text-white/50 hover:text-white hover:border-white/30"
+                          )}
+                          title="Toggle Video Loop"
+                        >
+                          Loop
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleToggleFullscreen}
+                          className="p-1 rounded hover:bg-white/10 hover:text-white cursor-pointer transition-colors"
+                          title="Fullscreen Monitor"
+                        >
+                          <Maximize2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="flex flex-col items-center justify-center p-8 text-center space-y-3">
+                  <div className="h-12 w-12 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400">
+                    <Video className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-heading font-bold text-foreground">Veo 3.1 Screening Monitor Ready</h4>
+                    <p className="text-xs text-muted-foreground mt-1 max-w-sm">
+                      Configure your prompt, camera motion, and visual style on the left, then click &quot;Render Take with Veo 3.1&quot; to produce your scene take.
+                    </p>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
 
@@ -1773,7 +1749,7 @@ export function GenerationStudioView({
                               onClick={() => {
                                 const url =
                                   c.preview_image_url ||
-                                  "/assets/locations/ai_vault_plate.jpg";
+                                  "/cinema/scenes/scene_1_storyboard_accretion.jpg";
                                 setActiveConditioningImage(url);
                                 setActiveImageType(null);
                                 setActiveSceneRefTitle(c.name);
@@ -2386,7 +2362,7 @@ export function GenerationStudioView({
                     <span className="flex items-center gap-1.5 text-muted-foreground">
                       <Camera className="h-3.5 w-3.5 text-amber-400" /> Camera Motion Manifest
                     </span>
-                    <span className="text-emerald-400 text-[10px] font-semibold">{currentActiveTake.camera}</span>
+                    <span className="text-emerald-400 text-[10px] font-semibold">{currentActiveTake?.camera || "N/A"}</span>
                   </div>
                 </CardContent>
               </Card>

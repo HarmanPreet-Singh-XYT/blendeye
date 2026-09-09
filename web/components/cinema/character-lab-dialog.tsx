@@ -378,8 +378,8 @@ export function CharacterLabDialog({
 
     try {
       const prompt = `Cinematic 85mm portrait, close-up headshot, single subject: ${activeChar.name}. ${
-        activeChar.actorComp ? `Facial likeness resembling ${activeChar.actorComp}. ` : ""
-      }${activeChar.visualDescription || activeChar.archetype}. Shot on 35mm film, dramatic chiaroscuro rim lighting, shallow depth of field, photorealistic skin texture, neutral out-of-focus background, no text or watermarks, no distorted features.`;
+        activeChar.visualDescription || activeChar.archetype
+      }. Dramatic chiaroscuro rim lighting, sharp cinematic features, shallow depth of field, photorealistic skin texture, neutral out-of-focus background, no text or watermarks, no distorted features.`;
 
       const res = await fetch("/api/media/image", {
         method: "POST",
@@ -441,8 +441,8 @@ export function CharacterLabDialog({
 
     try {
       const prompt = `Full-length character concept art, head-to-toe, single subject standing in a neutral studio pose: ${activeChar.name}. ${
-        activeChar.actorComp ? `Facial likeness resembling ${activeChar.actorComp}. ` : ""
-      }${activeChar.wardrobe ? `Wearing ${activeChar.wardrobe}. ` : ""}${
+        activeChar.wardrobe ? `Wearing ${activeChar.wardrobe}. ` : ""
+      }${
         activeChar.visualDescription || activeChar.archetype
       }. Dramatic volumetric studio rim lighting, detailed clothing and fabric texture, plain neutral background, costume design reference sheet quality, no text or watermarks, no cropped limbs.`;
 

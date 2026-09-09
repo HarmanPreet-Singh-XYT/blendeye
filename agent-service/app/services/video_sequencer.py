@@ -34,6 +34,7 @@ from pydantic import BaseModel, Field
 from app.config import get_settings
 from app.routers.media import dispatch_veo_generation, poll_veo_operation
 from app.services.frame_extractor import FrameExtractionError, extract_last_frame
+from app.services.prompt_sanitizer import sanitize_veo_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -97,10 +98,13 @@ def _build_shot_prompt(shot: SequenceShotInput) -> str:
     generation history, so drift can't compound across the chain.
     """
     bible = shot.continuity_bible or {}
-    parts = [shot.prompt.strip().rstrip(".")]
+    clean_base_prompt = sanitize_veo_prompt(shot.prompt.strip().rstrip("."))
+    parts = [clean_base_prompt]
 
     if bible.get("character_appearance"):
-        parts.append(f"Characters look exactly like: {bible['character_appearance']}")
+        clean_appearance = sanitize_veo_prompt(bible["character_appearance"])
+        if clean_appearance:
+            parts.append(f"Characters look exactly like: {clean_appearance}")
     if bible.get("wardrobe"):
         parts.append(f"Wardrobe: {bible['wardrobe']}")
     if bible.get("location"):
@@ -114,7 +118,7 @@ def _build_shot_prompt(shot: SequenceShotInput) -> str:
     if bible.get("blocking_end"):
         parts.append(f"Shot ends with: {bible['blocking_end']}")
 
-    return ". ".join(parts) + "."
+    return sanitize_veo_prompt(". ".join(parts) + ".")
 
 
 def _resolve_conditioning_image_url(

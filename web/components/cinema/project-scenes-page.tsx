@@ -423,7 +423,7 @@ export function ProjectScenesPage({
   const [showrunnerMessages, setShowrunnerMessages] = React.useState<ExtendedShowrunnerMessage[]>([
     {
       role: "showrunner",
-      content: `Greetings. I am your Showrunner AI Director for "${project.title}". I can manage your sequence chronology (create, delete, reorder scenes), audit franchise continuity, run stripboard breakdown, or execute multiverse takes. How shall we refine the reel?`,
+      content: `Greetings, Director. I'm your Showrunner co-pilot for "${project.title}". We can brainstorm narrative arcs, audit sequence continuity, weave in new story beats, or restructure the reel. Where would you like to take our story today?`,
     },
   ]);
   const [isShowrunnerThinking, setIsShowrunnerThinking] = React.useState(false);
@@ -433,13 +433,18 @@ export function ProjectScenesPage({
       role: "user",
       content: userText,
     };
-    setShowrunnerMessages((prev) => [...prev, userMsg]);
+    const updatedHistory = [...showrunnerMessages, userMsg];
+    setShowrunnerMessages(updatedHistory);
     setIsShowrunnerThinking(true);
 
     try {
       const activeSc = scenes.find((s) => s.id === activeSceneId) || scenes[0];
       const payload = {
         instruction: userText,
+        history: updatedHistory.slice(-6).map((m) => ({
+          role: m.role,
+          content: m.content,
+        })),
         projectContext: {
           id: project.id,
           title: project.title,
@@ -481,10 +486,11 @@ export function ProjectScenesPage({
 
       const data = await res.json();
       const actions = data.actions || [];
-      const commentary = data.commentary || data.result || "Directive processed.";
+      const commentary = data.assistant_message || data.commentary || data.reply || data.result || "Directive processed.";
 
+      let executedSummaries: string[] = data.execution_summaries || [];
       if (actions.length > 0) {
-        executeStudioActions(
+        const actionResult = executeStudioActions(
           actions,
           {
             scenes,
@@ -506,6 +512,9 @@ export function ProjectScenesPage({
             },
           }
         );
+        if (actionResult?.summaries?.length) {
+          executedSummaries = actionResult.summaries;
+        }
       }
 
       const assistantMsg: ExtendedShowrunnerMessage = {
@@ -513,7 +522,7 @@ export function ProjectScenesPage({
         content: commentary,
         thought_process: data.thought_process,
         actions,
-        execution_summaries: data.execution_summaries,
+        execution_summaries: executedSummaries,
         precedents_cited: data.precedents_cited,
       };
       setShowrunnerMessages((prev) => [...prev, assistantMsg]);
@@ -1404,16 +1413,24 @@ export function ProjectScenesPage({
                 messages={showrunnerMessages}
                 isThinking={isShowrunnerThinking}
                 onSendMessage={handleSendShowrunner}
-                title="Showrunner AI Sequence Director"
-                subtitle="Macro Sequence Reel · Multi-Scene Chronology & Continuity Engine"
-                badgeLabel="Sequence CRUD Active"
-                placeholder="Issue sequence directive (e.g. 'Add a bridge beat after Scene 1', 'Reorder scenes', 'Audit continuity')..."
+                onResetChat={() => {
+                  setShowrunnerMessages([
+                    {
+                      role: "showrunner",
+                      content: `Session refreshed. I'm your Showrunner co-pilot for "${project.title}". How would you like to develop the reel or character dynamics next?`,
+                    },
+                  ]);
+                }}
+                title="Showrunner AI Director"
+                subtitle="Story & Sequence Co-Pilot · Multi-Scene Chronology & Narrative Continuity"
+                badgeLabel="Collaborative Mode"
+                placeholder="Talk with Showrunner AI (e.g. brainstorm scene ideas, pacing, dialogue, or sequence changes)..."
                 suggestedPrompts={[
                   "Insert a high-tension bridge scene between Scene 1 and Scene 2",
-                  "Audit continuity and narrative logic across all scenes",
-                  "Reorder scenes to open in media res with the heist climax",
-                  "Synthesize an emotional fallout scene after the escape",
-                  "Break down shooting schedule & location logistics",
+                  "How can we raise the emotional stakes across the midpoint?",
+                  "Audit continuity and character logic across all scenes",
+                  "Pitch a surprise complication to open the climax",
+                  "Synthesize an emotional fallout scene after the breach",
                 ]}
                 className="h-full shadow-sm"
               />

@@ -102,7 +102,7 @@ export function SceneScoutView({
     lockedCandidate?.preview_image_url ||
     activeScene?.preview_image_url ||
     candidates[0]?.preview_image_url ||
-    "/assets/locations/ai_vault_plate.jpg";
+    "/cinema/scenes/scene_1_storyboard_accretion.jpg";
 
   const [heroImage, setHeroImage] = React.useState<string>(defaultInitialImage);
   const [heroPrompt, setHeroPrompt] = React.useState<string>("");
@@ -117,7 +117,7 @@ export function SceneScoutView({
         lockedCandidate?.preview_image_url ||
         activeScene.preview_image_url ||
         candidates[0]?.preview_image_url ||
-        "/assets/locations/ai_vault_plate.jpg";
+        "/cinema/scenes/scene_1_storyboard_accretion.jpg";
       setHeroImage(topImg);
       setHeroTitle(lockedCandidate?.name || activeScene.location || activeScene.title);
       setHeroPrompt(
@@ -605,7 +605,7 @@ export function SceneScoutView({
                   Lookbook Reel &amp; Candidates
                 </span>
                 <Badge variant="outline" className="text-[10px] font-mono border-amber-500/30 text-amber-300">
-                  {(activeScene?.sceneImages?.length || 0) + candidates.length} Visuals
+                  {candidates.length + (activeScene?.sceneImages?.filter((img) => !candidates.some((c) => c.preview_image_url === img.url)).length || 0)} Visuals
                 </Badge>
               </div>
               <div className="flex items-center gap-2">
@@ -644,7 +644,7 @@ export function SceneScoutView({
                 const isLocked = activeScene?.selectedLocationCandidateId === cand.candidate_id;
                 const thumbUrl =
                   cand.preview_image_url ||
-                  "/assets/locations/ai_vault_plate.jpg";
+                  "/cinema/scenes/scene_1_storyboard_accretion.jpg";
 
                 return (
                   <div
@@ -715,8 +715,10 @@ export function SceneScoutView({
                 );
               })}
 
-              {/* 2. User-Generated Scene Images */}
-              {activeScene?.sceneImages?.map((img) => {
+              {/* 2. User-Generated Scene Images (deduplicated — skip any already shown as a candidate preview) */}
+              {activeScene?.sceneImages
+                ?.filter((img) => !candidates.some((c) => c.preview_image_url === img.url))
+                .map((img) => {
                 const isCurrentHero = heroImage === img.url;
                 const isMasterKeyframe = activeScene.preview_image_url === img.url;
 

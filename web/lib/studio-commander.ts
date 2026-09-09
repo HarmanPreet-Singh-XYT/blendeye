@@ -1326,7 +1326,7 @@ export function executeStudioActions(
           const newMoment: TimelineMoment = {
             id: `moment-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
             timestampSec: timeSec,
-            imageUrl: action.imageUrl || "/assets/locations/ai_vault_plate.jpg",
+            imageUrl: action.imageUrl || "/cinema/scenes/scene_1_storyboard_accretion.jpg",
             prompt: action.prompt || `Cinematic moment at ${timeSec}s in ${sc.title}: ${sc.summary}`,
             createdAt: Date.now(),
             styleId: action.stylePreset || "anamorphic_35mm",

@@ -358,13 +358,11 @@ export function synthesizeCinemaPrompt(options: SynthesisOptions): SynthesisResu
         ? (actorNodes[0].data as { actorName?: string; roleReference?: string; vocalWeight?: string })
         : null);
 
-    const activeActorComp = wiredComp?.actorName
-      ? `${wiredComp.actorName} (resembling ${wiredComp.roleReference || "past role"}, ${wiredComp.vocalWeight || "expressive"} energy)`
-      : activeCharacter.actorComp;
-
-    const likenessComp = activeActorComp
-      ? `facial likeness and bone structure strongly echoing ${activeActorComp}`
-      : "";
+    // For Veo/Imagen prompts, do NOT inject real actor names directly as they trip Responsible-AI
+    // filters on real-person generation. Instead, synthesize dramatic facial presence and tone.
+    const likenessComp = activeCharacter.archetype
+      ? `facial presence embodying a ${activeCharacter.archetype.toLowerCase()}, sharp cinematic bone structure, intense focused gaze`
+      : "sharp cinematic facial features, intense focused gaze";
     const wardrobeDetail = activeCharacter.wardrobe
       ? `wearing ${activeCharacter.wardrobe}`
       : "in costume consistent with their role";
@@ -380,7 +378,7 @@ export function synthesizeCinemaPrompt(options: SynthesisOptions): SynthesisResu
 
     promptBody = [
       `Cinematic 16:9 film still, ${slugline}.`,
-      `Single subject in frame: ${activeCharacter.name}${likenessComp ? ` (${likenessComp})` : ""}, ${wardrobeDetail}.`,
+      `Single subject in frame: ${activeCharacter.name} (${likenessComp}), ${wardrobeDetail}.`,
       visualDesc,
       tics,
       objective,
@@ -394,14 +392,9 @@ export function synthesizeCinemaPrompt(options: SynthesisOptions): SynthesisResu
   } else {
     // ------------------- MASTER ENSEMBLE SCENE TAKE -------------------
     const castDescriptions = characters.slice(0, 2).map((c) => {
-      const cNodeId = `node-core-${c.name.toLowerCase()}`;
-      const cWiredComp = wiredActorMap.get(cNodeId);
-      const cComp = cWiredComp?.actorName
-        ? `${cWiredComp.actorName} (${cWiredComp.roleReference})`
-        : c.actorComp;
-      const likeness = cComp ? ` (likeness resembling ${cComp})` : "";
       const clothes = c.wardrobe ? `, in ${c.wardrobe}` : "";
-      return `${c.name}${likeness}${clothes}`;
+      const persona = c.archetype ? ` (${c.archetype})` : "";
+      return `${c.name}${persona}${clothes}`;
     }).join(" and ");
 
     const conflict = chemistryScenario || sceneStakes || "high tension standoff";

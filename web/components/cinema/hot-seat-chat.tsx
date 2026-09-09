@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { SlateLabel } from "@/components/cinema/slate-label";
 import { MarkdownRenderer } from "@/components/cinema/markdown-renderer";
-import { SendIcon, FilePlus, Check } from "lucide-react";
+import { SendIcon, FilePlus, Check, RotateCcw } from "lucide-react";
 
 export interface HotSeatTurn {
   role: "interviewer" | "character";
@@ -49,6 +49,7 @@ function HotSeatChat({
   knownFacts,
   turns,
   onSend,
+  onResetChat,
   onInsertIntoScript,
   isAsking = false,
   suggestedQuestions = [],
@@ -62,6 +63,7 @@ function HotSeatChat({
   knownFacts: KnowledgeFact[];
   turns: HotSeatTurn[];
   onSend: (message: string) => void;
+  onResetChat?: () => void;
   onInsertIntoScript?: (characterName: string, dialogue: string) => void;
   isAsking?: boolean;
   suggestedQuestions?: string[];
@@ -130,7 +132,21 @@ function HotSeatChat({
             <span className="text-xs text-muted-foreground line-clamp-1">{characterArchetype}</span>
           )}
         </div>
-        <span className="timecode text-xs sm:text-sm font-mono">{currentTimecode}</span>
+        <div className="flex items-center gap-2">
+          {onResetChat && turns.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onResetChat}
+              className="h-6 px-2 text-[10px] font-mono text-muted-foreground hover:text-foreground gap-1 cursor-pointer"
+              title="Reset interrogation transcript"
+            >
+              <RotateCcw className="h-3 w-3" />
+              <span>Reset</span>
+            </Button>
+          )}
+          <span className="timecode text-xs sm:text-sm font-mono">{currentTimecode}</span>
+        </div>
       </div>
 
       {/* knowledge-state strip — the time-gate mechanic made visible */}

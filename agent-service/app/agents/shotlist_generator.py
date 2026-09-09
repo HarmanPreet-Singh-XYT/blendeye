@@ -72,11 +72,10 @@ For every dramatic beat in the scene, architect a precise shot:
 5. Actor Blocking Notes: Where actors are positioned relative to cameras, practical light fixtures, and exits.
 6. Lighting Setup: Key light, fill ratio, practical sources, color temperature (Kelvin), shadow density — consistent with the visual style given.
 7. Dramatic Intent: The psychological reason for this framing and how it exposes character status.
-8. Imagen Prompt: A highly detailed, photoreal 16:9 cinematic image prompt ready for Google Imagen 3 storyboard rendering.
+8. Imagen Prompt: A highly detailed, photoreal 16:9 cinematic image prompt ready for Google Imagen 3 storyboard rendering. CRITICAL: Never include real celebrity or actor names (e.g. "Florence Pugh", "Jake Gyllenhaal") or phrases like "likeness of" in the prompt — use descriptive physical traits instead so it passes Responsible-AI safety filters.
 9. Continuity Bible: A locked, structured continuity spec for this shot that a later, independent video-generation
    step will read WITHOUT any memory of other shots. It must be self-sufficient: describe exactly what the
-   characters look like (appearance/wardrobe — reuse what was given for cast members present, don't invent
-   contradicting details), the location and lighting state, time of day, and where each character is
+   characters look like (appearance/wardrobe — describe purely in terms of physical traits, costume, hair, and demeanor, NEVER real celebrity actor names), the location and lighting state, time of day, and where each character is
    positioned at the start and end of the shot (blocking_start / blocking_end). Keep these consistent
    across shots for continuity — appearance and wardrobe should not change mid-scene unless the screenplay says so.
 10. Conditioning Source + Ref: as described above — "conditioning_source" and "conditioning_ref" (a character
