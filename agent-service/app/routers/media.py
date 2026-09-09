@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import re
+import time
 import uuid
 import wave
 from pathlib import Path
@@ -28,6 +29,12 @@ from google.genai.types import (
 from pydantic import BaseModel, Field
 
 from app.config import get_settings
+from app.services.observability import (
+    AUDIO_TTS_SYNTHESIS_SECONDS,
+    IMAGEN_STORYBOARDS_TOTAL,
+    VEO_GENERATION_SECONDS,
+    VEO_VIDEO_RENDERS_TOTAL,
+)
 from app.services.prompt_sanitizer import sanitize_character_name_for_veo, sanitize_veo_prompt
 
 logger = logging.getLogger(__name__)
@@ -163,6 +170,7 @@ async def generate_image(req: GenerateImageRequest):
                     b64_data = base64.b64encode(part.inline_data.data).decode("utf-8")
                     mime = part.inline_data.mime_type or "image/png"
                     data_uri = f"data:{mime};base64,{b64_data}"
+                    IMAGEN_STORYBOARDS_TOTAL.labels(aspect_ratio=req.aspect_ratio).inc()
                     return GenerateImageResponse(
                         image_url=data_uri,
                         prompt=req.prompt,
@@ -178,6 +186,7 @@ async def generate_image(req: GenerateImageRequest):
 @router.post("/tts", response_model=GenerateTTSResponse)
 async def generate_tts(req: GenerateTTSRequest):
     """Synthesize expressive character speech using Gemini 3.1 Flash TTS with multi-speaker voice mapping."""
+    _tts_start = time.time()
     settings = get_settings()
     api_key = settings.google_api_key
     if not api_key:
@@ -258,6 +267,7 @@ async def generate_tts(req: GenerateTTSRequest):
                         b64_wav = base64.b64encode(wav_bytes).decode("utf-8")
                         data_uri = f"data:audio/wav;base64,{b64_wav}"
                         duration = len(raw_pcm) / 48000.0
+                        AUDIO_TTS_SYNTHESIS_SECONDS.labels(voice_count="1").observe(time.time() - _tts_start)
                         return GenerateTTSResponse(
                             audio_url=data_uri,
                             speaker=speaker_clean,
@@ -330,6 +340,7 @@ def _parse_screenplay_dialogue(text: str) -> list[tuple[str, str]]:
 @router.post("/tts-multi", response_model=GenerateMultiSpeakerTTSResponse)
 async def generate_multi_tts(req: GenerateMultiSpeakerTTSRequest):
     """Generate a multi-speaker continuous audio table read using Gemini 3.1 Flash TTS MultiSpeakerVoiceConfig."""
+    _tts_start = time.time()
     settings = get_settings()
     api_key = settings.google_api_key
     if not api_key:
@@ -501,6 +512,8 @@ async def generate_multi_tts(req: GenerateMultiSpeakerTTSRequest):
     data_uri = f"data:audio/wav;base64,{b64_wav}"
     duration = len(accumulated_pcm) / 48000.0
 
+    AUDIO_TTS_SYNTHESIS_SECONDS.labels(voice_count=str(len(unique_speakers))).observe(time.time() - _tts_start)
+
     return GenerateMultiSpeakerTTSResponse(
         audio_url=data_uri,
         duration_estimate_sec=round(duration, 2),
@@ -604,6 +617,7 @@ def dispatch_veo_generation(
         kwargs["image"] = image_arg
 
     op = client.models.generate_videos(**kwargs)
+    VEO_VIDEO_RENDERS_TOTAL.labels(aspect_ratio=aspect_ratio, status="dispatched").inc()
     return op.name
 
 

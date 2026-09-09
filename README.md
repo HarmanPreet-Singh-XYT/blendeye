@@ -129,7 +129,7 @@ Traditional pre-production is plagued by two fatal structural flaws:
 │  │ • Multi-Scene Sequencing  │       │ • ClickHouse Hot Seat        │  │ • Chained Veo 3.1  │  │
 │  │ • Visual Backlot Graph    │ ────► │ • Dynamic Chemistry Bench    │─►│ • Pixel Anchoring  │  │
 │  │ • Production Stripboard   │       │ • Multi-Speaker Audio Table  │  │ • 2.39:1 Stills    │  │
-│  │ • Google Search Scouting  │       │ • 2D Spatial Camera Blocking │  │ • AI Film Scoring  │  │
+│  │ • Parallel Web Scouting   │       │ • 2D Spatial Camera Blocking │  │ • AI Film Scoring  │  │
 │  │ • Territory Heatmaps      │       │ • 3-Act Tension Pacing Curve │  │ • Multiverse Takes │  │
 │  └───────────────────────────┘       └──────────────────────────────┘  └────────────────────┘  │
 │                                                     ▲                                          │
@@ -184,13 +184,16 @@ flowchart TB
         GeminiTTS["Gemini 3.1 Flash TTS (Multi-Speaker Audio)"]
         VeoVideo["Veo 3.1 Fast Generate (Cinema Video)"]
         Imagen3["Imagen 3 / Gemini Image Models"]
-        SearchGrounding["Google Search Grounding (Location Scouting)"]
     end
 
     subgraph ClickHouseCluster ["ClickHouse Data Plane (Port 8123/9000)"]
         StoryEvents[("story_events (MergeTree Engine)")]
         Precedents[("cinematic_precedents (Market Comps)")]
         MCPClickhouse["mcp-clickhouse Server (Subprocess)"]
+    end
+
+    subgraph ParallelWeb ["Parallel Web Systems (Location Scouting)"]
+        ParallelSearch["Parallel Search API (parallel-web SDK)"]
     end
 
     %% Connections
@@ -209,6 +212,7 @@ flowchart TB
 
     FastAPI --> ClickHouseCluster
     FastAPI --> GoogleAI
+    FastAPI --> ParallelWeb
     Showrunner -.->|Tool Call| MCPClickhouse
     MCPClickhouse --> ClickHouseCluster
     Inspector -.->|Telemetry| ClickHouseCluster
@@ -259,7 +263,7 @@ The Director's central pre-production planning floor, linking high-level script 
 - **Production Efficiency Optimization**: Group scenes by location and cast availability to minimize company moves.
 
 #### 5. Global Location Scouting Board & Dossier Hub
-- **Real-World Grounding via Google Search Grounding**: Scout filming locations with Gemini connected live to Google Search.
+- **Real-World Grounding via Parallel Web Systems**: Scout filming locations with Gemini connected live to the Parallel Search API, with ADK's native Google Search tool wired in as a resilience fallback if Parallel is unavailable.
 - **Architectural & Geospatial Dossiers**: Fetches real geographic coordinates, architectural style descriptions, sun angles / golden hour windows, and seasonal weather patterns.
 - **Permits & Logistics**: Summarizes filming permit requirements, sound ordinances, and equipment access.
 - **Multi-Currency Budget Calculator**: Compares location candidate daily rates across USD, EUR, GBP, CAD, and AUD with budget cap policy alerts.
@@ -495,7 +499,8 @@ BlendEye harnesses Google Cloud's multimodal model family:
 | **Multi-Speaker TTS** | `gemini-3.1-flash-tts-preview` | Theatrical multi-speaker audio table reads with native `MultiSpeakerVoiceConfig`, actor timbres (`Fenrir`, `Aoede`, etc.), and DSP room acoustics |
 | **Video Generation** | `veo-3.1-fast-generate-preview` | 2.39:1 widescreen video renders, camera motion control, and sequential multi-shot chained generation with last-frame pixel conditioning |
 | **Visual Concepts** | `gemini-3.1-flash-image` / `gemini-3-pro-image` | Anamorphic storyboard keyframes, character wardrobe portraits, and director lookbook moodboards |
-| **Grounding** | Google Search Grounding | Location scouting research fetching verified geographical coordinates, architectural details, and seasonal filming conditions |
+
+Location scouting grounding is powered by **Parallel Web Systems** (primary) — see the Parallel Web Systems Partner Track Integration section — with ADK's native Google Search tool attached only as a fallback if Parallel is unconfigured or unreachable.
 
 ---
 
@@ -524,7 +529,7 @@ agentic_cinema/
 │   │   │   ├── showrunner.py          # Omniscient co-writer with MCP tool calling
 │   │   │   ├── continuity_checker.py  # Script logic & paradox inspector
 │   │   │   ├── character_lab.py       # Character generator & casting comp agent
-│   │   │   ├── location_researcher.py # Location scouting with Google Search Grounding
+│   │   │   ├── location_researcher.py # Location scouting grounded via Parallel Web Systems (Google Search fallback)
 │   │   │   ├── multiverse_takes.py    # 3-director take generator
 │   │   │   └── shotlist_generator.py  # Continuity bible & shot planner
 │   │   ├── routers/                   # REST API routes (media, script, hot-seat, etc.)

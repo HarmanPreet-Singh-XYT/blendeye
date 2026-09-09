@@ -694,7 +694,7 @@ export function LocationBoard({
     });
   };
 
-  // Run full project location research via Gemini + Google Search Grounding
+  // Run full project location research via Gemini + Parallel Web Systems grounding
   const handleRunLocationResearch = async () => {
     setIsScouting(true);
     try {
@@ -1557,7 +1557,7 @@ export function LocationBoard({
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground">
-            Municipal permit schedules, candidate day rates, and soundstage specs grounded live with Parallel Web Systems & Google Search.
+            Municipal permit schedules, candidate day rates, and soundstage specs grounded live with Parallel Web Systems.
           </p>
         </div>
 
@@ -1683,7 +1683,7 @@ export function LocationBoard({
                 {scoutingSteps[scoutingPhase]}
               </span>
               <span className="text-[10px] font-medium text-emerald-400 flex items-center gap-1">
-                <Zap className="h-3 w-3" /> Parallel Web + Google Search Active
+                <Zap className="h-3 w-3" /> Parallel Web Systems Active
               </span>
             </div>
             <div className="w-full bg-accent/20 h-1 rounded-full overflow-hidden">
@@ -2152,7 +2152,7 @@ export function LocationBoard({
                         No Real-World Candidates Scouted Yet
                       </span>
                       <p className="text-xs text-muted-foreground max-w-md mx-auto">
-                        Click &ldquo;Scout Locations&rdquo; to launch Gemini with live Google Search
+                        Click &ldquo;Scout Locations&rdquo; to launch Gemini with live Parallel Web Systems
                         grounding for permit rates, day fees, and film precedents in {selectedScene.shootRegion || productionBase}, or add a custom indoor soundstage / green screen cyc.
                       </p>
                     </div>
@@ -4197,7 +4197,7 @@ export function LocationBoard({
                   <p>
                     Ask any operational question about <strong>{cleanCandidateName(qaCandidate.name)}</strong>.
                     <br />
-                    Answers are researched live via Google Search and municipal film commission databases.
+                    Answers are researched live via Parallel Web Systems and municipal film commission databases.
                   </p>
                 </div>
               ) : (

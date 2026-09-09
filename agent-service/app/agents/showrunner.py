@@ -27,13 +27,13 @@ HOW TO INTERACT (BE HUMAN & CONVERSATIONAL):
 """
 
 
-def parallel_web_search(query: str) -> str:
+async def parallel_web_search(query: str) -> str:
     """Search the live web via Parallel Web Systems (parallel.ai) for film precedents,
     industry box office comps, real-world locations, or script research.
     """
     from app.services.parallel_search import search_parallel
 
-    results = search_parallel(query, num_results=3)
+    results = await search_parallel(query, num_results=3)
     if not results:
         return "No web results found via Parallel Web Systems."
     formatted = []
@@ -52,12 +52,15 @@ def query_studio_telemetry(aspect: str = "all") -> str:
 
     status = get_studio_health_status()
     pipeline = status.get("pipeline", {})
-    alerts = status.get("alerts", [])
-    alert_lines = "\n".join([f"- [{a['severity'].upper()}] {a['name']}: {a['message']}" for a in alerts])
+    network = status.get("network_latencies", [])
+    network_lines = "\n".join(
+        f"- {n['service']}: {n['status']}" + (f" ({n['latency_ms']}ms)" if n.get("latency_ms") is not None else "")
+        for n in network
+    )
 
     return (
         f"BlendEye Studio Telemetry & Observability Status:\n"
-        f"Status: {status.get('status', 'healthy').upper()}\n"
+        f"Status: {status.get('status', 'unknown').upper()}\n"
         f"Engine: {status.get('observability_engine', 'Grafana Labs OpenTelemetry Stack')}\n\n"
         f"Pipeline Health:\n"
         f"- Veo 3.1 Video Sequencer: {pipeline.get('veo_video_sequencer')}\n"
@@ -66,7 +69,7 @@ def query_studio_telemetry(aspect: str = "all") -> str:
         f"- Parallel Web Search: {pipeline.get('parallel_web_search')}\n"
         f"- Audio Multi-Speaker TTS: {pipeline.get('audio_multi_speaker')}\n"
         f"- Script Continuity Supervisor: {pipeline.get('continuity_supervisor')}\n\n"
-        f"Grafana SLO & Alert Checks:\n{alert_lines}\n\n"
+        f"Live Network Round-Trip Checks:\n{network_lines}\n\n"
         f"Live Prometheus Scrape Endpoint: /observability/metrics\n"
         f"Live Grafana Cloud Dashboard: https://fearlessimpatiens433.grafana.net/d/blendeye-studio-observability/0c416a4"
     )

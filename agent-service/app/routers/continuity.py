@@ -7,9 +7,12 @@ from typing import Any
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
+import time
+
 from app.agents.continuity_checker import build_continuity_agent
 from app.agents.runner import parse_json_from_llm, run_agent_once
 from app.services.clickhouse_store import get_clickhouse_store
+from app.services.observability import CLICKHOUSE_QUERY_LATENCY_MS, CONTINUITY_PARADOXES_TOTAL
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +61,9 @@ async def check_continuity(req: ContinuityCheckRequest) -> ContinuityCheckRespon
 
     try:
         store = get_clickhouse_store()
+        _ch_start = time.time()
         rows = store.client.query(sql).result_rows
+        CLICKHOUSE_QUERY_LATENCY_MS.observe((time.time() - _ch_start) * 1000.0)
         events_count = len(rows)
         if rows:
             formatted_lines = [
@@ -102,6 +107,8 @@ async def check_continuity(req: ContinuityCheckRequest) -> ContinuityCheckRespon
         data = parse_json_from_llm(raw_output)
         issues_raw = data.get("issues", [])
         parsed_issues = [ContinuityIssue(**i) for i in issues_raw]
+        for issue in parsed_issues:
+            CONTINUITY_PARADOXES_TOTAL.labels(severity=issue.severity).inc()
         return ContinuityCheckResponse(
             overall_continuity_score=data.get("overall_continuity_score", 82),
             total_issues=len(parsed_issues),

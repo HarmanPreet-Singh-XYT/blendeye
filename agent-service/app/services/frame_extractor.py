@@ -10,7 +10,10 @@ import asyncio
 import logging
 import shutil
 import tempfile
+import time
 from pathlib import Path
+
+from app.services.observability import PIXEL_ANCHORING_LATENCY_MS
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +33,7 @@ async def extract_last_frame(video_source: Path | str) -> bytes:
     if not _FFMPEG_BIN:
         raise FrameExtractionError("ffmpeg is not installed or not on PATH")
 
+    _start_time = time.time()
     with tempfile.TemporaryDirectory() as tmpdir:
         input_target: str
         if isinstance(video_source, str) and video_source.startswith("data:"):
@@ -76,4 +80,6 @@ async def extract_last_frame(video_source: Path | str) -> bytes:
                 f"{stderr.decode(errors='ignore')[-500:]}"
             )
 
-        return out_path.read_bytes()
+        frame_bytes = out_path.read_bytes()
+        PIXEL_ANCHORING_LATENCY_MS.observe((time.time() - _start_time) * 1000.0)
+        return frame_bytes

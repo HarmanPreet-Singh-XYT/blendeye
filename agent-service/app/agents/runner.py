@@ -10,12 +10,15 @@ from __future__ import annotations
 
 import json
 import re
+import time
 import uuid
 from typing import Any
 
 from google.adk.agents import BaseAgent
 from google.adk.runners import InMemoryRunner
 from google.genai import types
+
+from app.services.observability import AGENT_INFERENCE_DURATION_SECONDS, GEMINI_TOKENS_TOTAL
 
 
 def parse_json_from_llm(text: str) -> Any:
@@ -80,6 +83,7 @@ async def run_agent_once(agent: BaseAgent, prompt: str, *, app_name: str) -> str
 
     message = types.Content(role="user", parts=[types.Part(text=prompt)])
 
+    start_time = time.time()
     final_text_parts: list[str] = []
     async for event in runner.run_async(
         user_id=user_id, session_id=session_id, new_message=message
@@ -88,6 +92,16 @@ async def run_agent_once(agent: BaseAgent, prompt: str, *, app_name: str) -> str
             for part in event.content.parts:
                 if part.text:
                     final_text_parts.append(part.text)
+
+        usage = event.usage_metadata
+        if usage is not None:
+            model_name = event.model_version or "unknown"
+            if usage.prompt_token_count:
+                GEMINI_TOKENS_TOTAL.labels(model=model_name, token_type="prompt").inc(usage.prompt_token_count)
+            if usage.candidates_token_count:
+                GEMINI_TOKENS_TOTAL.labels(model=model_name, token_type="completion").inc(usage.candidates_token_count)
+
+    AGENT_INFERENCE_DURATION_SECONDS.labels(agent_name=app_name).observe(time.time() - start_time)
 
     return "".join(final_text_parts)
 

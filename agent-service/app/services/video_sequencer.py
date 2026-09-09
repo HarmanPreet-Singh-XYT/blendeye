@@ -34,6 +34,7 @@ from pydantic import BaseModel, Field
 from app.config import get_settings
 from app.routers.media import dispatch_veo_generation, poll_veo_operation
 from app.services.frame_extractor import FrameExtractionError, extract_last_frame
+from app.services.observability import VEO_GENERATION_SECONDS, VEO_VIDEO_RENDERS_TOTAL
 from app.services.prompt_sanitizer import sanitize_veo_prompt
 
 logger = logging.getLogger(__name__)
@@ -199,6 +200,9 @@ async def _run_sequence(
             reference_images=reference_images,
         )
 
+        shot_start_time = time.time()
+        shot_type = "chained_continuation" if idx > 0 else "opening_shot"
+
         try:
             operation_name = dispatch_veo_generation(
                 client,
@@ -228,6 +232,8 @@ async def _run_sequence(
                 video_url = result["video_url"]
                 break
             if result["status"] == "error":
+                VEO_VIDEO_RENDERS_TOTAL.labels(aspect_ratio="16:9", status="error").inc()
+                VEO_GENERATION_SECONDS.labels(shot_type=shot_type).observe(time.time() - shot_start_time)
                 shot_state.status = "error"
                 shot_state.error_message = result.get("error", "unknown Veo error")
                 job.status = "error"
@@ -236,6 +242,8 @@ async def _run_sequence(
                 return
 
         if not video_url:
+            VEO_VIDEO_RENDERS_TOTAL.labels(aspect_ratio="16:9", status="timeout").inc()
+            VEO_GENERATION_SECONDS.labels(shot_type=shot_type).observe(time.time() - shot_start_time)
             shot_state.status = "error"
             shot_state.error_message = "Timed out waiting for Veo render"
             job.status = "error"
@@ -243,6 +251,8 @@ async def _run_sequence(
             job.updated_at = time.time()
             return
 
+        VEO_VIDEO_RENDERS_TOTAL.labels(aspect_ratio="16:9", status="completed").inc()
+        VEO_GENERATION_SECONDS.labels(shot_type=shot_type).observe(time.time() - shot_start_time)
         shot_state.status = "completed"
         shot_state.video_url = video_url
         job.updated_at = time.time()

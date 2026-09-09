@@ -19,10 +19,18 @@ from __future__ import annotations
 
 import os
 
+from google.adk.tools.mcp_tool.mcp_session_manager import StdioConnectionParams
 from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 from mcp import StdioServerParameters
 
 from app.config import get_settings
+
+# ADK's default MCP session-ready timeout is 5.0s, which is shorter than the
+# observed cold-start time of the mcp-clickhouse subprocess (fastmcp/docket
+# imports plus stdio handshake routinely take 2-3s beyond that). When it's
+# exceeded, the ADK agent silently drops the toolset and runs without
+# ClickHouse tools for that turn instead of raising a request-level error.
+_MCP_SESSION_TIMEOUT_SECONDS = 20.0
 
 
 def build_clickhouse_toolset() -> McpToolset:
@@ -43,9 +51,12 @@ def build_clickhouse_toolset() -> McpToolset:
     }
 
     return McpToolset(
-        connection_params=StdioServerParameters(
-            command="mcp-clickhouse",
-            args=[],
-            env=env,
+        connection_params=StdioConnectionParams(
+            server_params=StdioServerParameters(
+                command="mcp-clickhouse",
+                args=[],
+                env=env,
+            ),
+            timeout=_MCP_SESSION_TIMEOUT_SECONDS,
         ),
     )

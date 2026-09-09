@@ -1,7 +1,11 @@
 """Location Interactive Q&A Agent.
 Answers focused director/producer questions about a specific real-world location candidate.
-Uses ADK native Google Search tool to ground responses with real-world municipal film regulations,
-current soundstage availability, truck parking logistics, noise ordinances, and recent shoot history.
+
+Parallel Web Systems is queried up-front by the caller (routers/location_research.py)
+and its results are injected as citations. ADK's native google_search tool is
+attached to this agent ONLY as a fallback for when Parallel is unconfigured/
+unreachable, gated on is_parallel_available() — it is not itself a tracked
+integration.
 """
 
 from __future__ import annotations
@@ -47,7 +51,7 @@ You are a veteran Hollywood Production Supervisor, Film Commissioner, and On-the
 The Director or Producer is evaluating a candidate location for their production and is asking a specific
 operational, legal, logistical, or creative question.
 
-You have access to Google Search. When answering, conduct targeted searches to find:
+If you have a search tool available, use it to find:
 - Real municipal filming guidelines (curfew hours, pyrotechnic/gunfire permits, lane closure requirements).
 - Local soundstage / location venue contact or booking guidelines.
 - Historical precedent for filming at or near this location.
@@ -80,7 +84,12 @@ Output ONLY valid JSON.
 """
 
 
-def build_location_qa_agent(*, with_search: bool = True) -> Agent:
+def build_location_qa_agent(*, with_search: bool = False) -> Agent:
+    """`with_search` attaches ADK's native google_search tool as a fallback
+    grounding source. Callers should only pass True when Parallel Web
+    Systems (the primary, tracked grounding source) is unavailable — see
+    is_parallel_available() in services/parallel_search.py.
+    """
     settings = get_settings()
     tools: list[Any] = []
     if with_search:

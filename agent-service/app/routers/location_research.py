@@ -17,7 +17,7 @@ from app.agents.location_researcher import (
     generate_fallback_location_research,
 )
 from app.agents.runner import parse_json_from_llm, run_agent_once
-from app.services.parallel_search import search_filming_locations, search_parallel
+from app.services.parallel_search import is_parallel_available, search_filming_locations, search_parallel
 
 logger = logging.getLogger(__name__)
 
@@ -133,8 +133,9 @@ class LocationQAResponse(BaseModel):
 
 @router.post("/research", response_model=LocationResearchResponse)
 async def research_locations(req: LocationResearchRequest) -> LocationResearchResponse:
-    """Scouts real-world locations with Google Search grounding for each scene,
-    computes deterministic rank scores, and proposes cross-scene consolidation clusters.
+    """Scouts real-world locations, grounding each candidate with live Parallel
+    Web Systems search results, computes deterministic rank scores, and
+    proposes cross-scene consolidation clusters.
     """
     scenes_dict = [s.model_dump() for s in req.scenes]
 
@@ -153,7 +154,10 @@ async def research_locations(req: LocationResearchRequest) -> LocationResearchRe
             }
         ]
 
-    agent = build_location_researcher_agent(with_search=True)
+    # Parallel Web Systems is the primary grounding source (enriched into
+    # each candidate below, post-generation); google_search is attached
+    # here only as a fallback if Parallel isn't configured/reachable.
+    agent = build_location_researcher_agent(with_search=not is_parallel_available())
 
     prompt = (
         f"Project Title: {req.project_title}\n"
@@ -191,14 +195,14 @@ async def research_locations(req: LocationResearchRequest) -> LocationResearchRe
 
                 # Runtime Parallel Web Systems grounding: enrich candidate with live verified search results
                 try:
-                    p_res = search_filming_locations(c.get("name", "filming location"), req.production_base, c.get("category", "stage"))
+                    p_res = await search_filming_locations(c.get("name", "filming location"), req.production_base, c.get("category", "stage"))
                     if p_res:
                         sources = c.setdefault("sources", [])
                         for p in p_res[:2]:
                             sources.append({"title": f"Parallel Web: {p['title']}", "url": p["url"]})
                         c["search_grounded"] = True
                 except Exception as ex:  # noqa: BLE001
-                    logger.debug("Parallel enrichment skipped for candidate %s: %s", c.get("name"), ex)
+                    logger.warning("Parallel enrichment skipped for candidate %s: %s", c.get("name"), ex)
 
                 processed_candidates.append(LocationCandidate(**c))
 
@@ -231,31 +235,32 @@ async def research_locations(req: LocationResearchRequest) -> LocationResearchRe
         try:
             for s_fall in fallback_data.get("scenes", []):
                 for c_fall in s_fall.get("candidates", []):
-                    p_res = search_filming_locations(c_fall.get("name", "facility"), req.production_base, c_fall.get("category", "stage"))
+                    p_res = await search_filming_locations(c_fall.get("name", "facility"), req.production_base, c_fall.get("category", "stage"))
                     if p_res:
                         s_list = c_fall.setdefault("sources", [])
                         for p in p_res[:2]:
                             s_list.append({"title": f"Parallel Web: {p['title']}", "url": p["url"]})
                         c_fall["search_grounded"] = True
         except Exception as p_err:  # noqa: BLE001
-            logger.debug("Parallel fallback enrichment skipped: %s", p_err)
+            logger.warning("Parallel fallback enrichment skipped: %s", p_err)
 
         return LocationResearchResponse(**fallback_data)
 
 
 @router.post("/qa", response_model=LocationQAResponse)
 async def ask_location_qa(req: LocationQARequest) -> LocationQAResponse:
-    """Answers interactive location questions grounded in Google Search and Parallel Web Systems."""
+    """Answers interactive location questions grounded in Parallel Web Systems,
+    falling back to Google Search only if Parallel returns nothing this request."""
     # Query Parallel Web Systems at runtime for verified domain intelligence
     parallel_citations: list[dict[str, str]] = []
     try:
-        p_hits = search_parallel(f"{req.region} {req.candidate_name} {req.question}", num_results=2)
+        p_hits = await search_parallel(f"{req.region} {req.candidate_name} {req.question}", num_results=2)
         for hit in p_hits:
             parallel_citations.append({"title": f"Parallel Web: {hit['title']}", "url": hit["url"]})
     except Exception as ex:  # noqa: BLE001
-        logger.debug("Parallel QA lookup skipped: %s", ex)
+        logger.warning("Parallel QA lookup skipped: %s", ex)
 
-    agent = build_location_qa_agent(with_search=True)
+    agent = build_location_qa_agent(with_search=not parallel_citations)
 
     prompt = (
         f"Production Project: {req.project_title}\n"
@@ -300,7 +305,7 @@ class ParallelSearchRequest(BaseModel):
 @router.post("/parallel-search")
 async def execute_parallel_search(req: ParallelSearchRequest):
     """Direct runtime Parallel Web Systems search endpoint for director intelligence."""
-    results = search_parallel(req.query, num_results=req.num_results)
+    results = await search_parallel(req.query, num_results=req.num_results)
     return {
         "query": req.query,
         "count": len(results),

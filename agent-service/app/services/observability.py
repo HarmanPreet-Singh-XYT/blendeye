@@ -129,82 +129,124 @@ NETWORK_RTT_SECONDS = Histogram(
     buckets=[0.001, 0.005, 0.015, 0.030, 0.060, 0.120, 0.250, 0.500, 1.0],
 )
 
-# Initialize starting gauges
 ACTIVE_DIRECTORS_GAUGE.set(1)
-PIPELINE_SLO_RATIO_GAUGE.set(99.8)
 
 
 def measure_network_latencies() -> list[dict[str, Any]]:
-    """Measures real-time network round-trip latencies (RTT) across inter-service IPC
-    and all external cloud data planes.
+    """Measures real round-trip latency to each external dependency this
+    service actually talks to, by issuing a lightweight real request/query
+    to each and timing the wall-clock response. Any target that isn't
+    configured (missing credentials) or times out is reported as such
+    rather than papered over with a synthetic number.
     """
-    import random
+    import httpx
 
-    network_targets = [
-        {
-            "network_type": "inter_service",
-            "service": "nextjs_to_fastapi",
-            "destination": "internal_ingress_proxy",
-            "latency_ms": round(random.uniform(2.4, 5.2), 2),
-            "protocol": "HTTP/1.1 (Cloud Run VPC / Loopback)",
-            "status": "nominal",
-        },
-        {
-            "network_type": "inter_service",
-            "service": "mcp_stdio_transport",
-            "destination": "local_subprocesses (clickhouse, grafana)",
-            "latency_ms": round(random.uniform(0.4, 1.1), 2),
-            "protocol": "POSIX Stdio IPC (Zero Network Transit)",
-            "status": "optimal",
-        },
-        {
+    from app.config import get_settings
+    from app.services.clickhouse_store import get_clickhouse_store
+
+    settings = get_settings()
+    network_targets: list[dict[str, Any]] = []
+
+    # ClickHouse Cloud — real SELECT 1 round-trip.
+    try:
+        store = get_clickhouse_store()
+        if store.is_connected and store.client is not None:
+            t0 = time.time()
+            store.client.query("SELECT 1")
+            latency_ms = round((time.time() - t0) * 1000, 2)
+            CLICKHOUSE_QUERY_LATENCY_MS.observe(latency_ms)
+            network_targets.append({
+                "network_type": "cloud_database",
+                "service": "clickhouse_cloud",
+                "destination": settings.clickhouse_host or "unknown",
+                "latency_ms": latency_ms,
+                "protocol": "TCP / TLS Native Client",
+                "status": "healthy",
+            })
+        else:
+            network_targets.append({
+                "network_type": "cloud_database",
+                "service": "clickhouse_cloud",
+                "destination": settings.clickhouse_host or "unconfigured",
+                "latency_ms": None,
+                "protocol": "TCP / TLS Native Client",
+                "status": "not_connected",
+            })
+    except Exception as e:  # noqa: BLE001
+        network_targets.append({
             "network_type": "cloud_database",
             "service": "clickhouse_cloud",
-            "destination": "aws-us-east-1.clickhouse.cloud:8443",
-            "latency_ms": round(random.uniform(24.5, 36.0), 2),
-            "protocol": "TCP / TLS 1.3 Native Client",
-            "status": "healthy",
-        },
-        {
-            "network_type": "ai_provider",
-            "service": "google_vertex_ai",
-            "destination": "us-central1-aiplatform.googleapis.com",
-            "latency_ms": round(random.uniform(18.0, 29.5), 2),
-            "protocol": "gRPC / HTTP/2 Regional Ingress",
-            "status": "healthy",
-        },
-        {
+            "destination": settings.clickhouse_host or "unknown",
+            "latency_ms": None,
+            "protocol": "TCP / TLS Native Client",
+            "status": f"error: {e}",
+        })
+
+    # Parallel Web Systems — real HEAD request against the API base, only
+    # if a key is configured (avoids a network call that can't succeed).
+    if settings.parallel_api_key:
+        try:
+            t0 = time.time()
+            resp = httpx.head("https://api.parallel.ai", timeout=5.0)
+            latency_ms = round((time.time() - t0) * 1000, 2)
+            network_targets.append({
+                "network_type": "web_search",
+                "service": "parallel_web_api",
+                "destination": "api.parallel.ai",
+                "latency_ms": latency_ms,
+                "protocol": "HTTPS",
+                "status": "healthy" if resp.status_code < 500 else f"degraded ({resp.status_code})",
+            })
+        except Exception as e:  # noqa: BLE001
+            network_targets.append({
+                "network_type": "web_search",
+                "service": "parallel_web_api",
+                "destination": "api.parallel.ai",
+                "latency_ms": None,
+                "protocol": "HTTPS",
+                "status": f"unreachable: {e}",
+            })
+    else:
+        network_targets.append({
             "network_type": "web_search",
             "service": "parallel_web_api",
-            "destination": "api.parallel.ai:443",
-            "latency_ms": round(random.uniform(52.0, 74.0), 2),
-            "protocol": "HTTPS REST Search Gateway",
-            "status": "healthy",
-        },
-        {
-            "network_type": "storage_auth",
-            "service": "supabase_cloud",
-            "destination": "supabase.co:5432 / Storage CDN",
-            "latency_ms": round(random.uniform(16.5, 25.5), 2),
-            "protocol": "PostgreSQL Connection Pool & CDN",
-            "status": "healthy",
-        },
-        {
-            "network_type": "telemetry_ingest",
-            "service": "grafana_cloud",
-            "destination": "prometheus-prod-32-prod-ca-east-0.grafana.net",
-            "latency_ms": round(random.uniform(28.0, 42.0), 2),
-            "protocol": "HTTPS Prometheus Remote-Write",
-            "status": "healthy",
-        },
-    ]
+            "destination": "api.parallel.ai",
+            "latency_ms": None,
+            "protocol": "HTTPS",
+            "status": "unconfigured (no PARALLEL_API_KEY)",
+        })
+
+    # Grafana Cloud — real HEAD request against the configured Grafana URL.
+    if settings.grafana_url:
+        try:
+            t0 = time.time()
+            resp = httpx.head(settings.grafana_url, timeout=5.0)
+            latency_ms = round((time.time() - t0) * 1000, 2)
+            network_targets.append({
+                "network_type": "telemetry_ingest",
+                "service": "grafana_cloud",
+                "destination": settings.grafana_url,
+                "latency_ms": latency_ms,
+                "protocol": "HTTPS",
+                "status": "healthy" if resp.status_code < 500 else f"degraded ({resp.status_code})",
+            })
+        except Exception as e:  # noqa: BLE001
+            network_targets.append({
+                "network_type": "telemetry_ingest",
+                "service": "grafana_cloud",
+                "destination": settings.grafana_url,
+                "latency_ms": None,
+                "protocol": "HTTPS",
+                "status": f"unreachable: {e}",
+            })
 
     for target in network_targets:
-        NETWORK_RTT_SECONDS.labels(
-            network_type=target["network_type"],
-            service=target["service"],
-            destination=target["destination"],
-        ).observe(target["latency_ms"] / 1000.0)
+        if target["latency_ms"] is not None:
+            NETWORK_RTT_SECONDS.labels(
+                network_type=target["network_type"],
+                service=target["service"],
+                destination=target["destination"],
+            ).observe(target["latency_ms"] / 1000.0)
 
     return network_targets
 
@@ -214,113 +256,37 @@ def get_prometheus_metrics() -> tuple[bytes, str]:
     return generate_latest(), CONTENT_TYPE_LATEST
 
 
-def run_telemetry_benchmark() -> dict[str, Any]:
-    """Executes a calibrated pipeline benchmark, recording real-time latency distributions
-    across ClickHouse, Parallel Web Systems, Google Veo, and Gemini multimodal models.
-    """
-    import random
-
-    start_time = time.time()
-
-    # 1. Simulate burst of 10 ClickHouse time-gate queries
-    ch_latencies = []
-    for _ in range(10):
-        # ClickHouse queries range from 0.8ms to 3.2ms
-        lat = round(random.uniform(0.0008, 0.0032), 4)  # seconds
-        ch_latencies.append(lat * 1000)
-        CLICKHOUSE_QUERY_LATENCY_MS.observe(lat * 1000)
-    STORY_EVENTS_GAUGE.inc(random.randint(3, 8))
-
-    # 2. Simulate Parallel Web search query
-    par_lat = round(random.uniform(0.35, 0.65), 3)
-    PARALLEL_SEARCH_QUERIES_TOTAL.labels(category="location_scouting").inc()
-    PARALLEL_SEARCH_LATENCY_SECONDS.observe(par_lat)
-
-    # 3. Simulate Veo video render conditioning
-    pixel_ms = round(random.uniform(18.0, 42.0), 1)
-    PIXEL_ANCHORING_LATENCY_MS.observe(pixel_ms)
-    VEO_VIDEO_RENDERS_TOTAL.labels(aspect_ratio="2.39:1", status="completed").inc()
-    VEO_GENERATION_SECONDS.labels(shot_type="sequential_take").observe(round(random.uniform(4.5, 8.2), 2))
-
-    # 4. Record token usage
-    tokens_prompt = random.randint(850, 1400)
-    tokens_completion = random.randint(250, 600)
-    GEMINI_TOKENS_TOTAL.labels(model="gemini-3.7-flash", token_type="prompt").inc(tokens_prompt)
-    GEMINI_TOKENS_TOTAL.labels(model="gemini-3.7-flash", token_type="completion").inc(tokens_completion)
-    IMAGEN_STORYBOARDS_TOTAL.labels(aspect_ratio="2.39:1").inc()
-
-    # 5. Increment HTTP requests
-    HTTP_REQUESTS_TOTAL.labels(method="POST", endpoint="/observability/benchmark", status="200").inc()
-
-    elapsed = round((time.time() - start_time) * 1000, 2)
-    avg_ch = round(sum(ch_latencies) / len(ch_latencies), 2)
-    p95_ch = round(sorted(ch_latencies)[int(len(ch_latencies) * 0.95)], 2)
-
-    # 6. Measure inter-service and multi-cloud network RTTs
-    network_matrix = measure_network_latencies()
-
-    return {
-        "status": "success",
-        "benchmark_duration_ms": elapsed,
-        "clickhouse": {
-            "queries_executed": 10,
-            "avg_latency_ms": avg_ch,
-            "p95_latency_ms": p95_ch,
-            "slo_status": "PASSED (< 4.0ms target)",
-        },
-        "parallel_web": {
-            "queries_dispatched": 1,
-            "latency_seconds": par_lat,
-            "endpoint": "api.parallel.ai/v1/search",
-        },
-        "google_veo_31": {
-            "pixel_anchoring_ms": pixel_ms,
-            "aspect_ratio": "2.39:1 (Cinemascope)",
-            "pipeline_status": "frame_anchored",
-        },
-        "tokens": {
-            "prompt_tokens": tokens_prompt,
-            "completion_tokens": tokens_completion,
-            "total_tokens": tokens_prompt + tokens_completion,
-        },
-        "network_latencies": network_matrix,
-        "grafana_cloud_status": "telemetry_emitted",
-    }
-
-
 def get_studio_health_status() -> dict[str, Any]:
-    """Returns real-time operational status for Grafana observability dashboards."""
+    """Returns operational status for Grafana observability dashboards, derived
+    from actual configuration/connectivity checks rather than hardcoded values.
+    """
+    from app.config import get_settings
+    from app.services.clickhouse_store import get_clickhouse_store
+
+    settings = get_settings()
+
+    try:
+        store = get_clickhouse_store()
+        clickhouse_status = "connected" if (store.is_connected and store.client is not None) else "not_connected"
+    except Exception:  # noqa: BLE001
+        clickhouse_status = "error"
+
+    pipeline = {
+        "veo_video_sequencer": "configured" if settings.google_api_key else "unconfigured (no GOOGLE_API_KEY)",
+        "clickhouse_timegate": clickhouse_status,
+        "gemini_agents": "configured" if settings.google_api_key else "unconfigured (no GOOGLE_API_KEY)",
+        "parallel_web_search": "configured" if settings.parallel_api_key else "unconfigured (no PARALLEL_API_KEY)",
+        "audio_multi_speaker": "configured" if settings.google_api_key else "unconfigured (no GOOGLE_API_KEY)",
+        "continuity_supervisor": "configured" if settings.google_api_key else "unconfigured (no GOOGLE_API_KEY)",
+    }
+    overall_status = "healthy" if all(
+        v in ("connected", "configured") for v in pipeline.values()
+    ) else "degraded"
+
     return {
-        "status": "healthy",
+        "status": overall_status,
         "timestamp": time.time(),
         "observability_engine": "Grafana Labs OpenTelemetry Stack",
-        "pipeline": {
-            "veo_video_sequencer": "operational",
-            "clickhouse_timegate": "sub-2ms-healthy",
-            "gemini_agents": "active",
-            "parallel_web_search": "connected",
-            "audio_multi_speaker": "ready",
-            "continuity_supervisor": "active",
-        },
+        "pipeline": pipeline,
         "network_latencies": measure_network_latencies(),
-        "alerts": [
-            {
-                "name": "ClickHouseSubMillisecondSLO",
-                "state": "firing_healthy",
-                "severity": "info",
-                "message": "ClickHouse time-gate queries consistently performing under 4ms target.",
-            },
-            {
-                "name": "VeoQueueThroughput",
-                "state": "normal",
-                "severity": "info",
-                "message": "Sequential pixel-anchored video pipeline queue nominal.",
-            },
-            {
-                "name": "ScriptContinuitySLO",
-                "state": "healthy",
-                "severity": "info",
-                "message": "Zero unresolved critical knowledge paradoxes detected across active slates.",
-            },
-        ],
     }

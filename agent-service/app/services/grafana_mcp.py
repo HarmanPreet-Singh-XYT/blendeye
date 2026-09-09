@@ -9,12 +9,17 @@ from __future__ import annotations
 import logging
 import os
 
+from google.adk.tools.mcp_tool.mcp_session_manager import StdioConnectionParams
 from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 from mcp import StdioServerParameters
 
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
+
+# See clickhouse_mcp.py — ADK's default 5.0s MCP session-ready timeout is
+# shorter than observed stdio subprocess cold-start time.
+_MCP_SESSION_TIMEOUT_SECONDS = 20.0
 
 
 def build_grafana_toolset() -> McpToolset:
@@ -31,9 +36,12 @@ def build_grafana_toolset() -> McpToolset:
 
     logger.info("Initializing official mcp-grafana toolset over stdio transport.")
     return McpToolset(
-        connection_params=StdioServerParameters(
-            command="mcp-grafana",
-            args=["--disable-write", "--log-level", "warn"],
-            env=env,
+        connection_params=StdioConnectionParams(
+            server_params=StdioServerParameters(
+                command="mcp-grafana",
+                args=["--disable-write", "--log-level", "warn"],
+                env=env,
+            ),
+            timeout=_MCP_SESSION_TIMEOUT_SECONDS,
         ),
     )

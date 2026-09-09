@@ -36,7 +36,7 @@ BlendEye organizes the directorial workflow into 4 interconnected digital worksp
 ### 1. 📐 Studio & Scene Planning (`Shift` + `1`)
 * **Interactive Story Backlot (`@xyflow/react`)**: A cinematic node graph connecting Inspiration Prompts, Scene Masters, Character Perspective cards, and 2.39:1 anamorphic storyboards.
 * **Hollywood Production Stripboard**: Automatically parses scenes into standard industry stripboards (`INT/EXT`, `DAY/NIGHT`), estimated page counts (eighths of a page), cast call sheets, and shooting logistics.
-* **Global Location Scouting via Google Search Grounding**: Discovers real-world filming venues with verified GPS coordinates, architectural dossiers, golden-hour sun angles, local permit ordinances, and multi-currency budget calculators.
+* **Global Location Scouting via Parallel Web Systems**: Discovers real-world filming venues with verified GPS coordinates, architectural dossiers, golden-hour sun angles, local permit ordinances, and multi-currency budget calculators, grounded live with the official Parallel Search API.
 * **2D Spatial Camera Blocking & Floor Plan Engine**: Overhead stage schematics with draggable actor tokens, lens presets (35mm Wide, 50mm OTS, 85mm Close-Up), practical lighting cones, and sightline vectors.
 * **Dramatic Tension & Pacing Curves**: Recharts 3-act narrative curve tracking overall scene tension alongside individual character POV stakes.
 * **International Box Office Heatmap**: Interactive D3 geo map projecting territorial gross potential based on historical precedents.
@@ -143,8 +143,8 @@ BlendEye is a massive, production-grade virtual film director studio spanning **
   * **Google Veo 3.1 (`veo-3.1-fast-generate-preview`)**: Cinematic 2.39:1 video generation with sequential multi-shot chaining.
   * **Gemini 3.1 Flash TTS (`gemini-3.1-flash-tts-preview`)**: Native multi-speaker voice synthesis with custom actor timbre assignments.
   * **Imagen 3 & Gemini Image Models**: Anamorphic widescreen storyboard stills and character portraits.
-  * **Google Search Grounding**: Real-world location scouting fetching verified geospatial coordinates and architectural data.
 * **Data Plane**: ClickHouse Cloud (MergeTree event store & MCP toolset) + Supabase (PostgreSQL state persistence & media asset storage).
+* **Location Scouting Grounding**: Parallel Web Systems is the primary, tracked grounding source (see dedicated section below); ADK's native Google Search tool is wired in as a resilience fallback only, used solely if Parallel is unconfigured or unreachable at request time.
 
 ---
 

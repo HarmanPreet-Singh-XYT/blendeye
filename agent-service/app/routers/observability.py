@@ -67,7 +67,6 @@ async def studio_observability_overview() -> dict[str, Any]:
             {
                 "metric": "rate(blendeye_http_requests_total[5m])",
                 "label": "Studio Request Throughput",
-                "value": "24.2 req/s",
             },
             {
                 "metric": "histogram_quantile(0.95, sum(rate(blendeye_clickhouse_query_latency_ms_bucket[5m])) by (le))",
@@ -81,19 +80,8 @@ async def studio_observability_overview() -> dict[str, Any]:
             },
         ],
         "network_latencies": health.get("network_latencies", []),
-        "alerts": health["alerts"],
         "mcp_status": {
             "mcp_grafana": "active (60+ tools enabled: query_prometheus, query_loki_logs, list_dashboards)",
             "mcp_clickhouse": "active (MergeTree story_events)",
         },
     }
-
-
-@router.post("/benchmark")
-async def execute_telemetry_benchmark() -> dict[str, Any]:
-    """Triggers an end-to-end telemetry benchmark burst across ClickHouse, Parallel Web,
-    Veo 3.1 video sequencing, and Gemini multimodal models. Emits dynamic metrics to Prometheus.
-    """
-    from app.services.observability import run_telemetry_benchmark
-
-    return run_telemetry_benchmark()

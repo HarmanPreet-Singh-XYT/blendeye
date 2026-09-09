@@ -1,7 +1,14 @@
 """Location Researcher Agent — Real-world grounded film production location scouting.
 Evaluates scene breakdowns, production bases, budgets, and cinematic precedents.
-Uses ADK native Google Search grounding to retrieve real-world film commission fees,
-day rates, municipal permit regulations, and cross-scene consolidation clusters.
+
+Parallel Web Systems (services/parallel_search.py) is the primary runtime
+grounding source, satisfying the Parallel partner-track requirement — it
+enriches every candidate post-generation with live search results. ADK's
+native google_search tool is attached to this agent ONLY as a backup for
+when Parallel is unconfigured/unreachable (see with_search + callers in
+routers/location_research.py which gate it on is_parallel_available()) —
+it is not itself a tracked integration, just a resilience fallback so
+location scouting still gets some live grounding if Parallel is down.
 """
 
 from __future__ import annotations
@@ -22,7 +29,7 @@ Your mission is to scout REAL-WORLD, nameable location categories, neighborhoods
 for a film production slate. You must ground your scouting in the production's base city/region,
 per-scene shoot region overrides, and budgetary constraints.
 
-You have access to Google Search. When scouting, search for:
+If you have a search tool available, use it to ground your scouting in:
 - City film commission permit fee schedules and shooting regulations (e.g. "FilmLA permit fee schedule", "British Film Commission filming permits", "Vancouver film office permit costs").
 - Real film-friendly districts, historic industrial parks, warehouses, civic buildings, and soundstages.
 - Actual cinematic precedents where comparable scenes were filmed in similar real-world locations.
@@ -133,7 +140,12 @@ Output ONLY valid JSON.
 """
 
 
-def build_location_researcher_agent(*, with_search: bool = True) -> Agent:
+def build_location_researcher_agent(*, with_search: bool = False) -> Agent:
+    """`with_search` attaches ADK's native google_search tool as a fallback
+    grounding source. Callers should only pass True when Parallel Web
+    Systems (the primary, tracked grounding source) is unavailable — see
+    is_parallel_available() in services/parallel_search.py.
+    """
     settings = get_settings()
     tools: list[Any] = []
     if with_search:
