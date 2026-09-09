@@ -15,6 +15,7 @@ from app.services.observability import (
     CLICKHOUSE_QUERY_LATENCY_MS,
     HTTP_REQUESTS_TOTAL,
     STORY_EVENTS_GAUGE,
+    get_agentic_requests_summary,
     get_prometheus_metrics,
     get_studio_health_status,
 )
@@ -53,6 +54,7 @@ async def studio_observability_overview() -> dict[str, Any]:
         pass
 
     health = get_studio_health_status()
+    agentic_summary = get_agentic_requests_summary()
 
     return {
         "studio": "BlendEye Executive Studio Backlot",
@@ -63,6 +65,7 @@ async def studio_observability_overview() -> dict[str, Any]:
             "cinematic_precedents_rows": precedents_count,
             "pipeline_state": health["pipeline"],
         },
+        "agentic_request_distribution": agentic_summary,
         "promql_targets": [
             {
                 "metric": "rate(blendeye_http_requests_total[5m])",
@@ -72,6 +75,11 @@ async def studio_observability_overview() -> dict[str, Any]:
                 "metric": "histogram_quantile(0.95, sum(rate(blendeye_clickhouse_query_latency_ms_bucket[5m])) by (le))",
                 "label": "ClickHouse Time-Gate p95 Latency",
                 "value": f"{ch_latency} ms",
+            },
+            {
+                "metric": "sum(blendeye_agentic_requests_total) by (agentic_use, status_code)",
+                "label": "Agentic Requests by Role & Status Code",
+                "value": f"{agentic_summary['total_requests']} calls ({agentic_summary['success_rate_percent']}% 2xx)",
             },
             {
                 "metric": "blendeye_story_events_total",

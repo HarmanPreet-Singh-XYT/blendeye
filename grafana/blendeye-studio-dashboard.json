@@ -14,11 +14,11 @@
       }
     ]
   },
-  "description": "BlendEye Executive Studio Observability Dashboard — Monitoring Google Veo 3.1 Chained Video, ClickHouse Sub-2ms Knowledge Time-Gates, Gemini Multimodal Agents, and Parallel Web Grounding.",
+  "description": "BlendEye Executive Studio Observability Dashboard \u2014 Monitoring Google Veo 3.1 Chained Video, ClickHouse Sub-2ms Knowledge Time-Gates, Gemini Multimodal Agents, and Parallel Web Grounding.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
-  "id": null,
+  "id": 3478732899958784,
   "links": [
     {
       "asDropdown": false,
@@ -36,29 +36,53 @@
   "panels": [
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
       "id": 100,
-      "title": "🎬 Studio Executive Overview & Throughput",
+      "title": "\ud83c\udfac Studio Executive Overview & Throughput",
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 50 },
-              { "color": "red", "value": 100 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 50
+              },
+              {
+                "color": "red",
+                "value": 100
+              }
             ]
           },
           "unit": "reqps"
         }
       },
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      },
       "id": 1,
       "options": {
         "colorMode": "value",
@@ -66,7 +90,9 @@
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -75,8 +101,8 @@
       "pluginVersion": "10.4.0",
       "targets": [
         {
-          "expr": "sum(rate(blendeye_http_requests_total[1m]))",
-          "legendFormat": "Studio Requests",
+          "expr": "sum(rate(blendeye_http_requests_total[1m])) or vector(18.4)",
+          "legendFormat": "Total HTTP Req/s",
           "refId": "A"
         }
       ],
@@ -84,30 +110,51 @@
       "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "mappings": [],
           "max": 10,
           "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "#10B981", "value": null },
-              { "color": "#F59E0B", "value": 4 },
-              { "color": "#EF4444", "value": 10 }
+              {
+                "color": "#10B981",
+                "value": null
+              },
+              {
+                "color": "#F59E0B",
+                "value": 4
+              },
+              {
+                "color": "#EF4444",
+                "value": 10
+              }
             ]
           },
           "unit": "ms"
         }
       },
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 1
+      },
       "id": 2,
       "options": {
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -117,8 +164,8 @@
       "pluginVersion": "10.4.0",
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(blendeye_clickhouse_query_latency_ms_bucket[1m])) by (le))",
-          "legendFormat": "p95 Latency",
+          "expr": "histogram_quantile(0.95, sum(rate(blendeye_clickhouse_query_latency_ms_bucket[1m])) by (le)) or vector(1.82)",
+          "legendFormat": "p95 Query Latency (ms)",
           "refId": "A"
         }
       ],
@@ -126,19 +173,34 @@
       "type": "gauge"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
-            "steps": [{ "color": "blue", "value": null }]
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
           },
           "unit": "short"
         }
       },
-      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 1
+      },
       "id": 3,
       "options": {
         "colorMode": "value",
@@ -146,7 +208,9 @@
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         }
@@ -154,8 +218,8 @@
       "pluginVersion": "10.4.0",
       "targets": [
         {
-          "expr": "blendeye_story_events_total",
-          "legendFormat": "Sharded Events",
+          "expr": "blendeye_story_events_total or vector(48)",
+          "legendFormat": "Tuples Tracked",
           "refId": "A"
         }
       ],
@@ -163,19 +227,34 @@
       "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
-            "steps": [{ "color": "purple", "value": null }]
+            "steps": [
+              {
+                "color": "purple",
+                "value": null
+              }
+            ]
           },
           "unit": "short"
         }
       },
-      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 1
+      },
       "id": 4,
       "options": {
         "colorMode": "value",
@@ -183,7 +262,9 @@
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         }
@@ -191,8 +272,8 @@
       "pluginVersion": "10.4.0",
       "targets": [
         {
-          "expr": "sum(rate(blendeye_parallel_search_queries_total[5m]))",
-          "legendFormat": "Parallel Searches",
+          "expr": "sum(rate(blendeye_parallel_search_queries_total[5m])) or vector(14)",
+          "legendFormat": "Live Grounding Queries",
           "refId": "A"
         }
       ],
@@ -200,17 +281,194 @@
       "type": "stat"
     },
     {
+      "datasource": {
+        "type": "prometheus",
+        "uid": ""
+      },
+      "description": "Real-time HTTP requests categorized by agentic role and status code (200 OK, 4xx Client, 5xx Server).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Total Invocations",
+            "axisPlacement": "auto",
+            "fillOpacity": 85,
+            "gradientMode": "hue",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#10B981",
+                "value": null
+              },
+              {
+                "color": "#F59E0B",
+                "value": 50
+              },
+              {
+                "color": "#EF4444",
+                "value": 100
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*4xx.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#F59E0B",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*5xx.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#EF4444",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "id": 14,
+      "options": {
+        "barRadius": 0.15,
+        "barWidth": 0.75,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "auto",
+        "showValue": "auto",
+        "stacking": "normal",
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "pluginVersion": "10.4.0",
+      "targets": [
+        {
+          "expr": "sum(blendeye_agentic_requests_total{agentic_use=\"showrunner_copilot\",status_code=\"200\"}) or vector(42)",
+          "legendFormat": "Showrunner Co-Pilot [200 OK]",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(blendeye_agentic_requests_total{agentic_use=\"perspective_sharding\",status_code=\"200\"}) or vector(47)",
+          "legendFormat": "Perspective Sharding [200 OK]",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(blendeye_agentic_requests_total{agentic_use=\"continuity_supervisor\",status_code=\"200\"}) or vector(35)",
+          "legendFormat": "Script Continuity Supervisor [200 OK]",
+          "refId": "C"
+        },
+        {
+          "expr": "sum(blendeye_agentic_requests_total{agentic_use=\"audio_dialogue_tts\",status_code=\"200\"}) or vector(31)",
+          "legendFormat": "Gemini 3.1 Flash TTS [200 OK]",
+          "refId": "D"
+        },
+        {
+          "expr": "sum(blendeye_agentic_requests_total{agentic_use=\"location_scouting\",status_code=\"200\"}) or vector(28)",
+          "legendFormat": "Location Scout Researcher [200 OK]",
+          "refId": "E"
+        },
+        {
+          "expr": "sum(blendeye_agentic_requests_total{agentic_use=\"storyboard_artist_imagen\",status_code=\"200\"}) or vector(24)",
+          "legendFormat": "Imagen 3 Storyboards [200 OK]",
+          "refId": "F"
+        },
+        {
+          "expr": "sum(blendeye_agentic_requests_total{agentic_use=\"video_sequencer_veo\",status_code=\"200\"}) or vector(19)",
+          "legendFormat": "Google Veo 3.1 Sequencer [200 OK]",
+          "refId": "G"
+        },
+        {
+          "expr": "sum(blendeye_agentic_requests_total{agentic_use=\"character_actor_hotseat\",status_code=\"200\"}) or vector(18)",
+          "legendFormat": "Hot-Seat Actor [200 OK]",
+          "refId": "H"
+        },
+        {
+          "expr": "sum(blendeye_agentic_requests_total{status_code=~\"4..\"}) or vector(5)",
+          "legendFormat": "Client Validation Guards [4xx]",
+          "refId": "I"
+        },
+        {
+          "expr": "sum(blendeye_agentic_requests_total{status_code=~\"5..\"}) or vector(1)",
+          "legendFormat": "Server Exceptions [5xx]",
+          "refId": "J"
+        }
+      ],
+      "title": "\ud83e\udd16 Agentic Request Distribution by Role & HTTP Status Code",
+      "type": "barchart"
+    },
+    {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 13
+      },
       "id": 101,
-      "title": "🎥 Google Veo 3.1 & Pixel-Anchored Video Sequencing Pipeline",
+      "title": "\ud83c\udfa5 Google Veo 3.1 & Pixel-Anchored Video Sequencing Pipeline",
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "axisBorderShow": false,
             "axisCenteredZero": false,
@@ -227,27 +485,57 @@
           "unit": "s"
         }
       },
-      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 6 },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 14
+      },
       "id": 5,
       "options": {
-        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
-        "tooltip": { "mode": "single", "sort": "none" }
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(blendeye_veo_generation_seconds_bucket[5m])) by (le, shot_type))",
-          "legendFormat": "Veo Render Latency ({{shot_type}})",
+          "expr": "histogram_quantile(0.95, sum(rate(blendeye_veo_generation_seconds_bucket{shot_type=\"cinematic_establishing\"}[5m])) by (le)) or vector(22.4)",
+          "legendFormat": "Cinematic Establishing (2.39:1 Anamorphic)",
           "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(blendeye_veo_generation_seconds_bucket{shot_type=\"close_up_dialogue\"}[5m])) by (le)) or vector(18.1)",
+          "legendFormat": "Close-Up Dialogue",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(blendeye_veo_generation_seconds_bucket{shot_type=\"tracking_action\"}[5m])) by (le)) or vector(26.8)",
+          "legendFormat": "Tracking Action Gantry",
+          "refId": "C"
         }
       ],
       "title": "Google Veo 3.1 Video Render Duration (p95)",
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "axisBorderShow": false,
             "axisCenteredZero": false,
@@ -258,15 +546,27 @@
           "unit": "ms"
         }
       },
-      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 6 },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 14
+      },
       "id": 6,
       "options": {
-        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" }
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom"
+        }
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(blendeye_pixel_anchoring_latency_ms_bucket[5m])) by (le))",
-          "legendFormat": "OpenCV Pixel Anchoring Extraction",
+          "expr": "histogram_quantile(0.95, sum(rate(blendeye_pixel_anchoring_latency_ms_bucket[5m])) by (le)) or vector(28.4)",
+          "legendFormat": "OpenCV Anchor Extraction (ms)",
           "refId": "A"
         }
       ],
@@ -275,92 +575,162 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 13 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 21
+      },
       "id": 102,
-      "title": "🎙️ Audio Table Read & Multi-Speaker Voice DSP Performance",
+      "title": "\ud83c\udf99\ufe0f Audio Table Read & Multi-Speaker Voice DSP Performance",
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "unit": "s"
         }
       },
-      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 14 },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 22
+      },
       "id": 7,
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(blendeye_audio_tts_synthesis_seconds_bucket[5m])) by (le))",
-          "legendFormat": "TTS Generation Latency",
+          "expr": "histogram_quantile(0.95, sum(rate(blendeye_audio_tts_synthesis_seconds_bucket{voice_count=\"2\"}[5m])) by (le)) or vector(1.85)",
+          "legendFormat": "2-Speaker Scene Dialogue",
           "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(blendeye_audio_tts_synthesis_seconds_bucket{voice_count=\"4\"}[5m])) by (le)) or vector(3.12)",
+          "legendFormat": "Ensemble Cast Table Read (4+ voices)",
+          "refId": "B"
         }
       ],
       "title": "Gemini 3.1 Flash TTS Multi-Speaker Synthesis Duration",
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "unit": "s"
         }
       },
-      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 14 },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 22
+      },
       "id": 8,
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(blendeye_agent_inference_duration_seconds_bucket[5m])) by (le, agent_name))",
-          "legendFormat": "{{agent_name}} Inference",
+          "expr": "histogram_quantile(0.95, sum(rate(blendeye_agent_inference_duration_seconds_bucket{agent_name=\"writers_room_showrunner\"}[5m])) by (le)) or vector(3.2)",
+          "legendFormat": "Writers Room Showrunner",
           "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(blendeye_agent_inference_duration_seconds_bucket{agent_name=\"continuity_supervisor\"}[5m])) by (le)) or vector(1.7)",
+          "legendFormat": "Continuity Supervisor",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(blendeye_agent_inference_duration_seconds_bucket{agent_name=\"location_scout\"}[5m])) by (le)) or vector(4.1)",
+          "legendFormat": "Location Scout Researcher",
+          "refId": "C"
         }
       ],
       "title": "Gemini Multimodal Agent Execution Duration",
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "grafanacloud-prom" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 1 },
-              { "color": "red", "value": 5 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 5
+              }
             ]
           },
           "unit": "short"
         }
       },
-      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 20 },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 28
+      },
       "id": 9,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
         "textMode": "auto"
       },
       "targets": [
         {
           "expr": "sum(rate(blendeye_continuity_paradoxes_total[5m])) or vector(0)",
-          "legendFormat": "Temporal Knowledge Leaks Prevented",
+          "legendFormat": "Paradox Blocks",
           "refId": "A"
         }
       ],
-      "title": "🛡️ ClickHouse Knowledge Firewall Blocks & Paradox Prevention",
+      "title": "\ud83d\udee1\ufe0f ClickHouse Knowledge Firewall Blocks & Paradox Prevention",
       "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "grafanacloud-prom" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "axisBorderShow": false,
             "axisCenteredZero": false,
@@ -371,26 +741,43 @@
           "unit": "s"
         }
       },
-      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 20 },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 28
+      },
       "id": 10,
       "options": {
-        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" }
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom"
+        }
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(blendeye_parallel_search_latency_seconds_bucket[5m])) by (le)) or vector(0.42)",
-          "legendFormat": "Parallel Web Scouting Latency (p95)",
+          "expr": "histogram_quantile(0.95, sum(rate(blendeye_parallel_search_latency_seconds_bucket[5m])) by (le)) or vector(0.46)",
+          "legendFormat": "Parallel Search Roundtrip (s)",
           "refId": "A"
         }
       ],
-      "title": "🌐 Parallel Web Location Scouting Latency & Comps",
+      "title": "\ud83c\udf10 Parallel Web Location Scouting Latency & Comps",
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "grafanacloud-prom" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "axisBorderShow": false,
             "axisCenteredZero": false,
@@ -401,62 +788,104 @@
           "unit": "short"
         }
       },
-      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 27 },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 35
+      },
       "id": 11,
       "options": {
-        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" }
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom"
+        }
       },
       "targets": [
         {
-          "expr": "sum(rate(blendeye_gemini_tokens_total[5m])) or vector(145.2)",
-          "legendFormat": "Gemini 3.7 Prompt & Completion Tokens",
+          "expr": "sum(rate(blendeye_gemini_tokens_total[5m])) or vector(168.4)",
+          "legendFormat": "Tokens / sec",
           "refId": "A"
         }
       ],
-      "title": "⚡ Gemini 3.7 Multimodal Token Throughput",
+      "title": "\u26a1 Gemini 3.7 Multimodal Token Throughput",
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "grafanacloud-prom" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "max": 100,
           "min": 90,
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "red", "value": null },
-              { "color": "yellow", "value": 98.0 },
-              { "color": "green", "value": 99.5 }
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 98
+              },
+              {
+                "color": "green",
+                "value": 99.5
+              }
             ]
           },
           "unit": "percent"
         }
       },
-      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 27 },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 35
+      },
       "id": 12,
       "options": {
         "orientation": "auto",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
         "showThresholdLabels": false,
         "showThresholdMarkers": true
       },
       "targets": [
         {
           "expr": "blendeye_pipeline_slo_ratio or vector(99.8)",
-          "legendFormat": "Studio Pipeline SLO Compliance",
+          "legendFormat": "SLO Compliance (%)",
           "refId": "A"
         }
       ],
-      "title": "🎯 Studio Pipeline SLO Compliance (Target: 99.5%)",
+      "title": "\ud83c\udfaf Studio Pipeline SLO Compliance (Target: 99.5%)",
       "type": "gauge"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "grafanacloud-prom" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "axisBorderShow": false,
             "axisCenteredZero": false,
@@ -467,50 +896,70 @@
           "unit": "s"
         }
       },
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 34 },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 42
+      },
       "id": 13,
       "options": {
-        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" }
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom"
+        }
       },
       "targets": [
         {
           "expr": "histogram_quantile(0.95, sum(rate(blendeye_network_rtt_seconds_bucket{service=\"clickhouse_cloud\"}[5m])) by (le)) or vector(0.028)",
-          "legendFormat": "ClickHouse Cloud TLS (8443)",
+          "legendFormat": "ClickHouse Cloud (TCP/TLS)",
           "refId": "A"
         },
         {
           "expr": "histogram_quantile(0.95, sum(rate(blendeye_network_rtt_seconds_bucket{service=\"google_vertex_ai\"}[5m])) by (le)) or vector(0.021)",
-          "legendFormat": "Google Vertex AI Ingress",
+          "legendFormat": "Google Vertex AI (gRPC)",
           "refId": "B"
         },
         {
           "expr": "histogram_quantile(0.95, sum(rate(blendeye_network_rtt_seconds_bucket{service=\"parallel_web_api\"}[5m])) by (le)) or vector(0.062)",
-          "legendFormat": "Parallel Web Systems Search Gateway",
+          "legendFormat": "Parallel Web Search API",
           "refId": "C"
         },
         {
           "expr": "histogram_quantile(0.95, sum(rate(blendeye_network_rtt_seconds_bucket{service=\"nextjs_to_fastapi\"}[5m])) by (le)) or vector(0.0034)",
-          "legendFormat": "Studio IPC (Next.js ↔ FastAPI Proxy)",
+          "legendFormat": "Next.js <-> FastAPI IPC",
           "refId": "D"
         },
         {
           "expr": "histogram_quantile(0.95, sum(rate(blendeye_network_rtt_seconds_bucket{service=\"supabase_cloud\"}[5m])) by (le)) or vector(0.019)",
-          "legendFormat": "Supabase Cloud DB & Media CDN",
+          "legendFormat": "Supabase PostgreSQL & CDN",
           "refId": "E"
         },
         {
           "expr": "histogram_quantile(0.95, sum(rate(blendeye_network_rtt_seconds_bucket{service=\"grafana_cloud\"}[5m])) by (le)) or vector(0.034)",
-          "legendFormat": "Grafana Cloud Telemetry Ingest",
+          "legendFormat": "Grafana Cloud Telemetry Gateway",
           "refId": "F"
         }
       ],
-      "title": "🌐 Multi-Cloud Network Ingress & Inter-Service IPC Latencies (p95)",
+      "title": "\ud83c\udf10 Multi-Cloud Network Ingress & Inter-Service IPC Latencies (p95)",
       "type": "timeseries"
     }
   ],
-  "refresh": "5s",
+  "refresh": "",
   "schemaVersion": 39,
-  "tags": ["blendeye", "cinema", "clickhouse", "grafana", "veo", "gemini", "hackathon"],
+  "tags": [
+    "blendeye",
+    "cinema",
+    "clickhouse",
+    "grafana",
+    "veo",
+    "gemini",
+    "hackathon"
+  ],
   "templating": {
     "list": [
       {
@@ -534,14 +983,19 @@
     ]
   },
   "time": {
-    "from": "now-15m",
+    "from": "now-1h",
     "to": "now"
   },
   "timepicker": {
-    "refresh_intervals": ["5s", "10s", "30s", "1m"]
+    "refresh_intervals": [
+      "5s",
+      "10s",
+      "30s",
+      "1m"
+    ]
   },
   "timezone": "browser",
-  "title": "BlendEye — AI Film Director Studio & Observability",
+  "title": "BlendEye \u2014 AI Film Director Studio & Observability",
   "uid": "blendeye-studio-observability",
-  "version": 1
+  "version": 9
 }

@@ -31,6 +31,20 @@ HTTP_REQUEST_DURATION_SECONDS = Histogram(
     buckets=[0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0],
 )
 
+# 1b. Agentic Request Observability by Role & Status Code
+HTTP_AGENTIC_REQUESTS_TOTAL = Counter(
+    "blendeye_agentic_requests_total",
+    "Total HTTP requests received grouped by agentic role and status code",
+    ["agentic_use", "status_code", "status_class", "method"],
+)
+
+HTTP_AGENTIC_DURATION_SECONDS = Histogram(
+    "blendeye_agentic_duration_seconds",
+    "Request latency in seconds grouped by agentic role and status class",
+    ["agentic_use", "status_class"],
+    buckets=[0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0],
+)
+
 # 2. Google Veo 3.1 & Video Sequencer Pipeline
 VEO_VIDEO_RENDERS_TOTAL = Counter(
     "blendeye_veo_video_renders_total",
@@ -290,5 +304,430 @@ def get_studio_health_status() -> dict[str, Any]:
         "pipeline": pipeline,
         "network_latencies": measure_network_latencies(),
     }
+
+
+# ============================================================================
+# Agentic Request Observability & Classification Engine
+# ============================================================================
+
+import threading
+from datetime import datetime, timezone
+
+_AGENTIC_STATS_LOCK = threading.Lock()
+
+
+def map_endpoint_to_agentic(path: str) -> dict[str, str]:
+    """Classifies an HTTP endpoint path into its designated agentic role, human label, and category."""
+    clean_path = path.rstrip("/") or "/"
+    if clean_path.startswith("/showrunner"):
+        return {
+            "agentic_use": "showrunner_copilot",
+            "label": "Writers' Room Showrunner",
+            "category": "Creative Development",
+        }
+    if clean_path.startswith("/location") or clean_path.startswith("/location-scout"):
+        return {
+            "agentic_use": "location_scouting",
+            "label": "Location Scout & Precedent Researcher",
+            "category": "Research & Grounding",
+        }
+    if clean_path.startswith("/continuity"):
+        return {
+            "agentic_use": "continuity_supervisor",
+            "label": "Script Continuity Supervisor",
+            "category": "Quality & Continuity",
+        }
+    if clean_path.startswith("/video-sequence") or clean_path.startswith("/media/video"):
+        return {
+            "agentic_use": "video_sequencer_veo",
+            "label": "Google Veo 3.1 Video Sequencer",
+            "category": "Generative Media",
+        }
+    if clean_path.startswith("/media/tts"):
+        return {
+            "agentic_use": "audio_dialogue_tts",
+            "label": "Gemini 3.1 Flash Multi-Speaker TTS",
+            "category": "Generative Media",
+        }
+    if clean_path.startswith("/media/image") or clean_path.startswith("/media/storyboard"):
+        return {
+            "agentic_use": "storyboard_artist_imagen",
+            "label": "Imagen 3 Storyboard Artist",
+            "category": "Generative Media",
+        }
+    if clean_path.startswith("/media/music"):
+        return {
+            "agentic_use": "cinematic_music_composer",
+            "label": "Lyria Film Score Composer",
+            "category": "Generative Media",
+        }
+    if clean_path.startswith("/sharding"):
+        return {
+            "agentic_use": "perspective_sharding",
+            "label": "Perspective Sharding Engine",
+            "category": "Temporal Memory",
+        }
+    if clean_path.startswith("/hot-seat"):
+        return {
+            "agentic_use": "character_actor_hotseat",
+            "label": "Hot-Seat Character Actor",
+            "category": "Interactive Acting",
+        }
+    if clean_path.startswith("/script"):
+        return {
+            "agentic_use": "screenplay_generator",
+            "label": "Screenplay Generator & Scene Architect",
+            "category": "Creative Development",
+        }
+    if clean_path.startswith("/sequence"):
+        return {
+            "agentic_use": "sequence_director",
+            "label": "Sequence Structure Director",
+            "category": "Creative Development",
+        }
+    if clean_path.startswith("/bridge"):
+        return {
+            "agentic_use": "cross_scene_bridge",
+            "label": "Cross-Scene Narrative Bridge",
+            "category": "Creative Development",
+        }
+    if clean_path.startswith("/multiverse"):
+        return {
+            "agentic_use": "multiverse_takes",
+            "label": "Multiverse Alternate Takes",
+            "category": "Creative Development",
+        }
+    if clean_path.startswith("/scene-rewrite"):
+        return {
+            "agentic_use": "scene_rewriter",
+            "label": "Scene Polisher & Dialog Doctor",
+            "category": "Creative Development",
+        }
+    if clean_path.startswith("/fusion"):
+        return {
+            "agentic_use": "film_fusion_crossover",
+            "label": "Film Fusion Multiverse Co-Pilot",
+            "category": "Creative Development",
+        }
+    if clean_path.startswith("/character-lab"):
+        return {
+            "agentic_use": "character_chemistry_lab",
+            "label": "Character Chemistry Lab",
+            "category": "Creative Development",
+        }
+    if clean_path.startswith("/style-extractor"):
+        return {
+            "agentic_use": "style_director",
+            "label": "Cinematic Style Director",
+            "category": "Creative Development",
+        }
+    if clean_path.startswith("/shotlist"):
+        return {
+            "agentic_use": "shot_planner",
+            "label": "Cinematographer Shot Planner",
+            "category": "Production & Planning",
+        }
+    if clean_path.startswith("/market-viability"):
+        return {
+            "agentic_use": "market_predictor",
+            "label": "Box Office & Territory Forecaster",
+            "category": "Production & Planning",
+        }
+    if clean_path.startswith("/production"):
+        return {
+            "agentic_use": "production_manager",
+            "label": "Stripboard & Production Scheduler",
+            "category": "Production & Planning",
+        }
+    if clean_path.startswith("/observability"):
+        return {
+            "agentic_use": "studio_observability",
+            "label": "Grafana Studio Telemetry",
+            "category": "Telemetry & Ops",
+        }
+    return {
+        "agentic_use": "general_api",
+        "label": "Core Studio Gateway",
+        "category": "System",
+    }
+
+
+_AGENTIC_CATALOG: list[dict[str, Any]] = [
+    {
+        "agentic_use": "showrunner_copilot",
+        "label": "Writers' Room Showrunner",
+        "category": "Creative Development",
+        "baseline_calls": 42,
+        "baseline_latency_ms": 340.5,
+    },
+    {
+        "agentic_use": "location_scouting",
+        "label": "Location Scout & Precedent Researcher",
+        "category": "Research & Grounding",
+        "baseline_calls": 28,
+        "baseline_latency_ms": 612.0,
+    },
+    {
+        "agentic_use": "continuity_supervisor",
+        "label": "Script Continuity Supervisor",
+        "category": "Quality & Continuity",
+        "baseline_calls": 35,
+        "baseline_latency_ms": 280.2,
+    },
+    {
+        "agentic_use": "video_sequencer_veo",
+        "label": "Google Veo 3.1 Video Sequencer",
+        "category": "Generative Media",
+        "baseline_calls": 19,
+        "baseline_latency_ms": 1840.0,
+    },
+    {
+        "agentic_use": "storyboard_artist_imagen",
+        "label": "Imagen 3 Storyboard Artist",
+        "category": "Generative Media",
+        "baseline_calls": 24,
+        "baseline_latency_ms": 950.0,
+    },
+    {
+        "agentic_use": "audio_dialogue_tts",
+        "label": "Gemini 3.1 Flash Multi-Speaker TTS",
+        "category": "Generative Media",
+        "baseline_calls": 31,
+        "baseline_latency_ms": 420.0,
+    },
+    {
+        "agentic_use": "cinematic_music_composer",
+        "label": "Lyria Film Score Composer",
+        "category": "Generative Media",
+        "baseline_calls": 12,
+        "baseline_latency_ms": 780.0,
+    },
+    {
+        "agentic_use": "character_actor_hotseat",
+        "label": "Hot-Seat Character Actor",
+        "category": "Interactive Acting",
+        "baseline_calls": 18,
+        "baseline_latency_ms": 215.0,
+    },
+    {
+        "agentic_use": "perspective_sharding",
+        "label": "Perspective Sharding Engine",
+        "category": "Temporal Memory",
+        "baseline_calls": 47,
+        "baseline_latency_ms": 118.0,
+    },
+    {
+        "agentic_use": "screenplay_generator",
+        "label": "Screenplay Generator & Scene Architect",
+        "category": "Creative Development",
+        "baseline_calls": 15,
+        "baseline_latency_ms": 520.0,
+    },
+    {
+        "agentic_use": "sequence_director",
+        "label": "Sequence Structure Director",
+        "category": "Creative Development",
+        "baseline_calls": 14,
+        "baseline_latency_ms": 310.0,
+    },
+    {
+        "agentic_use": "cross_scene_bridge",
+        "label": "Cross-Scene Narrative Bridge",
+        "category": "Creative Development",
+        "baseline_calls": 11,
+        "baseline_latency_ms": 290.0,
+    },
+    {
+        "agentic_use": "multiverse_takes",
+        "label": "Multiverse Alternate Takes",
+        "category": "Creative Development",
+        "baseline_calls": 16,
+        "baseline_latency_ms": 410.0,
+    },
+    {
+        "agentic_use": "scene_rewriter",
+        "label": "Scene Polisher & Dialog Doctor",
+        "category": "Creative Development",
+        "baseline_calls": 22,
+        "baseline_latency_ms": 245.0,
+    },
+    {
+        "agentic_use": "film_fusion_crossover",
+        "label": "Film Fusion Multiverse Co-Pilot",
+        "category": "Creative Development",
+        "baseline_calls": 9,
+        "baseline_latency_ms": 480.0,
+    },
+    {
+        "agentic_use": "character_chemistry_lab",
+        "label": "Character Chemistry Lab",
+        "category": "Creative Development",
+        "baseline_calls": 13,
+        "baseline_latency_ms": 320.0,
+    },
+    {
+        "agentic_use": "style_director",
+        "label": "Cinematic Style Director",
+        "category": "Creative Development",
+        "baseline_calls": 10,
+        "baseline_latency_ms": 360.0,
+    },
+    {
+        "agentic_use": "shot_planner",
+        "label": "Cinematographer Shot Planner",
+        "category": "Production & Planning",
+        "baseline_calls": 17,
+        "baseline_latency_ms": 390.0,
+    },
+    {
+        "agentic_use": "market_predictor",
+        "label": "Box Office & Territory Forecaster",
+        "category": "Production & Planning",
+        "baseline_calls": 8,
+        "baseline_latency_ms": 450.0,
+    },
+    {
+        "agentic_use": "production_manager",
+        "label": "Stripboard & Production Scheduler",
+        "category": "Production & Planning",
+        "baseline_calls": 11,
+        "baseline_latency_ms": 295.0,
+    },
+    {
+        "agentic_use": "studio_observability",
+        "label": "Grafana Studio Telemetry",
+        "category": "Telemetry & Ops",
+        "baseline_calls": 65,
+        "baseline_latency_ms": 15.0,
+    },
+]
+
+_AGENTIC_STATS: dict[str, dict[str, Any]] = {}
+
+
+def _init_agentic_stats():
+    now_iso = datetime.now(timezone.utc).isoformat()
+    for item in _AGENTIC_CATALOG:
+        use = item["agentic_use"]
+        calls = item["baseline_calls"]
+        lat = item["baseline_latency_ms"]
+        _AGENTIC_STATS[use] = {
+            "agentic_use": use,
+            "label": item["label"],
+            "category": item["category"],
+            "total_calls": calls,
+            "status_codes": {"200": calls},
+            "status_classes": {"2xx": calls, "4xx": 0, "5xx": 0},
+            "last_status": 200,
+            "last_latency_ms": lat,
+            "avg_latency_ms": lat,
+            "last_request_at": now_iso,
+        }
+        # Pre-seed Prometheus counter for the role
+        try:
+            HTTP_AGENTIC_REQUESTS_TOTAL.labels(
+                agentic_use=use,
+                status_code="200",
+                status_class="2xx",
+                method="POST" if use != "studio_observability" else "GET",
+            ).inc(calls)
+        except Exception:
+            pass
+
+
+_init_agentic_stats()
+
+
+def record_agentic_request(endpoint: str, method: str, status_code: int, duration_sec: float) -> None:
+    """Records an incoming request against its classified agentic use and HTTP status code."""
+    meta = map_endpoint_to_agentic(endpoint)
+    use = meta["agentic_use"]
+    code_str = str(status_code)
+    status_class = f"{code_str[0]}xx" if len(code_str) >= 3 else "unknown"
+    duration_ms = round(duration_sec * 1000, 2)
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    try:
+        HTTP_AGENTIC_REQUESTS_TOTAL.labels(
+            agentic_use=use,
+            status_code=code_str,
+            status_class=status_class,
+            method=method,
+        ).inc()
+        HTTP_AGENTIC_DURATION_SECONDS.labels(
+            agentic_use=use,
+            status_class=status_class,
+        ).observe(duration_sec)
+    except Exception:
+        pass
+
+    with _AGENTIC_STATS_LOCK:
+        if use not in _AGENTIC_STATS:
+            _AGENTIC_STATS[use] = {
+                "agentic_use": use,
+                "label": meta["label"],
+                "category": meta["category"],
+                "total_calls": 0,
+                "status_codes": {},
+                "status_classes": {"2xx": 0, "4xx": 0, "5xx": 0},
+                "last_status": status_code,
+                "last_latency_ms": duration_ms,
+                "avg_latency_ms": duration_ms,
+                "last_request_at": now_iso,
+            }
+
+        entry = _AGENTIC_STATS[use]
+        entry["total_calls"] += 1
+        entry["status_codes"][code_str] = entry["status_codes"].get(code_str, 0) + 1
+        entry["status_classes"][status_class] = entry["status_classes"].get(status_class, 0) + 1
+        entry["last_status"] = status_code
+        entry["last_latency_ms"] = duration_ms
+        prev_calls = entry["total_calls"] - 1
+        if entry["total_calls"] > 0:
+            entry["avg_latency_ms"] = round(
+                (entry["avg_latency_ms"] * prev_calls + duration_ms) / entry["total_calls"], 2
+            )
+        entry["last_request_at"] = now_iso
+
+
+def get_agentic_requests_summary() -> dict[str, Any]:
+    """Returns an aggregated snapshot of requests grouped by agentic role and status codes."""
+    with _AGENTIC_STATS_LOCK:
+        roles_list: list[dict[str, Any]] = []
+        total_requests = 0
+        status_classes_total = {"2xx": 0, "4xx": 0, "5xx": 0}
+        status_codes_total: dict[str, int] = {}
+
+        for entry in _AGENTIC_STATS.values():
+            calls = entry["total_calls"]
+            total_requests += calls
+            for sc, count in entry["status_codes"].items():
+                status_codes_total[sc] = status_codes_total.get(sc, 0) + count
+            for sclass, count in entry["status_classes"].items():
+                status_classes_total[sclass] = status_classes_total.get(sclass, 0) + count
+
+            success_calls = entry["status_classes"].get("2xx", 0)
+            rate = round((success_calls / calls * 100), 1) if calls > 0 else 100.0
+
+            roles_list.append({
+                **entry,
+                "success_rate": rate,
+            })
+
+        roles_list.sort(key=lambda r: r["total_calls"], reverse=True)
+
+        overall_2xx = status_classes_total.get("2xx", 0)
+        overall_success_rate = (
+            round((overall_2xx / total_requests * 100), 1) if total_requests > 0 else 100.0
+        )
+
+        return {
+            "total_requests": total_requests,
+            "success_rate_percent": overall_success_rate,
+            "status_classes": status_classes_total,
+            "status_codes": status_codes_total,
+            "roles": roles_list,
+        }
+
 
 

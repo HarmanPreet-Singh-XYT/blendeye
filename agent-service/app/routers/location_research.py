@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 
@@ -176,7 +177,33 @@ async def research_locations(req: LocationResearchRequest) -> LocationResearchRe
         raw_output = await run_agent_once(agent, prompt, app_name="location-researcher")
         data = parse_json_from_llm(raw_output)
 
-        # Post-process: compute deterministic rank scores for each candidate
+        # Helper for concurrent runtime Parallel Web Systems grounding
+        sem = asyncio.Semaphore(5)
+
+        async def _enrich_candidate(c: dict) -> None:
+            async with sem:
+                try:
+                    p_res = await search_filming_locations(
+                        c.get("name", "filming location"),
+                        req.production_base,
+                        c.get("category", "stage"),
+                    )
+                    if p_res:
+                        sources = c.setdefault("sources", [])
+                        for p in p_res[:2]:
+                            sources.append({"title": f"Parallel Web: {p['title']}", "url": p["url"]})
+                        c["search_grounded"] = True
+                except Exception as ex:  # noqa: BLE001
+                    logger.warning("Parallel enrichment skipped for candidate %s: %s", c.get("name"), ex)
+
+        # Collect all candidates for batch concurrent search
+        all_candidates: list[dict] = [
+            c for s_data in data.get("scenes", []) for c in s_data.get("candidates", [])
+        ]
+        if all_candidates:
+            await asyncio.gather(*(_enrich_candidate(c) for c in all_candidates), return_exceptions=True)
+
+        # Post-process: compute deterministic rank scores and format response
         scenes_res: list[SceneResearchResult] = []
         for s_data in data.get("scenes", []):
             sc_id = s_data.get("scene_id", "")
@@ -192,17 +219,6 @@ async def research_locations(req: LocationResearchRequest) -> LocationResearchRe
                 # Enforce currency consistency if missing
                 if "estimated_cost" in c and not c["estimated_cost"].get("currency"):
                     c["estimated_cost"]["currency"] = req.currency
-
-                # Runtime Parallel Web Systems grounding: enrich candidate with live verified search results
-                try:
-                    p_res = await search_filming_locations(c.get("name", "filming location"), req.production_base, c.get("category", "stage"))
-                    if p_res:
-                        sources = c.setdefault("sources", [])
-                        for p in p_res[:2]:
-                            sources.append({"title": f"Parallel Web: {p['title']}", "url": p["url"]})
-                        c["search_grounded"] = True
-                except Exception as ex:  # noqa: BLE001
-                    logger.warning("Parallel enrichment skipped for candidate %s: %s", c.get("name"), ex)
 
                 processed_candidates.append(LocationCandidate(**c))
 
@@ -231,21 +247,32 @@ async def research_locations(req: LocationResearchRequest) -> LocationResearchRe
             total_budget=req.budget,
         )
 
-        # Enrich fallback candidates with live Parallel Web Systems search
-        any_grounded = False
-        try:
-            for s_fall in fallback_data.get("scenes", []):
-                for c_fall in s_fall.get("candidates", []):
-                    p_res = await search_filming_locations(c_fall.get("name", "facility"), req.production_base, c_fall.get("category", "stage"))
-                    if p_res:
-                        s_list = c_fall.setdefault("sources", [])
-                        for p in p_res[:2]:
-                            s_list.append({"title": f"Parallel Web: {p['title']}", "url": p["url"]})
-                        c_fall["search_grounded"] = True
-                        any_grounded = True
-        except Exception as p_err:  # noqa: BLE001
-            logger.warning("Parallel fallback enrichment skipped: %s", p_err)
+        # Enrich fallback candidates concurrently with live Parallel Web Systems search
+        fallback_candidates = [
+            c for s_fall in fallback_data.get("scenes", []) for c in s_fall.get("candidates", [])
+        ]
+        if fallback_candidates:
+            fallback_sem = asyncio.Semaphore(5)
 
+            async def _enrich_fallback_cand(c_fall: dict) -> None:
+                async with fallback_sem:
+                    try:
+                        p_res = await search_filming_locations(
+                            c_fall.get("name", "facility"),
+                            req.production_base,
+                            c_fall.get("category", "stage"),
+                        )
+                        if p_res:
+                            s_list = c_fall.setdefault("sources", [])
+                            for p in p_res[:2]:
+                                s_list.append({"title": f"Parallel Web: {p['title']}", "url": p["url"]})
+                            c_fall["search_grounded"] = True
+                    except Exception as p_err:  # noqa: BLE001
+                        logger.warning("Parallel fallback enrichment skipped: %s", p_err)
+
+            await asyncio.gather(*(_enrich_fallback_cand(c) for c in fallback_candidates), return_exceptions=True)
+
+        any_grounded = any(c.get("search_grounded") for c in fallback_candidates)
         if any_grounded:
             fallback_data["_fallback"] = False
             fallback_data["_disclosure"] = None

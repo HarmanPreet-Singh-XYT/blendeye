@@ -1035,9 +1035,10 @@ export interface LocationQAResponse {
 }
 
 export function researchLocations(req: LocationResearchRequest) {
-  return postJson<LocationResearchResponse>("/location/research", req, 60_000);
+  return postJson<LocationResearchResponse>("/location/research", req, 120_000);
 }
 
 export function askLocationQA(req: LocationQARequest) {
-  return postJson<LocationQAResponse>("/location/qa", req, 45_000);
+  return postJson<LocationQAResponse>("/location/qa", req, 60_000);
 }
+

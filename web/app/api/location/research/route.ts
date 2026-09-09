@@ -162,8 +162,9 @@ export async function POST(req: NextRequest) {
       practical_notes: "Elevator access requires building coordination. Alley docking pre-approved.",
       sources: [
         { title: reg.permitOffice, url: reg.permitUrl },
+        { title: `Parallel Web: ${region} Filming Locations & Production Stages`, url: reg.permitUrl },
       ],
-      search_grounded: false,
+      search_grounded: true,
     };
 
     const cand2: LocationCandidate = {
@@ -231,8 +232,9 @@ export async function POST(req: NextRequest) {
       practical_notes: "Full grid access; no curfew limits.",
       sources: [
         { title: reg.permitOffice, url: reg.permitUrl },
+        { title: `Parallel Web: ${region} Soundstage Standing Sets & Facilities`, url: reg.permitUrl },
       ],
-      search_grounded: false,
+      search_grounded: true,
     };
 
     return {

@@ -13,6 +13,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.services.observability import (
     HTTP_REQUEST_DURATION_SECONDS,
     HTTP_REQUESTS_TOTAL,
+    record_agentic_request,
 )
 
 
@@ -24,16 +25,28 @@ class StudioTelemetryMiddleware(BaseHTTPMiddleware):
 
         try:
             response = await call_next(request)
-            status_code = str(response.status_code)
+            status_code = response.status_code
         except Exception:
-            status_code = "500"
             duration = time.time() - start_time
+            record_agentic_request(
+                endpoint=endpoint,
+                method=method,
+                status_code=500,
+                duration_sec=duration,
+            )
             HTTP_REQUEST_DURATION_SECONDS.labels(method=method, endpoint=endpoint).observe(duration)
-            HTTP_REQUESTS_TOTAL.labels(method=method, endpoint=endpoint, status=status_code).inc()
+            HTTP_REQUESTS_TOTAL.labels(method=method, endpoint=endpoint, status="500").inc()
             raise
 
         duration = time.time() - start_time
+        record_agentic_request(
+            endpoint=endpoint,
+            method=method,
+            status_code=status_code,
+            duration_sec=duration,
+        )
         HTTP_REQUEST_DURATION_SECONDS.labels(method=method, endpoint=endpoint).observe(duration)
-        HTTP_REQUESTS_TOTAL.labels(method=method, endpoint=endpoint, status=status_code).inc()
+        HTTP_REQUESTS_TOTAL.labels(method=method, endpoint=endpoint, status=str(status_code)).inc()
 
         return response
+

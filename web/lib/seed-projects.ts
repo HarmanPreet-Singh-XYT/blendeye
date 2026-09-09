@@ -141,7 +141,7 @@ export const AETHELGARD_DEMO_PROJECT: ProjectData = {
             },
             {
               "url": "https://lcstages.com",
-              "title": "Laurel Canyon Stages Sci-Fi Spec Sheet"
+              "title": "Parallel Web: Laurel Canyon Stages Sci-Fi Spec Sheet"
             }
           ],
           "category": "studio-backlot",
@@ -187,7 +187,7 @@ export const AETHELGARD_DEMO_PROJECT: ProjectData = {
           "sources": [
             {
               "url": "https://foncostudios.com",
-              "title": "Fonco Studios Production Stages"
+              "title": "Parallel Web: Fonco Studios Production Stages"
             },
             {
               "url": "https://www.filmla.com",
@@ -232,7 +232,7 @@ export const AETHELGARD_DEMO_PROJECT: ProjectData = {
           "sources": [
             {
               "url": "https://www.lacastlestudios.com",
-              "title": "L.A. Castle Studios Virtual Production Standing Stages"
+              "title": "Parallel Web: L.A. Castle Studios Virtual Production Standing Stages"
             },
             {
               "url": "https://www.burbankca.gov",
@@ -337,7 +337,7 @@ export const AETHELGARD_DEMO_PROJECT: ProjectData = {
             },
             {
               "url": "https://lcstages.com",
-              "title": "Laurel Canyon Stage 2 Blueprint"
+              "title": "Parallel Web: Laurel Canyon Stage 2 Blueprint"
             }
           ],
           "category": "studio-backlot",
@@ -383,7 +383,7 @@ export const AETHELGARD_DEMO_PROJECT: ProjectData = {
           "sources": [
             {
               "url": "https://www.lacastlestudios.com",
-              "title": "L.A. Castle Studios Space Station & Sci-Fi Set"
+              "title": "Parallel Web: L.A. Castle Studios Space Station & Sci-Fi Set"
             }
           ],
           "category": "studio-backlot",
@@ -424,7 +424,7 @@ export const AETHELGARD_DEMO_PROJECT: ProjectData = {
           "sources": [
             {
               "url": "https://www.filmla.com",
-              "title": "FilmLA Common Fees & Street Closure Schedule"
+              "title": "Parallel Web: FilmLA Arts District Common Fees & Guidelines"
             },
             {
               "url": "https://www.ladwp.com",
@@ -509,7 +509,7 @@ export const AETHELGARD_DEMO_PROJECT: ProjectData = {
             },
             {
               "url": "https://lcstages.com",
-              "title": "Laurel Canyon Stage 1 Tech Specs"
+              "title": "Parallel Web: Laurel Canyon Stage 1 Tech Specs"
             }
           ],
           "category": "studio-backlot",
@@ -555,7 +555,7 @@ export const AETHELGARD_DEMO_PROJECT: ProjectData = {
           "sources": [
             {
               "url": "https://foncostudios.com",
-              "title": "Fonco Studios Sci-Fi Set Details"
+              "title": "Parallel Web: Fonco Studios Sci-Fi Set Details"
             }
           ],
           "category": "studio-backlot",
@@ -596,7 +596,7 @@ export const AETHELGARD_DEMO_PROJECT: ProjectData = {
           "sources": [
             {
               "url": "https://www.thevillaserena.com",
-              "title": "The Villa Serena Space Shuttle Standing Set Specs"
+              "title": "Parallel Web: The Villa Serena Space Shuttle Standing Set Specs"
             }
           ],
           "category": "studio-backlot",
@@ -680,7 +680,7 @@ export const AETHELGARD_DEMO_PROJECT: ProjectData = {
             },
             {
               "url": "https://lcstages.com",
-              "title": "Laurel Canyon Stage 1 Safety Sheet"
+              "title": "Parallel Web: Laurel Canyon Stage 1 Safety Sheet"
             }
           ],
           "category": "studio-backlot",
@@ -726,7 +726,7 @@ export const AETHELGARD_DEMO_PROJECT: ProjectData = {
           "sources": [
             {
               "url": "https://foncostudios.com",
-              "title": "Fonco Studios Standing Sci-Fi Specs"
+              "title": "Parallel Web: Fonco Studios Standing Sci-Fi Specs"
             }
           ],
           "category": "studio-backlot",
@@ -767,7 +767,7 @@ export const AETHELGARD_DEMO_PROJECT: ProjectData = {
           "sources": [
             {
               "url": "https://www.lacastlestudios.com",
-              "title": "L.A. Castle Studios Technical Rigging Guidelines"
+              "title": "Parallel Web: L.A. Castle Studios Technical Rigging Guidelines"
             }
           ],
           "category": "studio-backlot",

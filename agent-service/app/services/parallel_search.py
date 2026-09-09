@@ -122,6 +122,16 @@ async def search_parallel(
     return await asyncio.to_thread(_search_parallel_sync, query, num_results=num_results, category=category)
 
 
+def _clean_location_query(name: str) -> str:
+    """Strips city prefixes, dashes, and parentheticals to form a crisp search term."""
+    if " — " in name:
+        parts = name.split(" — ")
+        name = parts[1] if len(parts) > 1 else parts[0]
+    import re
+    cleaned = re.sub(r"\(.*?\)", "", name)
+    return " ".join(cleaned.split())[:80].strip()
+
+
 async def search_filming_locations(
     location_name: str,
     region: str,
@@ -130,5 +140,7 @@ async def search_filming_locations(
     """Specialized helper to search real-world venues, film offices, and permit guidelines
     in the targeted region using Parallel Web Systems.
     """
-    query = f"{region} {location_name} {category} soundstage film permit specs"
+    clean_name = _clean_location_query(location_name) or location_name
+    query = f"{region} {clean_name} {category} film location permit".strip()
     return await search_parallel(query, num_results=4, category="location_scouting")
+
