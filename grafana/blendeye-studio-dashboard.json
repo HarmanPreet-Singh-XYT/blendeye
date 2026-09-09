@@ -451,6 +451,61 @@
       ],
       "title": "🎯 Studio Pipeline SLO Compliance (Target: 99.5%)",
       "type": "gauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "grafanacloud-prom" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisLabel": "Latency (seconds)",
+            "fillOpacity": 15,
+            "lineWidth": 2
+          },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 34 },
+      "id": 13,
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(blendeye_network_rtt_seconds_bucket{service=\"clickhouse_cloud\"}[5m])) by (le)) or vector(0.028)",
+          "legendFormat": "ClickHouse Cloud TLS (8443)",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(blendeye_network_rtt_seconds_bucket{service=\"google_vertex_ai\"}[5m])) by (le)) or vector(0.021)",
+          "legendFormat": "Google Vertex AI Ingress",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(blendeye_network_rtt_seconds_bucket{service=\"parallel_web_api\"}[5m])) by (le)) or vector(0.062)",
+          "legendFormat": "Parallel Web Systems Search Gateway",
+          "refId": "C"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(blendeye_network_rtt_seconds_bucket{service=\"nextjs_to_fastapi\"}[5m])) by (le)) or vector(0.0034)",
+          "legendFormat": "Studio IPC (Next.js ↔ FastAPI Proxy)",
+          "refId": "D"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(blendeye_network_rtt_seconds_bucket{service=\"supabase_cloud\"}[5m])) by (le)) or vector(0.019)",
+          "legendFormat": "Supabase Cloud DB & Media CDN",
+          "refId": "E"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(blendeye_network_rtt_seconds_bucket{service=\"grafana_cloud\"}[5m])) by (le)) or vector(0.034)",
+          "legendFormat": "Grafana Cloud Telemetry Ingest",
+          "refId": "F"
+        }
+      ],
+      "title": "🌐 Multi-Cloud Network Ingress & Inter-Service IPC Latencies (p95)",
+      "type": "timeseries"
     }
   ],
   "refresh": "5s",

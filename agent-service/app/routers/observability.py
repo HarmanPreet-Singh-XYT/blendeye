@@ -80,6 +80,7 @@ async def studio_observability_overview() -> dict[str, Any]:
                 "value": str(events_count),
             },
         ],
+        "network_latencies": health.get("network_latencies", []),
         "alerts": health["alerts"],
         "mcp_status": {
             "mcp_grafana": "active (60+ tools enabled: query_prometheus, query_loki_logs, list_dashboards)",

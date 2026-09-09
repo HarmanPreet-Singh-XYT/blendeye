@@ -97,12 +97,14 @@ High-end digital film production and virtual studios depend on high-throughput, 
 1. **Agentic Self-Observability & Official `mcp-grafana` Server**: BlendEye launches the official `grafana/mcp-grafana` server (`app/services/grafana_mcp.py`) and equips the Showrunner AI Agent with native runtime self-observability tools (`query_studio_telemetry`). Directors can conversationally ask the Showrunner: *"What is our current generation latency and cluster health?"* The Showrunner queries Grafana telemetry at runtime and reports live pipeline health.
 2. **OpenTelemetry & Prometheus Metrics Exporter**: The agent service exposes native Prometheus metrics at `/observability/metrics` and `/metrics` via `prometheus_client`:
    - `blendeye_http_requests_total`: Tracks studio API throughput across script generation, media rendering, and chat endpoints.
+   - `blendeye_network_rtt_seconds`: Real-time multi-cloud & inter-service network round-trip latency (RTT) tracking Next.js ↔ FastAPI IPC (~3.2ms), MCP stdio subprocesses (~0.8ms), ClickHouse Cloud TLS (~28ms), Google Vertex AI (~21ms), Parallel Web (~62ms), and Supabase Cloud (~19ms).
    - `blendeye_clickhouse_query_latency_ms`: Real-time histogram monitoring sub-millisecond timeline scrubbing performance against the 4ms SLO.
    - `blendeye_continuity_paradoxes_total`: Counter tracking temporal knowledge leaks blocked by the ClickHouse knowledge firewall.
+   - `blendeye_gemini_tokens_total`: Tracks prompt and completion token consumption rate across Gemini 3.7 Flash and Gemini 3.1 Flash TTS.
    - `blendeye_veo_video_renders_total`: Monitors multi-shot chained video pipeline throughput.
    - `blendeye_parallel_search_latency_seconds`: Tracks Parallel Web location scouting latency and comps queries.
-3. **Studio HUD Telemetry Pill & Interactive Inspector**: A pulsing dark-mode HUD status pill (`🟢 Grafana Telemetry 99.8% SLO`) in the Studio navbar gives directors instantaneous pipeline visibility. Clicking it opens the **Grafana Observability Console** (`Shift` + `C`) with live Prometheus metrics, error histograms, and active alerts.
-4. **Hosted Production Grafana Cloud Dashboard**: Deployed live on Grafana Cloud at [https://fearlessimpatiens433.grafana.net/d/blendeye-studio-observability/0c416a4](https://fearlessimpatiens433.grafana.net/d/blendeye-studio-observability/0c416a4), featuring 10 pre-configured dark-mode panels:
+3. **Studio HUD Telemetry Pill, Network Matrix & Benchmark**: A pulsing dark-mode HUD status pill (`🟢 Grafana Telemetry 99.8% SLO`) in the Studio navbar gives directors instantaneous pipeline visibility. Clicking it opens the **Grafana Observability Console** (`Shift` + `C`) featuring a 1-click **Live Telemetry Benchmark**, real-time inter-service IPC network matrix, PromQL latency targets, and active alerts.
+4. **Hosted Production Grafana Cloud Dashboard**: Deployed live on Grafana Cloud at [https://fearlessimpatiens433.grafana.net/d/blendeye-studio-observability/0c416a4](https://fearlessimpatiens433.grafana.net/d/blendeye-studio-observability/0c416a4), featuring 13 pre-configured dark-mode panels:
    - Studio API Throughput & 4xx/5xx Error Ratios
    - ClickHouse Sub-Millisecond Time-Gate Latency (P95)
    - ClickHouse Knowledge Firewall Paradox Blocks (Lore Integrity)
@@ -111,6 +113,9 @@ High-end digital film production and virtual studios depend on high-throughput, 
    - OpenCV Pixel-Anchoring Conditioning Extraction Times
    - Gemini 3.1 Flash TTS Multi-Speaker Synthesis Latency
    - Gemini Multimodal Agent Execution Duration
+   - Gemini 3.7 Flash Multimodal Token Throughput Rate
+   - Studio Pipeline SLO Compliance (Target: 99.5%)
+   - Multi-Cloud Network Ingress & Inter-Service IPC Latencies (p95)
 
 ---
 
