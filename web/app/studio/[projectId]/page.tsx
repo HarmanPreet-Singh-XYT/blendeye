@@ -1209,20 +1209,37 @@ export default function StudioPage() {
         }
       }
 
-      setGenerationStage("Drafting Master Screenplay (Gemini 3.7 Flash)...");
-      const scriptRes = await fetch("/api/script/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ premise: enrichedPremise, projectId: pid }),
-        signal: controller.signal,
-      });
-      if (!scriptRes.ok) {
-        const detail = await scriptRes.text().catch(() => "");
-        throw new Error(detail || "Script generation failed");
+      // Only draft a fresh single-scene screenplay from scratch when there's
+      // nothing real yet (needsFullSequenceGen). If /api/project/generate
+      // above already produced real multi-scene content, drafting again here
+      // would silently overwrite it with a single regenerated scene — shard
+      // the existing scenes' text instead, joined with markers so the
+      // sharder can anchor timestamps across all of them (see
+      // handleReshardScript for the same pattern).
+      let generatedScript: string;
+      if (needsFullSequenceGen) {
+        setGenerationStage("Drafting Master Screenplay (Gemini 3.7 Flash)...");
+        const scriptRes = await fetch("/api/script/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ premise: enrichedPremise, projectId: pid }),
+          signal: controller.signal,
+        });
+        if (!scriptRes.ok) {
+          const detail = await scriptRes.text().catch(() => "");
+          throw new Error(detail || "Script generation failed");
+        }
+        const scriptData = await scriptRes.json();
+        generatedScript = scriptData.screenplay_text;
+        setScreenplayText(generatedScript);
+      } else {
+        generatedScript = currentScenes
+          .map(
+            (s: FilmScene) =>
+              `=== SCENE ${s.sceneNumber}: ${s.title} (starts at ${s.startSeconds}s) ===\n${s.screenplayText || ""}`
+          )
+          .join("\n\n");
       }
-      const scriptData = await scriptRes.json();
-      const generatedScript = scriptData.screenplay_text;
-      setScreenplayText(generatedScript);
 
       setGenerationStage("Sharding Perspectives & Asymmetric Knowledge into ClickHouse...");
       const shardRes = await fetch("/api/sharding/shard", {
@@ -2430,11 +2447,20 @@ export default function StudioPage() {
                         BRIDGE
                       </span>
                     )}
+                    {isGenerating && (
+                      <Loader2 className="h-2.5 w-2.5 shrink-0 animate-spin text-amber-400" />
+                    )}
                     <ChevronDown className="h-2.5 w-2.5 opacity-60 shrink-0" />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="w-72 bg-card border-border shadow-2xl p-1.5 z-50">
-                    <DropdownMenuLabel className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground px-2 py-1">
-                      Project Scenes ({scenes.length})
+                    <DropdownMenuLabel className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground px-2 py-1 flex items-center gap-1.5">
+                      <span>Project Scenes ({scenes.length})</span>
+                      {isGenerating && (
+                        <span className="flex items-center gap-1 text-amber-400 normal-case tracking-normal font-sans">
+                          <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                          more arriving…
+                        </span>
+                      )}
                     </DropdownMenuLabel>
                     {scenes.map((sc) => {
                       const isBridge = isBridgeScene(sc);
