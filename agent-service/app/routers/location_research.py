@@ -253,10 +253,20 @@ async def ask_location_qa(req: LocationQARequest) -> LocationQAResponse:
     falling back to Google Search only if Parallel returns nothing this request."""
     # Query Parallel Web Systems at runtime for verified domain intelligence
     parallel_citations: list[dict[str, str]] = []
+    parallel_context = ""
     try:
-        p_hits = await search_parallel(f"{req.region} {req.candidate_name} {req.question}", num_results=2)
+        p_hits = await search_parallel(
+            f"{req.region} {req.candidate_name} {req.question}",
+            num_results=3,
+            category="location_qa",
+        )
         for hit in p_hits:
             parallel_citations.append({"title": f"Parallel Web: {hit['title']}", "url": hit["url"]})
+        if p_hits:
+            parallel_context = "\n\nVERIFIED REAL-WORLD INTELLIGENCE (via Parallel Web Systems API):\n" + "\n---\n".join(
+                f"Title: {h.get('title')}\nURL: {h.get('url')}\nExcerpts: {' '.join(h.get('excerpts', []))[:500]}"
+                for h in p_hits
+            )
     except Exception as ex:  # noqa: BLE001
         logger.warning("Parallel QA lookup skipped: %s", ex)
 
@@ -267,8 +277,11 @@ async def ask_location_qa(req: LocationQARequest) -> LocationQAResponse:
         f"Candidate Location: {req.candidate_name}\n"
         f"Region: {req.region}\n"
         f"Category: {req.category}\n"
-        f"Director Question: {req.question}\n\n"
-        "Provide factual, production-grounded operational guidance with citations. Return strictly valid JSON."
+        f"Director Question: {req.question}\n"
+        f"{parallel_context}\n\n"
+        "Provide factual, production-grounded operational guidance with citations. "
+        "Ground your advice in the verified Parallel Web intelligence provided above where relevant. "
+        "Return strictly valid JSON."
     )
 
     try:
@@ -294,6 +307,9 @@ async def ask_location_qa(req: LocationQARequest) -> LocationQAResponse:
         )
         sources = fallback_data.setdefault("sources", [])
         sources.extend(parallel_citations)
+        if parallel_citations:
+            fallback_data["search_grounded"] = True
+            fallback_data["_disclosure"] = "Resilient mode active: grounded with live Parallel Web Systems intelligence."
         return LocationQAResponse(**fallback_data)
 
 
