@@ -856,6 +856,8 @@ export interface SceneNodeData extends Record<string, unknown> {
   state: NodeState;
   characterCount?: number;
   hasStyleRef?: boolean;
+  hasVideoTake?: boolean;
+  videoTakeUrl?: string;
   onGenerateDraft?: () => void;
   onViewScript?: () => void;
 }
@@ -1006,6 +1008,7 @@ export function SceneNode({ id, data, selected }: NodeProps & { data: SceneNodeD
         <div className="flex items-center justify-between text-[10px] text-muted-foreground border-t border-border/40 pt-1.5">
           <span>{data.characterCount ?? 2} Cast Members Wired</span>
           <div className="flex items-center gap-1.5">
+            {data.hasVideoTake && <span className="text-purple-400 font-mono font-semibold">Veo Take ✓</span>}
             {hasFloorPlan && <span className="text-blue-400 font-mono">Floor Plan ✓</span>}
             {data.hasStyleRef && <span className="text-purple-400 font-mono">Style Sync ✓</span>}
           </div>

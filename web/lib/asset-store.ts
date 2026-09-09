@@ -327,19 +327,26 @@ export function getLocalAssets(userId?: string | null): CinemaAsset[] {
     }
     const parsed: CinemaAsset[] = JSON.parse(raw);
     
-    // Auto-migrate: Purge legacy assets (vault-heist/marcus/elena) AND stale Supabase URLs
+    // Auto-migrate: Purge legacy assets (vault-heist/marcus/elena)
     const hasLegacy = parsed.some(
       (a) =>
         a.id?.includes("marcus") ||
         a.id?.includes("elena") ||
         a.url?.includes("ai_vault_plate") ||
-        a.id?.startsWith("seed-") ||
-        a.url?.includes("supabase.co/storage") // ← old remote bucket URLs
+        a.id?.startsWith("seed-")
     );
     if (hasLegacy) {
-      // Nuke the whole cached list and re-seed from fresh local assets
-      localStorage.setItem(key, JSON.stringify(SEED_ASSETS));
-      return SEED_ASSETS;
+      // Re-seed from fresh local assets while preserving non-legacy user assets
+      const nonLegacy = parsed.filter(
+        (a) =>
+          !a.id?.includes("marcus") &&
+          !a.id?.includes("elena") &&
+          !a.url?.includes("ai_vault_plate") &&
+          !a.id?.startsWith("seed-")
+      );
+      const combined = [...SEED_ASSETS, ...nonLegacy];
+      localStorage.setItem(key, JSON.stringify(combined));
+      return combined;
     }
 
     // Ensure all seed assets are present

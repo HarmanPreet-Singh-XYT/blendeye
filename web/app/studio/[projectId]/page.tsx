@@ -289,13 +289,13 @@ export default function StudioPage() {
     setAllProjects(getAllProjects());
   }, [projectId]);
 
-  // Tracks whether the user has made any local edit since this project mounted.
-  // The one-time cloud hydration below must never apply after this becomes
-  // true — otherwise a slow/stale cloud GET can clobber in-progress work
-  // (this is what previously caused an active scene to be replaced by a
-  // stale earlier scene mid-edit).
+  const isMountedRef = React.useRef(false);
   const hasLocalEditRef = React.useRef(false);
   React.useEffect(() => {
+    if (!isMountedRef.current) {
+      isMountedRef.current = true;
+      return;
+    }
     hasLocalEditRef.current = true;
   }, [scenes, activeSceneId, screenplayText]);
 
@@ -321,6 +321,9 @@ export default function StudioPage() {
           const cloudProj = ensureProjectScenes(data.project);
           saveProject(cloudProj);
           setAllProjects(getAllProjects());
+          if (cloudProj.scenes && cloudProj.scenes.length > 0) {
+            setScenes(cloudProj.scenes);
+          }
           // videoTakes/activeVideoUrl live top-level on ProjectData and are
           // read directly by GenerationStudioView from project-store, which
           // may have already initialized its state before this fetch
@@ -2377,7 +2380,9 @@ export default function StudioPage() {
   }
 
   if (pageViewMode === "scenes") {
+    const existing = getProjectById(projectId) || initialProject;
     const currentProj: ProjectData = {
+      ...existing,
       id: projectId,
       title: projectTitle,
       genre,
@@ -2394,6 +2399,8 @@ export default function StudioPage() {
       coreSecret,
       primaryLocation,
       targetTerritories,
+      videoTakes: existing.videoTakes || [],
+      activeVideoUrl: existing.activeVideoUrl,
       createdAt: initialProject.createdAt,
       updatedAt: Date.now(),
     };
@@ -3827,6 +3834,23 @@ export default function StudioPage() {
           }
         }}
         projectId={projectId}
+        sceneId={activeSceneId}
+        onTakeCreated={(take) => {
+          const nextScenes = scenes.map((s) =>
+            s.id === activeSceneId
+              ? {
+                  ...s,
+                  activeVideoUrl: take.videoUrl,
+                  videoTakes: [take, ...(s.videoTakes || []).filter((t) => t.id !== take.id)],
+                }
+              : s
+          );
+          setScenes(nextScenes);
+          saveCurrentProject({
+            scenes: nextScenes,
+            activeVideoUrl: take.videoUrl,
+          });
+        }}
         nodes={nodes}
         sceneTitle={sceneTitle}
         sceneSummary={sceneSummary}

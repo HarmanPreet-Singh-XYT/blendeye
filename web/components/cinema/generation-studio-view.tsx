@@ -255,7 +255,9 @@ export function GenerationStudioView({
 
   // Load saved takes from project-store or default to verified local cinematic takes
   const initialSavedTakes = React.useMemo(() => {
-    const takes = getVideoTakes(effectiveProjectId);
+    const sceneTakes = activeSceneObj?.videoTakes;
+    const projectTakes = getVideoTakes(effectiveProjectId);
+    const takes = sceneTakes && sceneTakes.length > 0 ? sceneTakes : projectTakes;
     if (takes && takes.length > 0) {
       return takes.map((t) => ({
         id: t.id,
@@ -270,12 +272,12 @@ export function GenerationStudioView({
       }));
     }
     return [];
-  }, [effectiveProjectId, sceneTitle]);
+  }, [effectiveProjectId, sceneTitle, activeSceneObj?.videoTakes]);
 
   const [recentTakes, setRecentTakes] = React.useState<RenderedTake[]>(initialSavedTakes);
 
   const [activeVideoUrl, setActiveVideoUrl] = React.useState<string>(
-    initialSavedTakes[0]?.videoUrl || ""
+    activeSceneObj?.activeVideoUrl || initialSavedTakes[0]?.videoUrl || ""
   );
   const [activeTakeId, setActiveTakeId] = React.useState<string>(
     initialSavedTakes[0]?.id || ""
@@ -290,8 +292,10 @@ export function GenerationStudioView({
   const loadedProjectKeyRef = React.useRef<string>("");
   const reloadTakesFromStore = React.useCallback(
     (force: boolean) => {
-      const takes = getVideoTakes(effectiveProjectId);
-      const key = `${effectiveProjectId}:${takes.length}:${takes[0]?.id || ""}`;
+      const sceneTakes = activeSceneObj?.videoTakes;
+      const projectTakes = getVideoTakes(effectiveProjectId);
+      const takes = sceneTakes && sceneTakes.length > 0 ? sceneTakes : projectTakes;
+      const key = `${effectiveProjectId}:${activeSceneObj?.id || ""}:${takes.length}:${takes[0]?.id || ""}`;
       if (!force && loadedProjectKeyRef.current === key) return;
       loadedProjectKeyRef.current = key;
       if (takes.length === 0) return;
@@ -307,10 +311,13 @@ export function GenerationStudioView({
         prompt: t.prompt || "",
       }));
       setRecentTakes(mapped);
-      setActiveVideoUrl((prev) => prev || mapped[0]?.videoUrl || "");
-      setActiveTakeId((prev) => prev || mapped[0]?.id || "");
+      const targetUrl = activeSceneObj?.activeVideoUrl || mapped[0]?.videoUrl || "";
+      if (force || !activeVideoUrl) {
+        setActiveVideoUrl(targetUrl);
+        setActiveTakeId(mapped[0]?.id || "");
+      }
     },
-    [effectiveProjectId]
+    [effectiveProjectId, activeSceneObj, activeVideoUrl]
   );
 
   React.useEffect(() => {
@@ -554,7 +561,7 @@ export function GenerationStudioView({
     setActiveVideoUrl(url);
 
     // Persist to project store and localStorage
-    saveVideoTake(effectiveProjectId, {
+    const saved = saveVideoTake(effectiveProjectId, {
       title: newTake.title,
       cameraMotion,
       stylePreset,
@@ -562,10 +569,24 @@ export function GenerationStudioView({
       videoUrl: url,
       prompt,
       isMaster: true,
+      sceneId: activeSceneObj?.id,
     });
+
+    if (activeSceneObj && onUpdateScene) {
+      const updatedSceneTakes = [
+        saved,
+        ...(activeSceneObj.videoTakes || []).filter((t) => t.id !== saved.id),
+      ];
+      onUpdateScene({
+        ...activeSceneObj,
+        activeVideoUrl: url,
+        videoTakes: updatedSceneTakes,
+      });
+    }
+
     toast.add({
       title: `Take #${nextNum} Saved to Project Vault`,
-      description: "Stored in project take vault and set as Master Take.",
+      description: "Stored in project take vault and set as Master Take for this scene.",
       type: "success",
     });
   };

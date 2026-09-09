@@ -92,6 +92,7 @@ export function ProjectScenesPage({
   const [isGeneratingBridge, setIsGeneratingBridge] = React.useState<number | null>(null);
   const [bridgeDialogIndex, setBridgeDialogIndex] = React.useState<number | null>(null);
   const [dossierState, setDossierState] = React.useState<{ candidate: LocationCandidate; scene: FilmScene } | null>(null);
+  const [previewVideoUrl, setPreviewVideoUrl] = React.useState<{ url: string; title: string } | null>(null);
 
   // Sync state if project changes
   React.useEffect(() => {
@@ -124,6 +125,8 @@ export function ProjectScenesPage({
         sceneTitle: activeSc?.title || currentProject.sceneTitle,
         sceneSummary: activeSc?.summary || currentProject.sceneSummary,
         screenplayText: activeSc?.screenplayText || currentProject.screenplayText,
+        videoTakes: currentProject.videoTakes || [],
+        activeVideoUrl: currentProject.activeVideoUrl,
         updatedAt: Date.now(),
       };
 
@@ -894,6 +897,11 @@ export function ProjectScenesPage({
                 const isActive = scene.id === activeSceneId;
                 const isBridge = isBridgeScene(scene);
                 const durationMinutes = Math.round((scene.durationSeconds || 180) / 60);
+                const sceneVideoUrl =
+                  scene.activeVideoUrl ||
+                  (scene.videoTakes && scene.videoTakes.length > 0 ? scene.videoTakes[0].videoUrl : null) ||
+                  (isActive && currentProject.activeVideoUrl ? currentProject.activeVideoUrl : null);
+                const hasVideoTake = Boolean(sceneVideoUrl);
 
                 return (
                   <React.Fragment key={scene.id}>
@@ -932,6 +940,25 @@ export function ProjectScenesPage({
                                 <Sparkles className="h-3 w-3 text-purple-400" />
                                 BRIDGE SCENE
                               </Badge>
+                            )}
+                            {hasVideoTake && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (sceneVideoUrl) {
+                                    setPreviewVideoUrl({
+                                      url: sceneVideoUrl,
+                                      title: `Scene ${scene.sceneNumber}: ${scene.slugline || scene.title} — Veo Master Take`,
+                                    });
+                                  }
+                                }}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/40 hover:bg-purple-500/35 hover:text-purple-200 transition-colors cursor-pointer shadow-xs"
+                                title="Play Veo 3.1 Master Take"
+                              >
+                                <Play className="h-2.5 w-2.5 fill-purple-300 text-purple-300" />
+                                Veo 3.1 Master Take
+                              </button>
                             )}
                             {isActive && (
                               <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-[10px] font-mono">
@@ -1120,20 +1147,50 @@ export function ProjectScenesPage({
                                 </div>
                               </div>
 
-                              {/* Right: Keyframe thumbnail or preview */}
-                              {lockedCandidate?.preview_image_url && (
-                                <div
-                                  onClick={() => setDossierState({ candidate: lockedCandidate, scene })}
-                                  className="h-8 w-14 rounded overflow-hidden border border-border/80 bg-black shrink-0 relative shadow-2xs cursor-pointer group hover:ring-1 hover:ring-accent"
-                                  title="Click to view 16:9 visual concept look and specs"
-                                >
-                                  <img
-                                    src={lockedCandidate.preview_image_url}
-                                    alt="Keyframe"
-                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                                  />
-                                </div>
-                              )}
+                              {/* Right: Keyframe thumbnail or video take preview */}
+                              <div className="flex items-center gap-2 shrink-0">
+                                {hasVideoTake && sceneVideoUrl && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setPreviewVideoUrl({
+                                        url: sceneVideoUrl,
+                                        title: `Scene ${scene.sceneNumber}: ${scene.slugline || scene.title} — Veo Master Take`,
+                                      })
+                                    }
+                                    className="h-8 w-14 rounded overflow-hidden border border-purple-500/60 bg-black shrink-0 relative shadow-2xs cursor-pointer group hover:ring-2 hover:ring-purple-400 transition-all flex items-center justify-center"
+                                    title="Play Veo 3.1 Master Take"
+                                  >
+                                    <video
+                                      src={sceneVideoUrl}
+                                      className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
+                                      muted
+                                      playsInline
+                                      preload="metadata"
+                                    />
+                                    <div className="absolute inset-0 bg-black/30 flex items-center justify-center group-hover:bg-black/10 transition-colors">
+                                      <Play className="h-3 w-3 fill-white text-white drop-shadow-md" />
+                                    </div>
+                                    <span className="absolute bottom-0.5 right-0.5 bg-purple-950/90 text-[7px] font-mono text-purple-300 px-0.5 rounded-xs leading-none">
+                                      VEO
+                                    </span>
+                                  </button>
+                                )}
+
+                                {lockedCandidate?.preview_image_url && (
+                                  <div
+                                    onClick={() => setDossierState({ candidate: lockedCandidate, scene })}
+                                    className="h-8 w-14 rounded overflow-hidden border border-border/80 bg-black shrink-0 relative shadow-2xs cursor-pointer group hover:ring-1 hover:ring-accent"
+                                    title="Click to view 16:9 visual concept look and specs"
+                                  >
+                                    <img
+                                      src={lockedCandidate.preview_image_url}
+                                      alt="Keyframe"
+                                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                    />
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           );
                         })()}
@@ -1510,6 +1567,43 @@ export function ProjectScenesPage({
           handleUpdateScene(updatedScene, false);
         }}
       />
+
+      {/* Veo Video Preview Modal */}
+      {previewVideoUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in"
+          onClick={() => setPreviewVideoUrl(null)}
+        >
+          <div
+            className="relative w-full max-w-4xl bg-card border border-purple-500/40 rounded-2xl overflow-hidden shadow-2xl flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-card/90">
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-purple-500 animate-pulse" />
+                <span className="font-mono text-sm font-semibold text-foreground">
+                  {previewVideoUrl.title}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewVideoUrl(null)}
+                className="text-muted-foreground hover:text-foreground text-sm font-mono px-2 py-1 rounded hover:bg-secondary transition-colors cursor-pointer"
+              >
+                ✕ Close
+              </button>
+            </div>
+            <div className="relative aspect-video bg-black flex items-center justify-center">
+              <video
+                src={previewVideoUrl.url}
+                controls
+                autoPlay
+                className="w-full h-full object-contain"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

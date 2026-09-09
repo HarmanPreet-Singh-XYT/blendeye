@@ -45,6 +45,7 @@ export interface VideoTake {
   prompt?: string;
   characterName?: string;
   isMaster?: boolean;
+  sceneId?: string;
 }
 
 export interface ShotContinuityBible {
@@ -627,6 +628,8 @@ export interface FilmScene {
   events?: StoryEventMarker[];
   activeScoreUrl?: string;
   scoreTakes?: ScoreTake[];
+  activeVideoUrl?: string;
+  videoTakes?: VideoTake[];
   shots?: Shot[];
   timelineMoments?: TimelineMoment[];
 }
@@ -872,6 +875,8 @@ export function ensureProjectScenes(project: ProjectData): ProjectData {
             shots: stored.shots?.length ? stored.shots : seedScene.shots,
             scoreTakes: stored.scoreTakes?.length ? stored.scoreTakes : seedScene.scoreTakes,
             activeScoreUrl: stored.activeScoreUrl ?? seedScene.activeScoreUrl,
+            videoTakes: stored.videoTakes?.length ? stored.videoTakes : seedScene.videoTakes,
+            activeVideoUrl: stored.activeVideoUrl ?? seedScene.activeVideoUrl,
             nodes: stored.nodes?.length ? stored.nodes : seedScene.nodes,
             edges: stored.edges?.length ? stored.edges : seedScene.edges,
           };
@@ -1183,6 +1188,8 @@ export async function syncProjectsWithSupabase(): Promise<ProjectData[]> {
               shots: remSc.shots?.length ? remSc.shots : locSc.shots,
               scoreTakes: remSc.scoreTakes?.length ? remSc.scoreTakes : locSc.scoreTakes,
               activeScoreUrl: remSc.activeScoreUrl ?? locSc.activeScoreUrl,
+              videoTakes: remSc.videoTakes?.length ? remSc.videoTakes : locSc.videoTakes,
+              activeVideoUrl: remSc.activeVideoUrl ?? locSc.activeVideoUrl,
             };
           });
           // Preserve any local scenes that weren't in remote
@@ -1200,6 +1207,7 @@ export async function syncProjectsWithSupabase(): Promise<ProjectData[]> {
           ...remote,
           scenes: resolvedScenes.length > 0 ? resolvedScenes : (local.scenes || remote.scenes),
           activeSceneId: remote.activeSceneId || local.activeSceneId,
+          activeVideoUrl: remote.activeVideoUrl || local.activeVideoUrl,
           videoTakes: remote.videoTakes?.length ? remote.videoTakes : (local.videoTakes || []),
           scoreTakes: remote.scoreTakes?.length ? remote.scoreTakes : (local.scoreTakes || []),
           storyboardFrameUrl: remote.storyboardFrameUrl || local.storyboardFrameUrl,
@@ -1946,7 +1954,7 @@ export function getVideoTakes(projectId: string): VideoTake[] {
  */
 export function saveVideoTake(
   projectId: string,
-  takeData: Omit<VideoTake, "id" | "takeNumber" | "createdAt"> & { id?: string; takeNumber?: number }
+  takeData: Omit<VideoTake, "id" | "takeNumber" | "createdAt"> & { id?: string; takeNumber?: number; sceneId?: string }
 ): VideoTake {
   const project = getProjectById(projectId);
   const currentTakes = project?.videoTakes || [];
@@ -1964,15 +1972,32 @@ export function saveVideoTake(
     prompt: takeData.prompt,
     characterName: takeData.characterName,
     isMaster: takeData.isMaster ?? (currentTakes.length === 0),
+    sceneId: takeData.sceneId,
   };
 
   if (!project) return newTake;
 
   const updatedTakes = [newTake, ...currentTakes];
+  const targetSceneId = takeData.sceneId || project.activeSceneId;
+
+  const updatedScenes = project.scenes?.map((s) => {
+    if (s.id === targetSceneId || (!targetSceneId && project.scenes && project.scenes.length === 1)) {
+      const sceneTakes = s.videoTakes || [];
+      const updatedSceneTakes = [newTake, ...sceneTakes.filter((t) => t.id !== newTake.id)];
+      return {
+        ...s,
+        videoTakes: updatedSceneTakes,
+        activeVideoUrl: newTake.isMaster ? newTake.videoUrl : (s.activeVideoUrl || newTake.videoUrl),
+      };
+    }
+    return s;
+  });
+
   const updatedProject: ProjectData = {
     ...project,
     activeVideoUrl: newTake.isMaster ? newTake.videoUrl : (project.activeVideoUrl || newTake.videoUrl),
     videoTakes: updatedTakes,
+    scenes: updatedScenes || project.scenes,
   };
 
   saveProject(updatedProject);
@@ -1982,7 +2007,7 @@ export function saveVideoTake(
 /**
  * Marks a specific video take as the master take for a project.
  */
-export function setMasterVideoTake(projectId: string, takeId: string): void {
+export function setMasterVideoTake(projectId: string, takeId: string, sceneId?: string): void {
   const project = getProjectById(projectId);
   if (!project || !project.videoTakes) return;
 
@@ -1995,10 +2020,27 @@ export function setMasterVideoTake(projectId: string, takeId: string): void {
     return { ...t, isMaster: false };
   });
 
+  const targetSceneId = sceneId || project.activeSceneId;
+  const updatedScenes = project.scenes?.map((s) => {
+    if (s.id === targetSceneId || (!targetSceneId && project.scenes && project.scenes.length === 1)) {
+      const sceneTakes = (s.videoTakes || []).map((t) => ({
+        ...t,
+        isMaster: t.id === takeId,
+      }));
+      return {
+        ...s,
+        videoTakes: sceneTakes,
+        activeVideoUrl: targetUrl,
+      };
+    }
+    return s;
+  });
+
   saveProject({
     ...project,
     activeVideoUrl: targetUrl,
     videoTakes: updatedTakes,
+    scenes: updatedScenes || project.scenes,
   });
 }
 
@@ -2010,13 +2052,27 @@ export function deleteVideoTake(projectId: string, takeId: string): void {
   if (!project || !project.videoTakes) return;
 
   const filtered = project.videoTakes.filter((t) => t.id !== takeId);
+  const targetDeleted = project.videoTakes.find((t) => t.id === takeId);
+  const updatedScenes = project.scenes?.map((s) => {
+    if (s.videoTakes) {
+      const sceneFiltered = s.videoTakes.filter((t) => t.id !== takeId);
+      return {
+        ...s,
+        videoTakes: sceneFiltered,
+        activeVideoUrl: s.activeVideoUrl === targetDeleted?.videoUrl ? sceneFiltered[0]?.videoUrl : s.activeVideoUrl,
+      };
+    }
+    return s;
+  });
+
   const updatedProject: ProjectData = {
     ...project,
     videoTakes: filtered,
     activeVideoUrl:
-      project.activeVideoUrl === project.videoTakes.find((t) => t.id === takeId)?.videoUrl
+      project.activeVideoUrl === targetDeleted?.videoUrl
         ? filtered[0]?.videoUrl || "/videos/vault_heist_take_01.mp4"
         : project.activeVideoUrl,
+    scenes: updatedScenes || project.scenes,
   };
 
   saveProject(updatedProject);
@@ -2551,6 +2607,8 @@ export function buildProjectNodesAndEdges(
       state: isGenerating ? "generating" : "ready",
       characterCount: chars.length,
       hasStyleRef: true,
+      hasVideoTake: Boolean(project.activeVideoUrl || (project.videoTakes && project.videoTakes.length > 0)),
+      videoTakeUrl: project.activeVideoUrl || project.videoTakes?.[0]?.videoUrl,
       onGenerateDraft: callbacks?.onGenerateDraft,
       onViewScript: callbacks?.onViewScript,
     },

@@ -63,6 +63,8 @@ interface VeoVideoDialogProps {
   characterContext?: ProjectCharacter;
   activeCharacterName?: string;
   projectId?: string;
+  sceneId?: string;
+  onTakeCreated?: (take: VideoTake) => void;
   nodes?: Node[];
   screenplayText?: string;
   genre?: string;
@@ -93,6 +95,8 @@ export function VeoVideoDialog({
   characterContext,
   activeCharacterName,
   projectId,
+  sceneId,
+  onTakeCreated,
   nodes = [],
   screenplayText,
   genre,
@@ -346,6 +350,7 @@ export function VeoVideoDialog({
       videoUrl: url,
       prompt: customPrompt,
       characterName: selectedCharName || undefined,
+      sceneId: sceneId,
       // Only the first take for this scene auto-becomes Master; later takes are
       // saved as alternates so a render never silently bumps the director's pick.
     });
@@ -353,6 +358,7 @@ export function VeoVideoDialog({
     setActiveTakeId(newTake.id);
     setVideoUrl(newTake.videoUrl);
     setCurrentTime(0);
+    onTakeCreated?.(newTake);
 
     // Auto-register in Asset Hub under 'video' category
     saveLocalAsset({
