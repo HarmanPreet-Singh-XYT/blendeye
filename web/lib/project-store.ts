@@ -848,25 +848,51 @@ export function ensureProjectScenes(project: ProjectData): ProjectData {
       project.characters = seed.characters;
     }
 
-    // 2. Fully hydrate scenes and location candidates with preview_image_urls and sceneImages
+    // 2. Merge scenes: use seed as base structure but preserve user-generated content
     if (seed.scenes && seed.scenes.length > 0) {
-      project.scenes = seed.scenes;
-      project.activeSceneId = seed.activeSceneId || seed.scenes[0].id;
+      if (!project.scenes || project.scenes.length === 0) {
+        // First load — seed everything
+        project.scenes = seed.scenes;
+        project.activeSceneId = seed.activeSceneId || seed.scenes[0].id;
+      } else {
+        // Subsequent loads — merge per scene ID, preserving user data
+        const storedById = new Map(project.scenes.map((s) => [s.id, s]));
+        project.scenes = seed.scenes.map((seedScene) => {
+          const stored = storedById.get(seedScene.id);
+          if (!stored) return seedScene;
+          // Seed provides structural/metadata fields; stored provides user-generated content
+          return {
+            ...seedScene,
+            // Preserve user-generated mutable fields
+            sceneImages: stored.sceneImages?.length ? stored.sceneImages : seedScene.sceneImages,
+            selectedLocationCandidateId: stored.selectedLocationCandidateId ?? seedScene.selectedLocationCandidateId,
+            timelineMoments: stored.timelineMoments?.length ? stored.timelineMoments : seedScene.timelineMoments,
+            shots: stored.shots?.length ? stored.shots : seedScene.shots,
+            scoreTakes: stored.scoreTakes?.length ? stored.scoreTakes : seedScene.scoreTakes,
+            activeScoreUrl: stored.activeScoreUrl ?? seedScene.activeScoreUrl,
+            nodes: stored.nodes?.length ? stored.nodes : seedScene.nodes,
+            edges: stored.edges?.length ? stored.edges : seedScene.edges,
+          };
+        });
+        if (!project.activeSceneId || !project.scenes.some((s) => s.id === project.activeSceneId)) {
+          project.activeSceneId = seed.activeSceneId || seed.scenes[0].id;
+        }
+      }
     }
 
-    // 3. Hydrate video/audio takes, keyframes, and maps
-    if (seed.videoTakes && seed.videoTakes.length > 0) {
+    // 3. Hydrate video/audio takes — only if user hasn't added their own
+    if (seed.videoTakes && seed.videoTakes.length > 0 && (!project.videoTakes || project.videoTakes.length === 0)) {
       project.videoTakes = seed.videoTakes;
     }
-    if (seed.scoreTakes && seed.scoreTakes.length > 0) {
+    if (seed.scoreTakes && seed.scoreTakes.length > 0 && (!project.scoreTakes || project.scoreTakes.length === 0)) {
       project.scoreTakes = seed.scoreTakes;
     }
-    project.activeVideoUrl = seed.activeVideoUrl || project.activeVideoUrl;
-    project.activeScoreUrl = seed.activeScoreUrl || project.activeScoreUrl;
-    project.storyboardFrameUrl = seed.storyboardFrameUrl || project.storyboardFrameUrl;
-    project.floorPlanMapUrl = seed.floorPlanMapUrl || project.floorPlanMapUrl;
-    project.floorPlanMapName = seed.floorPlanMapName || project.floorPlanMapName;
-    if (seed.locationClusters && seed.locationClusters.length > 0) {
+    project.activeVideoUrl = project.activeVideoUrl || seed.activeVideoUrl;
+    project.activeScoreUrl = project.activeScoreUrl || seed.activeScoreUrl;
+    project.storyboardFrameUrl = project.storyboardFrameUrl || seed.storyboardFrameUrl;
+    project.floorPlanMapUrl = project.floorPlanMapUrl || seed.floorPlanMapUrl;
+    project.floorPlanMapName = project.floorPlanMapName || seed.floorPlanMapName;
+    if (seed.locationClusters && seed.locationClusters.length > 0 && (!project.locationClusters || project.locationClusters.length === 0)) {
       project.locationClusters = seed.locationClusters;
     }
     return project;
@@ -966,26 +992,28 @@ export function getAllProjects(): ProjectData[] {
       return [];
     }
 
-    // Auto-update seed or demo projects with enriched seed data if missing images
+    // Auto-update only known demo projects with enriched seed data if missing images.
+    // NEVER touch user custom projects — keyed strictly by known demo IDs.
+    const DEMO_PROJECT_IDS = new Set([
+      "aethelgard-chronos-shift",
+      "project-mttg5hn2",
+      "vault-heist-demo",
+    ]);
+
     let needsResave = false;
     const updated = parsed.map((p) => {
-      const isDemoMatch =
-        p.id === "aethelgard-chronos-shift" ||
-        p.id === "project-mttg5hn2" ||
-        p.id === "vault-heist-demo" ||
-        p.title?.toLowerCase().includes("aethelgard") ||
-        !p.isCustom;
+      // Only auto-upgrade if it's a known demo project ID and NOT a custom user project
+      const isKnownDemo = DEMO_PROJECT_IDS.has(p.id) ||
+        (p.title?.toLowerCase().includes("aethelgard") && !p.isCustom);
 
-      if (isDemoMatch) {
+      if (isKnownDemo && !p.isCustom) {
         const seed = SEED_PROJECTS[0];
         if (seed) {
           const firstCandHasImg = p.scenes?.[0]?.locationCandidates?.[0]?.preview_image_url;
           const charHasFullImg = p.characters?.[0]?.fullBodyImageUrl;
           const hasLegacyRef =
             JSON.stringify(p).includes("ai_vault_plate") ||
-            JSON.stringify(p).includes("deep-space-airlock") ||
-            !p.scenes ||
-            p.scenes.length < 2;
+            JSON.stringify(p).includes("deep-space-airlock");
 
           if (!firstCandHasImg || !charHasFullImg || hasLegacyRef) {
             needsResave = true;
