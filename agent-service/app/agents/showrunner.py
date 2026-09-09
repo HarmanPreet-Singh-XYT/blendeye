@@ -43,9 +43,38 @@ def parallel_web_search(query: str) -> str:
     return "\n---\n".join(formatted)
 
 
+def query_studio_telemetry(aspect: str = "all") -> str:
+    """Query live BlendEye studio infrastructure telemetry and Grafana/Prometheus health.
+    Use this whenever the Director asks about system performance, rendering pipeline status,
+    ClickHouse latency, or studio observability.
+    """
+    from app.services.observability import get_studio_health_status
+
+    status = get_studio_health_status()
+    pipeline = status.get("pipeline", {})
+    alerts = status.get("alerts", [])
+    alert_lines = "\n".join([f"- [{a['severity'].upper()}] {a['name']}: {a['message']}" for a in alerts])
+
+    return (
+        f"BlendEye Studio Telemetry & Observability Status:\n"
+        f"Status: {status.get('status', 'healthy').upper()}\n"
+        f"Engine: {status.get('observability_engine', 'Grafana Labs OpenTelemetry Stack')}\n\n"
+        f"Pipeline Health:\n"
+        f"- Veo 3.1 Video Sequencer: {pipeline.get('veo_video_sequencer')}\n"
+        f"- ClickHouse Time-Gate: {pipeline.get('clickhouse_timegate')}\n"
+        f"- Gemini Agents: {pipeline.get('gemini_agents')}\n"
+        f"- Parallel Web Search: {pipeline.get('parallel_web_search')}\n"
+        f"- Audio Multi-Speaker TTS: {pipeline.get('audio_multi_speaker')}\n"
+        f"- Script Continuity Supervisor: {pipeline.get('continuity_supervisor')}\n\n"
+        f"Grafana SLO & Alert Checks:\n{alert_lines}\n\n"
+        f"Live Prometheus Scrape Endpoint: /observability/metrics\n"
+        f"Live Grafana Cloud Dashboard: https://fearlessimpatiens433.grafana.net/d/blendeye-studio-observability/0c416a4"
+    )
+
+
 def build_showrunner_agent(*, with_mcp: bool = True) -> Agent:
     settings = get_settings()
-    tools = [parallel_web_search]
+    tools = [parallel_web_search, query_studio_telemetry]
     if with_mcp:
         try:
             from app.services.clickhouse_mcp import build_clickhouse_toolset

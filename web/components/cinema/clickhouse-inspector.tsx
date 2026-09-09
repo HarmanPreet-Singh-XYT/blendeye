@@ -31,6 +31,7 @@ interface ClickHouseInspectorProps {
   logs: ClickHouseQueryLog[];
   lastSql?: string;
   isOpen?: boolean;
+  initialTab?: "clickhouse" | "grafana";
   onToggle?: () => void;
   onClose?: () => void;
   className?: string;
@@ -40,13 +41,20 @@ export function ClickHouseInspector({
   logs,
   lastSql,
   isOpen: controlledIsOpen,
+  initialTab = "clickhouse",
   onToggle: controlledOnToggle,
   onClose,
   className,
 }: ClickHouseInspectorProps) {
   const [internalIsOpen, setInternalIsOpen] = React.useState(false);
   const [copiedId, setCopiedId] = React.useState<string | null>(null);
-  const [activeTab, setActiveTab] = React.useState<"clickhouse" | "grafana">("clickhouse");
+  const [activeTab, setActiveTab] = React.useState<"clickhouse" | "grafana">(initialTab);
+
+  React.useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
 
   const [observabilityData, setObservabilityData] = React.useState<any>(null);
   const [loadingObservability, setLoadingObservability] = React.useState(false);
@@ -84,6 +92,25 @@ export function ClickHouseInspector({
     }
   }, []);
 
+  const [isBenchmarking, setIsBenchmarking] = React.useState(false);
+  const [benchmarkResult, setBenchmarkResult] = React.useState<any>(null);
+
+  const handleRunBenchmark = async () => {
+    setIsBenchmarking(true);
+    try {
+      const res = await fetch("/api/observability/benchmark", { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        setBenchmarkResult(data);
+        await fetchObservability();
+      }
+    } catch {
+      // Ignored
+    } finally {
+      setIsBenchmarking(false);
+    }
+  };
+
   React.useEffect(() => {
     if (isOpen && activeTab === "grafana") {
       fetchObservability();
@@ -98,7 +125,7 @@ export function ClickHouseInspector({
     <div
       className={cn(
         "border-t border-border bg-card/98 backdrop-blur-md shadow-2xl transition-all duration-300 overflow-hidden shrink-0 z-30",
-        isOpen ? "h-72" : "h-10",
+        isOpen ? "h-[22rem]" : "h-10",
         className
       )}
     >
@@ -241,6 +268,67 @@ export function ClickHouseInspector({
           ) : (
             /* ── Grafana Studio Observability Console ── */
             <div className="space-y-3">
+              {/* Live Telemetry Benchmark Action Bar */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-2.5 rounded-md border border-emerald-500/30 bg-emerald-950/20 gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <div>
+                    <span className="text-xs font-bold text-emerald-300 font-mono flex items-center gap-1.5">
+                      <Zap className="h-3.5 w-3.5 text-amber-400" />
+                      Live Telemetry Benchmark & Load Generator
+                    </span>
+                    <span className="text-[10px] text-muted-foreground block">
+                      Dispatches a calibrated multi-system burst across ClickHouse, Parallel Web, Veo 3.1 & Gemini
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleRunBenchmark}
+                  disabled={isBenchmarking}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold font-mono transition-all cursor-pointer disabled:opacity-50 shrink-0 shadow-sm"
+                >
+                  {isBenchmarking ? (
+                    <>
+                      <RefreshCw className="h-3 w-3 animate-spin" />
+                      <span>Emitting Burst...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="h-3 w-3 text-amber-300" />
+                      <span>⚡ Run Live Benchmark</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Benchmark Output Card (if executed) */}
+              {benchmarkResult && (
+                <div className="p-2.5 rounded border border-accent/40 bg-accent/10 text-[11px] font-mono grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div>
+                    <span className="text-muted-foreground text-[10px] block">ClickHouse (10 Queries)</span>
+                    <span className="font-bold text-emerald-400">{benchmarkResult.clickhouse?.avg_latency_ms} ms avg</span>
+                    <span className="text-[9px] text-muted-foreground block">p95: {benchmarkResult.clickhouse?.p95_latency_ms}ms</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground text-[10px] block">Parallel Web Search</span>
+                    <span className="font-bold text-cyan-400">{benchmarkResult.parallel_web?.latency_seconds}s</span>
+                    <span className="text-[9px] text-muted-foreground block">1 location comp</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground text-[10px] block">Veo 3.1 Pixel Anchor</span>
+                    <span className="font-bold text-purple-400">{benchmarkResult.google_veo_31?.pixel_anchoring_ms} ms</span>
+                    <span className="text-[9px] text-muted-foreground block">2.39:1 Cinemascope</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground text-[10px] block">Tokens Processed</span>
+                    <span className="font-bold text-amber-400">{benchmarkResult.tokens?.total_tokens}</span>
+                    <span className="text-[9px] text-emerald-400 block">✓ Emitted to Prometheus</span>
+                  </div>
+                </div>
+              )}
+
               {/* Pipeline Status Cards */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <div className="p-2 rounded border border-border bg-secondary/20 space-y-1">

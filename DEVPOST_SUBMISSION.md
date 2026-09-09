@@ -94,14 +94,23 @@ BlendEye actively integrates **Parallel's Search API at runtime** using the offi
 
 High-end digital film production and virtual studios depend on high-throughput, latency-sensitive pipelines: generating chained Google Veo 3.1 video takes, executing sub-millisecond ClickHouse timeline knowledge queries, and orchestrating multi-speaker audio synthesis. BlendEye integrates the **Grafana Labs stack meaningfully at runtime** to give directors and showrunners total operational visibility:
 
-1. **Official `mcp-grafana` MCP Server Integration**: BlendEye launches the official `grafana/mcp-grafana` server (`app/services/grafana_mcp.py`) exposing 60+ observability tools directly to Google ADK agents. Attached to the Showrunner / Studio Supervisor agent, it allows the agent to inspect Prometheus metrics, Loki logs, and active alerts to ensure rendering pipelines remain healthy.
-2. **OpenTelemetry / Prometheus Metrics Exporter**: The agent service exposes native Prometheus metrics at `/observability/metrics` and `/metrics` via `prometheus_client`:
+1. **Agentic Self-Observability & Official `mcp-grafana` Server**: BlendEye launches the official `grafana/mcp-grafana` server (`app/services/grafana_mcp.py`) and equips the Showrunner AI Agent with native runtime self-observability tools (`query_studio_telemetry`). Directors can conversationally ask the Showrunner: *"What is our current generation latency and cluster health?"* The Showrunner queries Grafana telemetry at runtime and reports live pipeline health.
+2. **OpenTelemetry & Prometheus Metrics Exporter**: The agent service exposes native Prometheus metrics at `/observability/metrics` and `/metrics` via `prometheus_client`:
    - `blendeye_http_requests_total`: Tracks studio API throughput across script generation, media rendering, and chat endpoints.
    - `blendeye_clickhouse_query_latency_ms`: Real-time histogram monitoring sub-millisecond timeline scrubbing performance against our 4ms SLO.
-   - `blendeye_story_events_total`: Live gauge of temporal character knowledge tuples sharded in ClickHouse.
+   - `blendeye_continuity_paradoxes_total`: Counter tracking temporal knowledge leaks blocked by the ClickHouse knowledge firewall.
    - `blendeye_veo_video_renders_total`: Monitors multi-shot chained video pipeline throughput.
-3. **Interactive Grafana Studio Observability Console**: Built directly into the Director's Deck (`Shift` + `C`), allowing judges and directors to toggle between the **ClickHouse SQL Stream** and **Grafana Observability Console** to inspect real-time PromQL targets, pipeline operational states, and firing health alerts.
-4. **Hosted Production Grafana Dashboard**: Deployed live on Grafana Cloud at [https://fearlessimpatiens433.grafana.net/d/blendeye-studio-observability/0c416a4](https://fearlessimpatiens433.grafana.net/d/blendeye-studio-observability/0c416a4), featuring pre-configured dark-mode cinematic panels for studio throughput, ClickHouse time-gate latency gauges, Veo 3.1 video render duration, and active alert monitors.
+   - `blendeye_parallel_search_latency_seconds`: Tracks Parallel Web location scouting latency and comps queries.
+3. **Studio HUD Telemetry Pill & Interactive Inspector**: A pulsing dark-mode HUD status pill (`🟢 Grafana Telemetry 99.8% SLO`) in the Studio navbar gives directors instantaneous pipeline visibility. Clicking it opens the **Grafana Observability Console** (`Shift` + `C`) with live Prometheus metrics, error histograms, and active alerts.
+4. **Hosted Production Grafana Cloud Dashboard**: Deployed live on Grafana Cloud at [https://fearlessimpatiens433.grafana.net/d/blendeye-studio-observability/0c416a4](https://fearlessimpatiens433.grafana.net/d/blendeye-studio-observability/0c416a4), featuring 10 pre-configured dark-mode panels:
+   - Studio API Throughput & 4xx/5xx Error Ratios
+   - ClickHouse Sub-Millisecond Time-Gate Latency (P95)
+   - ClickHouse Knowledge Firewall Paradox Blocks (Lore Integrity)
+   - Parallel Web Location Scouting Latency & Comps (P95)
+   - Google Veo 3.1 Chained Video Render Duration
+   - OpenCV Pixel-Anchoring Conditioning Extraction Times
+   - Gemini 3.1 Flash TTS Multi-Speaker Synthesis Latency
+   - Gemini Multimodal Agent Execution Duration
 
 ---
 

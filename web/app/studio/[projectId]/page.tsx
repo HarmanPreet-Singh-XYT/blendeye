@@ -588,6 +588,7 @@ export default function StudioPage() {
   const [queryLogs, setQueryLogs] = React.useState<ClickHouseQueryLog[]>([]);
   const [lastSql, setLastSql] = React.useState<string>("");
   const [isClickHouseInspectorOpen, setIsClickHouseInspectorOpen] = React.useState(false);
+  const [inspectorTab, setInspectorTab] = React.useState<"clickhouse" | "grafana">("clickhouse");
 
   const activeCharacter = characters.find((c) => c.name === activeCharacterName) || characters[0];
 
@@ -2831,6 +2832,25 @@ export default function StudioPage() {
             </DropdownMenuContent>
           </DropdownMenu>
 
+          {/* Grafana Studio Observability HUD Pill */}
+          <button
+            type="button"
+            onClick={() => {
+              setInspectorTab("grafana");
+              setIsClickHouseInspectorOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 text-xs font-mono transition-all cursor-pointer shadow-2xs"
+            title="Grafana Observability & Studio Telemetry (Click to inspect live SLO, latency, and throughput)"
+          >
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <Activity className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+            <span className="font-semibold hidden lg:inline">Grafana Telemetry</span>
+            <span className="text-[10px] text-emerald-400/80 font-mono hidden xl:inline">99.8% SLO</span>
+          </button>
+
           <div className="h-4 w-px bg-border/60 mx-0.5 shrink-0" />
 
           {/* Inspector Toggle (Planning mode only) */}
@@ -3569,12 +3589,28 @@ export default function StudioPage() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setIsClickHouseInspectorOpen((prev) => !prev)}
+                  onClick={() => {
+                    setInspectorTab("grafana");
+                    setIsClickHouseInspectorOpen(true);
+                  }}
+                  className="flex items-center gap-1.5 text-[11px] font-mono text-emerald-300 hover:text-foreground px-2 py-1 rounded border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 transition-all cursor-pointer"
+                  title="Open Grafana Telemetry & Studio Health"
+                >
+                  <Activity className="h-3 w-3 text-emerald-400" />
+                  <span>Grafana Health</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInspectorTab("clickhouse");
+                    setIsClickHouseInspectorOpen((prev) => !prev);
+                  }}
                   className="flex items-center gap-1 text-[11px] font-mono text-muted-foreground hover:text-foreground px-2 py-1 rounded border border-border bg-secondary/30 transition-colors cursor-pointer"
                   title="Toggle ClickHouse Telemetry & Query Log (Shift+C)"
                 >
                   <Database className="h-3 w-3 text-amber-400" />
-                  <span>Telemetry</span>
+                  <span>ClickHouse</span>
                 </button>
 
                 <button
@@ -3606,6 +3642,7 @@ export default function StudioPage() {
                   `Analyze dramatic tension for ${projectTitle}`,
                   `Suggest subtext improvements for ${activeCharacterName}'s dialogue`,
                   "Query ClickHouse box-office precedents for this premise",
+                  "Showrunner, check studio health and Grafana telemetry status",
                   `Draft a plot twist connecting ${sceneTitle} to the climax`,
                 ]}
                 className="h-full w-full"
@@ -3620,6 +3657,7 @@ export default function StudioPage() {
         logs={queryLogs}
         lastSql={lastSql}
         isOpen={isClickHouseInspectorOpen}
+        initialTab={inspectorTab}
         onToggle={() => setIsClickHouseInspectorOpen(!isClickHouseInspectorOpen)}
         onClose={() => setIsClickHouseInspectorOpen(false)}
       />
