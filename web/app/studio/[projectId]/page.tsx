@@ -289,6 +289,54 @@ export default function StudioPage() {
     setAllProjects(getAllProjects());
   }, [projectId]);
 
+  // Tracks whether the user has made any local edit since this project mounted.
+  // The one-time cloud hydration below must never apply after this becomes
+  // true — otherwise a slow/stale cloud GET can clobber in-progress work
+  // (this is what previously caused an active scene to be replaced by a
+  // stale earlier scene mid-edit).
+  const hasLocalEditRef = React.useRef(false);
+  React.useEffect(() => {
+    hasLocalEditRef.current = true;
+  }, [scenes, activeSceneId, screenplayText]);
+
+  // When logged in, hydrate from Supabase Cloud once at mount only — cloud is
+  // the source of truth for authenticated users, but this must never fire
+  // after the user starts editing (see hasLocalEditRef above), and must only
+  // ever apply on top of the scene/state shape already loaded locally, not
+  // force-navigate the user to a different active scene.
+  React.useEffect(() => {
+    if (!rawProjectId) return;
+    const uid = getActiveUserId();
+    const token = getActiveAuthToken();
+    if (!uid || !token) return;
+
+    let cancelled = false;
+    fetch(`/api/projects/${encodeURIComponent(rawProjectId)}`, {
+      headers: getAuthHeaders(),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled || hasLocalEditRef.current) return;
+        if (data?.project) {
+          const cloudProj = ensureProjectScenes(data.project);
+          saveProject(cloudProj);
+          setAllProjects(getAllProjects());
+          // videoTakes/activeVideoUrl live top-level on ProjectData and are
+          // read directly by GenerationStudioView from project-store, which
+          // may have already initialized its state before this fetch
+          // resolved. Notify listeners so they can re-read fresh data.
+          window.dispatchEvent(
+            new CustomEvent("agentic_cinema_project_hydrated", { detail: { projectId: rawProjectId } })
+          );
+        }
+      })
+      .catch((e) => console.warn("[StudioPage] Cloud project sync note:", e));
+
+    return () => {
+      cancelled = true;
+    };
+  }, [rawProjectId]);
+
   // Ref to hold nodeCallbacks for effects running before/during state initialization
   const nodeCallbacksRef = React.useRef<NodeCallbacks>({});
 

@@ -281,6 +281,57 @@ export function GenerationStudioView({
     initialSavedTakes[0]?.id || ""
   );
 
+  // Re-sync saved takes from project-store whenever this view (re)mounts for a
+  // given project/scene. initialSavedTakes is only a lazy useState seed, so if
+  // project-store's data wasn't written yet at the moment this component first
+  // read it (e.g. a cloud hydration fetch on the parent studio page is still
+  // in flight), this effect catches up once that data lands, instead of the
+  // player being permanently stuck showing an empty "Generate" state.
+  const loadedProjectKeyRef = React.useRef<string>("");
+  const reloadTakesFromStore = React.useCallback(
+    (force: boolean) => {
+      const takes = getVideoTakes(effectiveProjectId);
+      const key = `${effectiveProjectId}:${takes.length}:${takes[0]?.id || ""}`;
+      if (!force && loadedProjectKeyRef.current === key) return;
+      loadedProjectKeyRef.current = key;
+      if (takes.length === 0) return;
+      const mapped = takes.map((t) => ({
+        id: t.id,
+        takeNumber: t.takeNumber,
+        title: t.title,
+        timestamp: "Project Vault",
+        durationSec: t.durationSec,
+        camera: t.cameraMotion,
+        style: t.stylePreset,
+        videoUrl: t.videoUrl,
+        prompt: t.prompt || "",
+      }));
+      setRecentTakes(mapped);
+      setActiveVideoUrl((prev) => prev || mapped[0]?.videoUrl || "");
+      setActiveTakeId((prev) => prev || mapped[0]?.id || "");
+    },
+    [effectiveProjectId]
+  );
+
+  React.useEffect(() => {
+    reloadTakesFromStore(false);
+  }, [reloadTakesFromStore]);
+
+  // A parent-level cloud hydration fetch may still be in flight when this
+  // component first mounts (its own lazy state seeds from whatever
+  // project-store had synchronously at that instant). Once that fetch lands
+  // and persists fresher data, force a re-read rather than staying stuck on
+  // the empty/stale state this component initialized with.
+  React.useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.projectId && detail.projectId !== effectiveProjectId) return;
+      reloadTakesFromStore(true);
+    };
+    window.addEventListener("agentic_cinema_project_hydrated", handler);
+    return () => window.removeEventListener("agentic_cinema_project_hydrated", handler);
+  }, [effectiveProjectId, reloadTakesFromStore]);
+
   // Derive VideoTake[] from recentTakes for the score view's Video Sync picker.
   // recentTakes is the live source of truth (backed by project-store on every save).
   const projectVideoTakes = React.useMemo<VideoTake[]>(() =>

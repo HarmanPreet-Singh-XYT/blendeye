@@ -643,6 +643,7 @@ def _upload_bytes_to_supabase(
                 upload_url,
                 content=media_bytes,
                 headers={
+                    "apikey": supabase_key,
                     "Authorization": f"Bearer {supabase_key}",
                     "Content-Type": content_type,
                     "x-upsert": "true",
