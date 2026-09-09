@@ -157,6 +157,9 @@ import {
   updateProjectTimeframe,
   type NodeCallbacks,
   SEED_PROJECTS,
+  getActiveUserId,
+  getActiveAuthToken,
+  getAuthHeaders,
 } from "@/lib/project-store";
 import { ProjectTimeframeDialog } from "@/components/cinema/project-timeframe-dialog";
 import { SceneLocationDock } from "@/components/cinema/scene-location-dock";
@@ -254,6 +257,11 @@ export default function StudioPage() {
     const norm = ensureProjectScenes(initialProject);
     return norm.scenes || [];
   });
+  const scenesRef = React.useRef<FilmScene[]>(scenes);
+  React.useEffect(() => {
+    scenesRef.current = scenes;
+  }, [scenes]);
+
   const [activeSceneId, setActiveSceneId] = React.useState<string>(() => {
     if (routeSceneId) return routeSceneId;
     const queryScene = searchParams?.get("scene");
@@ -273,6 +281,34 @@ export default function StudioPage() {
   React.useEffect(() => {
     setAllProjects(getAllProjects());
   }, [projectId]);
+
+  // When logged in, hydrate the authoritative project directly from Supabase Cloud
+  React.useEffect(() => {
+    if (!rawProjectId) return;
+    const uid = getActiveUserId();
+    const token = getActiveAuthToken();
+    if (!uid || !token) return;
+
+    fetch(`/api/projects/${encodeURIComponent(rawProjectId)}`, {
+      headers: getAuthHeaders(),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.project) {
+          const cloudProj = ensureProjectScenes(data.project);
+          saveProject(cloudProj);
+          setAllProjects(getAllProjects());
+          if (cloudProj.scenes && cloudProj.scenes.length > 0) {
+            setScenes(cloudProj.scenes);
+            scenesRef.current = cloudProj.scenes;
+          }
+          if (cloudProj.activeSceneId) {
+            setActiveSceneId(cloudProj.activeSceneId);
+          }
+        }
+      })
+      .catch((e) => console.warn("[StudioPage] Cloud project sync note:", e));
+  }, [rawProjectId]);
 
   // Ref to hold nodeCallbacks for effects running before/during state initialization
   const nodeCallbacksRef = React.useRef<NodeCallbacks>({});
@@ -621,6 +657,9 @@ export default function StudioPage() {
   const saveCurrentProject = React.useCallback(
     (partial?: Partial<ProjectData>) => {
       const existingProject = getProjectById(projectId) || initialProject;
+      const effectiveScenes = partial?.scenes || (scenesRef.current.length > 0 ? scenesRef.current : (existingProject?.scenes || []));
+      const effectiveActiveSceneId = partial?.activeSceneId || activeSceneId || effectiveScenes[0]?.id || "";
+
       const proj: ProjectData = {
         ...existingProject,
         id: projectId,
@@ -649,8 +688,8 @@ export default function StudioPage() {
         targetRuntimeMinutes: targetRuntimeMinutes,
         scenePlacementSeconds: scenePlacementSeconds,
         sceneDurationSeconds: sceneDurationSeconds,
-        scenes: scenes.map((s) =>
-          s.id === activeSceneId
+        scenes: effectiveScenes.map((s) =>
+          s.id === effectiveActiveSceneId
             ? {
                 ...s,
                 nodes: nodesRef.current,
@@ -661,7 +700,7 @@ export default function StudioPage() {
               }
             : s
         ),
-        activeSceneId: activeSceneId,
+        activeSceneId: effectiveActiveSceneId,
         ...partial,
       };
       saveProject(proj);
@@ -689,7 +728,6 @@ export default function StudioPage() {
       targetRuntimeMinutes,
       scenePlacementSeconds,
       sceneDurationSeconds,
-      scenes,
       activeSceneId,
     ]
   );
@@ -1254,9 +1292,10 @@ export default function StudioPage() {
       setGenerationStage("Finalizing Timeline & Syncing Graph...");
       await fetchProjectEvents(pid);
 
-      const baseScenes = currentScenes.length > 0 ? currentScenes : (scenes.length > 0 ? scenes : (existingProject.scenes || []));
+      const baseScenes = currentScenes.length > 0 ? currentScenes : (scenesRef.current.length > 0 ? scenesRef.current : (existingProject.scenes || []));
+      const effectiveActiveId = activeSceneId && baseScenes.some((s) => s.id === activeSceneId) ? activeSceneId : (baseScenes[0]?.id || "");
       const nextScenes = baseScenes.map((sc: FilmScene) =>
-        sc.id === activeSceneId
+        sc.id === effectiveActiveId
           ? {
               ...sc,
               title: newSceneTitle,
@@ -1267,6 +1306,8 @@ export default function StudioPage() {
           : sc
       );
       setScenes(nextScenes);
+      scenesRef.current = nextScenes;
+      setActiveSceneId(effectiveActiveId);
 
       const updatedProject: ProjectData = {
         ...existingProject,
@@ -1275,7 +1316,7 @@ export default function StudioPage() {
         genre: genre,
         premise: premise,
         scenes: nextScenes,
-        activeSceneId: activeSceneId,
+        activeSceneId: effectiveActiveId,
         sceneTitle: newSceneTitle,
         sceneSummary: newSceneSummary,
         screenplayText: generatedScript,
@@ -1298,6 +1339,15 @@ export default function StudioPage() {
       syncGraphWithProject(updatedProject);
       setAllProjects(getAllProjects());
       setMainTab("planning");
+
+      // Clean up ?pipeline=1 from URL so back/refresh doesn't re-execute pipeline
+      if (typeof window !== "undefined" && window.location.search.includes("pipeline=1")) {
+        const cleanSearch = window.location.search
+          .replace(/[?&]pipeline=1/, "")
+          .replace(/^&/, "?");
+        const cleanUrl = window.location.pathname + (cleanSearch.startsWith("?") ? cleanSearch : "");
+        window.history.replaceState(null, "", cleanUrl);
+      }
     } catch (err) {
       console.error("Pipeline failed:", err);
       if (err instanceof Error && err.name === "AbortError") {

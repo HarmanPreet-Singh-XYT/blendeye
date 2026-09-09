@@ -2,6 +2,23 @@ import { getSupabaseClient, getSupabaseAdminClient, isSupabaseConfigured } from 
 import type { ProjectData, ScratchpadNote } from "@/lib/project-store";
 
 export function projectToRow(p: ProjectData, explicitUserId?: string | null) {
+  // Bundle all multi-scene sequence and media data into initial_events JSONB column
+  const extendedBundle = {
+    _v: 2,
+    events: p.initialEvents || [],
+    scenes: p.scenes || [],
+    activeSceneId: p.activeSceneId || null,
+    activeVideoUrl: p.activeVideoUrl || null,
+    activeScoreUrl: p.activeScoreUrl || null,
+    videoTakes: p.videoTakes || [],
+    scoreTakes: p.scoreTakes || [],
+    storyboardFrameUrl: p.storyboardFrameUrl || null,
+    floorPlanMapUrl: p.floorPlanMapUrl || null,
+    floorPlanMapName: p.floorPlanMapName || null,
+    floorPlanMapConfig: p.floorPlanMapConfig || null,
+    locationClusters: p.locationClusters || [],
+  };
+
   return {
     id: p.id,
     user_id: explicitUserId !== undefined ? explicitUserId : p.userId || null,
@@ -20,7 +37,7 @@ export function projectToRow(p: ProjectData, explicitUserId?: string | null) {
     scene_placement_seconds: p.scenePlacementSeconds || 1800,
     scene_duration_seconds: p.sceneDurationSeconds || 180,
     characters: p.characters || [],
-    initial_events: p.initialEvents || [],
+    initial_events: extendedBundle,
     nodes: p.nodes || [],
     edges: p.edges || [],
     is_custom: p.isCustom ?? true,
@@ -30,6 +47,14 @@ export function projectToRow(p: ProjectData, explicitUserId?: string | null) {
 }
 
 export function rowToProject(r: any): ProjectData {
+  const ext =
+    r.initial_events &&
+    typeof r.initial_events === "object" &&
+    !Array.isArray(r.initial_events) &&
+    r.initial_events._v === 2
+      ? r.initial_events
+      : null;
+
   return {
     id: r.id,
     userId: r.user_id || undefined,
@@ -48,12 +73,24 @@ export function rowToProject(r: any): ProjectData {
     scenePlacementSeconds: r.scene_placement_seconds || 1800,
     sceneDurationSeconds: r.scene_duration_seconds || 180,
     characters: Array.isArray(r.characters) ? r.characters : [],
-    initialEvents: Array.isArray(r.initial_events) ? r.initial_events : [],
+    initialEvents: ext?.events || (Array.isArray(r.initial_events) ? r.initial_events : []),
     nodes: Array.isArray(r.nodes) ? r.nodes : [],
     edges: Array.isArray(r.edges) ? r.edges : [],
     isCustom: r.is_custom ?? true,
     createdAt: typeof r.created_at === "number" ? r.created_at : Number(r.created_at) || Date.now(),
     updatedAt: typeof r.updated_at === "number" ? r.updated_at : Number(r.updated_at) || Date.now(),
+    // Unpack extended multi-scene sequence & media fields
+    scenes: ext?.scenes || (Array.isArray(r.scenes) ? r.scenes : undefined),
+    activeSceneId: ext?.activeSceneId || r.active_scene_id || undefined,
+    activeVideoUrl: ext?.activeVideoUrl || r.active_video_url || undefined,
+    activeScoreUrl: ext?.activeScoreUrl || r.active_score_url || undefined,
+    videoTakes: ext?.videoTakes || [],
+    scoreTakes: ext?.scoreTakes || [],
+    storyboardFrameUrl: ext?.storyboardFrameUrl || undefined,
+    floorPlanMapUrl: ext?.floorPlanMapUrl || undefined,
+    floorPlanMapName: ext?.floorPlanMapName || undefined,
+    floorPlanMapConfig: ext?.floorPlanMapConfig || undefined,
+    locationClusters: ext?.locationClusters || undefined,
   };
 }
 

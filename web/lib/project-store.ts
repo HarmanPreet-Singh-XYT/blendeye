@@ -835,10 +835,11 @@ export function getOnboardingStorageKey(userId?: string | null): string {
  */
 export function ensureProjectScenes(project: ProjectData): ProjectData {
   const isAethelgardMatch =
-    project.id === "aethelgard-chronos-shift" ||
-    project.id === "project-mttg5hn2" ||
-    project.id === "vault-heist-demo" ||
-    project.title?.toLowerCase().includes("aethelgard");
+    !project.isCustom &&
+    (project.id === "aethelgard-chronos-shift" ||
+      project.id === "project-mttg5hn2" ||
+      project.id === "vault-heist-demo" ||
+      project.title?.toLowerCase().includes("aethelgard"));
 
   const seed = SEED_PROJECTS[0];
 
@@ -857,7 +858,7 @@ export function ensureProjectScenes(project: ProjectData): ProjectData {
       } else {
         // Subsequent loads — merge per scene ID, preserving user data
         const storedById = new Map(project.scenes.map((s) => [s.id, s]));
-        project.scenes = seed.scenes.map((seedScene) => {
+        const mergedSeedScenes = seed.scenes.map((seedScene) => {
           const stored = storedById.get(seedScene.id);
           if (!stored) return seedScene;
           // Seed provides structural/metadata fields; stored provides user-generated content
@@ -866,6 +867,7 @@ export function ensureProjectScenes(project: ProjectData): ProjectData {
             // Preserve user-generated mutable fields
             sceneImages: stored.sceneImages?.length ? stored.sceneImages : seedScene.sceneImages,
             selectedLocationCandidateId: stored.selectedLocationCandidateId ?? seedScene.selectedLocationCandidateId,
+            locationCandidates: stored.locationCandidates?.length ? stored.locationCandidates : seedScene.locationCandidates,
             timelineMoments: stored.timelineMoments?.length ? stored.timelineMoments : seedScene.timelineMoments,
             shots: stored.shots?.length ? stored.shots : seedScene.shots,
             scoreTakes: stored.scoreTakes?.length ? stored.scoreTakes : seedScene.scoreTakes,
@@ -874,6 +876,12 @@ export function ensureProjectScenes(project: ProjectData): ProjectData {
             edges: stored.edges?.length ? stored.edges : seedScene.edges,
           };
         });
+        // Retain any user-added scenes that don't exist in seed
+        const userAddedScenes = project.scenes.filter(
+          (s) => !seed.scenes?.some((seedScene) => seedScene.id === s.id)
+        );
+        project.scenes = [...mergedSeedScenes, ...userAddedScenes];
+
         if (!project.activeSceneId || !project.scenes.some((s) => s.id === project.activeSceneId)) {
           project.activeSceneId = seed.activeSceneId || seed.scenes[0].id;
         }
@@ -1148,8 +1156,59 @@ export async function syncProjectsWithSupabase(): Promise<ProjectData[]> {
 
     for (const remote of data.projects) {
       const local = mergedMap.get(remote.id);
-      if (!local || (remote.updatedAt || 0) >= (local.updatedAt || 0)) {
-        mergedMap.set(remote.id, remote);
+      if (!local) {
+        mergedMap.set(remote.id, ensureProjectScenes(remote));
+      } else {
+        // Intelligent bidirectional merge:
+        // Never discard local scenes if remote is missing scenes (or vice-versa).
+        const localHasScenes = Array.isArray(local.scenes) && local.scenes.length > 0;
+        const remoteHasScenes = Array.isArray(remote.scenes) && remote.scenes.length > 0;
+
+        let resolvedScenes: FilmScene[];
+        if (localHasScenes && !remoteHasScenes) {
+          resolvedScenes = local.scenes!;
+        } else if (!localHasScenes && remoteHasScenes) {
+          resolvedScenes = remote.scenes!;
+        } else if (localHasScenes && remoteHasScenes && local.scenes && remote.scenes) {
+          const localById = new Map(local.scenes.map((s) => [s.id, s]));
+          resolvedScenes = remote.scenes.map((remSc: FilmScene) => {
+            const locSc = localById.get(remSc.id);
+            if (!locSc) return remSc;
+            return {
+              ...remSc,
+              sceneImages: remSc.sceneImages?.length ? remSc.sceneImages : locSc.sceneImages,
+              selectedLocationCandidateId: remSc.selectedLocationCandidateId ?? locSc.selectedLocationCandidateId,
+              locationCandidates: remSc.locationCandidates?.length ? remSc.locationCandidates : locSc.locationCandidates,
+              timelineMoments: remSc.timelineMoments?.length ? remSc.timelineMoments : locSc.timelineMoments,
+              shots: remSc.shots?.length ? remSc.shots : locSc.shots,
+              scoreTakes: remSc.scoreTakes?.length ? remSc.scoreTakes : locSc.scoreTakes,
+              activeScoreUrl: remSc.activeScoreUrl ?? locSc.activeScoreUrl,
+            };
+          });
+          // Preserve any local scenes that weren't in remote
+          for (const locSc of local.scenes) {
+            if (!resolvedScenes.some((s) => s.id === locSc.id)) {
+              resolvedScenes.push(locSc);
+            }
+          }
+        } else {
+          resolvedScenes = [];
+        }
+
+        const merged: ProjectData = {
+          ...local,
+          ...remote,
+          scenes: resolvedScenes.length > 0 ? resolvedScenes : (local.scenes || remote.scenes),
+          activeSceneId: remote.activeSceneId || local.activeSceneId,
+          videoTakes: remote.videoTakes?.length ? remote.videoTakes : (local.videoTakes || []),
+          scoreTakes: remote.scoreTakes?.length ? remote.scoreTakes : (local.scoreTakes || []),
+          storyboardFrameUrl: remote.storyboardFrameUrl || local.storyboardFrameUrl,
+          floorPlanMapUrl: remote.floorPlanMapUrl || local.floorPlanMapUrl,
+          floorPlanMapName: remote.floorPlanMapName || local.floorPlanMapName,
+          floorPlanMapConfig: remote.floorPlanMapConfig || local.floorPlanMapConfig,
+          locationClusters: remote.locationClusters?.length ? remote.locationClusters : local.locationClusters,
+        };
+        mergedMap.set(remote.id, ensureProjectScenes(merged));
       }
     }
 

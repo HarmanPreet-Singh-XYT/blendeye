@@ -42,10 +42,31 @@ Separately from the direct time-gate queries above, ClickHouse is also wired as 
 
 To confirm the full pipeline — Gemini screenplay generation → Perspective Sharder → ClickHouse — works end-to-end on a project you create yourself, not just the pre-loaded benchmark:
 
-1. Click **New Project** and fill in a title, logline, genre, director style, 2–3 characters, and a **Core Secret** (e.g. "Character B has secretly betrayed Character A, who doesn't find out until midway through the story").
-2. Generate. Gemini 3.7 Flash writes the screenplay live (`google-genai`, called in `app/routers/media.py` / `app/agents/*.py`), and the Perspective Sharder automatically shards it into ClickHouse (`/api/sharding/shard`) once generation completes.
-3. Go to **Simulation → Character Interrogation**, select a character, and repeat the before/after scrub test from Section 1 using your own story's secret.
-4. If the Knowledge Firewall ever shows "No established knowledge yet at this timestamp" for a scene that should have events, open the **Screenplay Reader** (click a Script node → "Open Full Screenplay Reader"), switch to **Edit Master**, and click **"Save & Re-shard"** to force a fresh ClickHouse write — useful if a script was hand-edited after generation.
+> 💡 **Quick Reference:** See [project_create.md](project_create.md) for full ready-to-paste presets.
+
+1. Click **New Project** on the dashboard.
+2. Enter the following preset values:
+   - **Title:** `The Vault Protocol`
+   - **Logline:** `A three-person heist crew breaches a private bank's sub-basement vault. The demolitions expert believes their exit route is secure — she doesn't know the getaway driver has already been paid off to seal it.`
+   - **Genre:** Thriller (or Heist Thriller)
+   - **Director Style:** `Michael Mann`
+   - **Narrative Format:** Short (18 min / 6 scenes)
+   - **Characters (Character Lab):**
+     1. `Rae` (Lead Protagonist — Veteran demolitions expert, meticulous, trusts her crew completely; speech style: terse, technical, controlled)
+     2. `Kessler` (Strategic Foil-Antagonist — Getaway driver secretly bought out by a rival crew; speech style: calm, reassuring, overly agreeable; subtext: high)
+     3. `Priya` (Inside Informant — Bank security consultant feeding real-time intel; speech style: clipped, professional)
+   - **Core Secret:** `Kessler has been paid by a rival crew to seal the vault's exit corridor once Rae and Priya are inside, trapping them so the rival crew can claim the score. Rae does not know Kessler has betrayed them until the exit corridor is sealed.`
+   - **Primary Location:** `Sub-basement vault, First Continental Bank`
+3. Click **Generate**. Gemini 3.7 Flash writes the screenplay live (`google-genai`, called in `app/routers/media.py` / `app/agents/*.py`), and the Perspective Sharder automatically shards it into ClickHouse (`/api/sharding/shard`) once generation completes.
+4. Go to **Simulation → Character Interrogation (Hot Seat)**:
+   - Select **Rae**.
+   - Scrub the timeline to an early minute (e.g. `00:03:00` / Scene 1):
+     - Ask: *"Is our exit corridor secure?"*
+     - Expect: Rae responds with confidence that Kessler has their escape route covered.
+   - Scrub forward past the betrayal (e.g. `00:12:00` or later scene):
+     - Ask the **identical** question: *"Is our exit corridor secure?"*
+     - Expect: Rae discovers the corridor is sealed and realizes Kessler betrayed them.
+5. If the Knowledge Firewall ever shows "No established knowledge yet at this timestamp" for a scene that should have events, open the **Screenplay Reader** (click a Script node → "Open Full Screenplay Reader"), switch to **Edit Master**, and click **"Save & Re-shard"** to force a fresh ClickHouse write — useful if a script was hand-edited after generation.
 
 ---
 

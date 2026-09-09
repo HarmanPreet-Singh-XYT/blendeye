@@ -41,6 +41,9 @@ import {
   deleteProject,
   createNewProjectEntry,
   getOnboardingStorageKey,
+  ensureProjectScenes,
+  getAuthHeaders,
+  getProjectsStorageKey,
   type ProjectData,
 } from "@/lib/project-store";
 import {
@@ -156,19 +159,39 @@ export function StudioDashboard() {
     )[0];
   }, [projects]);
 
-  // Load projects from local storage and sync with Supabase
-  const refreshProjects = React.useCallback(() => {
-    setProjects(getAllProjects());
-    syncProjectsWithSupabase()
-      .then((synced) => {
-        if (synced && synced.length > 0) {
-          setProjects(synced);
+  // Load projects: from Supabase Cloud if authenticated, or from local storage for guests
+  const refreshProjects = React.useCallback(async () => {
+    // Show cached immediately so UI renders instantly with no blank delay
+    const cached = getAllProjects();
+    if (cached.length > 0) {
+      setProjects(cached);
+    }
+
+    if (user) {
+      try {
+        const res = await fetch("/api/projects", {
+          headers: getAuthHeaders(),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.projects)) {
+            const cloudProjects = data.projects.map(ensureProjectScenes);
+            setProjects(cloudProjects);
+            // Cache locally so instant render is available next time
+            const key = getProjectsStorageKey(user.id);
+            try {
+              localStorage.setItem(key, JSON.stringify(cloudProjects));
+            } catch {}
+            return;
+          }
         }
-      })
-      .catch((err) => {
-        console.warn("[ProjectStore] Sync warning:", err);
-      });
-  }, []);
+      } catch (err) {
+        console.warn("[Dashboard] Cloud fetch error, keeping cached state:", err);
+      }
+    } else {
+      setProjects(getAllProjects());
+    }
+  }, [user]);
 
   React.useEffect(() => {
     // Wait until auth state is known before reading projects to prevent anon/auth flash
