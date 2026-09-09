@@ -1375,12 +1375,26 @@ export default function StudioPage() {
     setIsGenerating(true);
     setGenerationStage("Re-sharding Perspectives with Gemini 3.7 & ClickHouse...");
     try {
+      // Sharding wipes and rebuilds ALL story_events for this project_id
+      // (see clear_project_events in clickhouse_store.py), so we must send
+      // the full multi-scene script here, not just the active scene's text —
+      // otherwise every reshard silently erases every other scene's
+      // knowledge events, breaking the time-gate across scene boundaries.
+      const sceneList = scenes.length > 0 ? scenes : (getProjectById(projectId)?.scenes || []);
+      const fullScript = sceneList
+        .map((s: FilmScene) =>
+          `=== SCENE ${s.sceneNumber}: ${s.title} (starts at ${s.startSeconds}s) ===\n${
+            s.id === activeSceneId ? newScript : s.screenplayText || ""
+          }`
+        )
+        .join("\n\n");
+
       const shardRes = await fetch("/api/sharding/shard", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           projectId,
-          screenplayText: newScript,
+          screenplayText: fullScript || newScript,
         }),
       });
       if (!shardRes.ok) throw new Error("Perspective sharding failed");

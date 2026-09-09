@@ -5,12 +5,13 @@
 <h1 align="center">BlendEye</h1>
 
 <p align="center">
-  <strong>The Writers' Room That Knows What Your Characters Know.</strong><br>
-  <em>Built for the <strong>Google Cloud Agentic Cinema Hackathon</strong> — ClickHouse Partner Track</em>
+  <strong>The Autonomous AI Film Director Studio, Production Planner & Pre-Shoot Simulator.</strong><br>
+  <em>Plan the vision. Simulate the performance. Direct the film before shooting a single frame.</em><br>
+  <strong>Google Cloud Agentic Cinema Hackathon — ClickHouse Partner Track</strong>
 </p>
 
 <p align="center">
-  🌐 <strong><a href="https://blendeye.harmanita.com">Live Demo — blendeye.harmanita.com</a></strong>
+  🌐 <strong><a href="https://blendeye.harmanita.com">Live Production Studio — blendeye.harmanita.com</a></strong>
 </p>
 <br>
 
@@ -28,66 +29,111 @@
 ## 📽️ Table of Contents
 
 1. [Hackathon Submission Compliance](#-hackathon-submission-compliance) — see also [JUDGE_TESTING.md](JUDGE_TESTING.md)
-2. [Executive Overview](#-executive-overview)
-2. [Why BlendEye? (The Problem)](#-why-blendeye-the-problem)
-3. [System Architecture](#-system-architecture)
-4. [Key Features & Studio Modules](#-key-features--studio-modules)
-   - [Interactive Story Canvas (React Flow)](#1-interactive-story-canvas-xyflowreact)
-   - [ClickHouse Time-Gate Engine & Timeline Scrubber](#2-the-clickhouse-time-gate-engine--timeline-scrubber)
-   - [The Hot Seat (Interrogation Chamber)](#3-the-hot-seat-interrogation-chamber)
-   - [Centralized Showrunner AI & Script Supervisor](#4-centralized-showrunner-ai--script-supervisor)
-   - [Studio AI Commander](#5-studio-ai-commander-natural-language-director)
-   - [Audio Table Read & Vocal Synthesis](#6-audio-table-read-simulation--dsp-studio)
-   - [The Director's Deck (Pre-Production Suite)](#7-the-directors-deck-pre-production-suite)
-   - [Multiverse Takes & Film Fusion Engine](#8-multiverse-takes--film-fusion-engine)
-   - [Veo 3.1 Chained Video Studio](#9-veo-31-cinematic-video-generation--chained-shot-sequencer)
-   - [Character Lab & Talent Vault](#10-character-lab--talent-vault)
-   - [Continuity Checker & Studio Version Control](#11-continuity-checker--studio-version-control)
-   - [Production Asset Hub & Media Storage](#12-production-asset-hub--media-storage)
-5. [ClickHouse Integration (Partner Track Centerpiece)](#-clickhouse-integration-partner-track-centerpiece)
-6. [Google Cloud AI & Gemini Multimodal Suite](#-google-cloud-ai--gemini-multimodal-suite)
-7. [Repository Structure](#-repository-structure)
-8. [Local Development & Quickstart](#-local-development--quickstart)
-9. [Docker Deployment](#-docker-deployment)
-10. [Environment Variables Reference](#-environment-variables-reference)
-11. [Benchmark Productions](#-benchmark-productions)
-12. [License & Acknowledgments](#-license--acknowledgments)
+2. [What is BlendEye? (The Director's Operating System)](#-what-is-blendeye-the-directors-operating-system)
+3. [The Problem: The $100M "Fix It in Post" Fallacy](#-the-problem-the-100m-fix-it-in-post-fallacy)
+4. [The 3 Core Directorial Pillars](#-the-3-core-directorial-pillars)
+5. [System Architecture](#-system-architecture)
+6. [The 4 Director Studio Workspaces](#-the-4-director-studio-workspaces)
+   - [Workspace 1: Studio & Scene Planning (Shift+1)](#workspace-1-studio--scene-planning-shift1)
+     - [Interactive Story Canvas (@xyflow/react)](#1-interactive-story-canvas-xyflowreact)
+     - [Multi-Scene Narrative Hierarchy & Sequencing](#2-multi-scene-narrative-hierarchy--sequencing)
+     - [AI Bridge Scene Architect](#3-ai-bridge-scene-architect)
+     - [Hollywood Production Stripboard & Shooting Logistics](#4-hollywood-production-stripboard--shooting-logistics)
+     - [Global Location Scouting Board & Dossier Hub](#5-global-location-scouting-board--dossier-hub)
+     - [2D Spatial Camera Blocking & Floor Plan Engine](#6-2d-spatial-camera-blocking--floor-plan-engine)
+     - [Dramatic Tension & Pacing Curve Visualizer](#7-dramatic-tension--pacing-curve-visualizer)
+     - [International Box Office & Territory Heatmap](#8-international-box-office--territory-heatmap)
+   - [Workspace 2: Pre-Shoot Simulation Suite (Shift+2)](#workspace-2-pre-shoot-simulation-suite-shift2)
+     - [The Hot Seat: Time-Gated Character Interrogation](#1-the-hot-seat-time-gated-character-interrogation)
+     - [Dynamic Friction & Chemistry Bench](#2-dynamic-friction--chemistry-bench)
+     - [Audio Table Read Studio & Voice Timbre Engine](#3-audio-table-read-studio--dsp-room-acoustics)
+   - [Workspace 3: Generation Backlot (Shift+3)](#workspace-3-generation-backlot-shift3)
+     - [Google Veo 3.1 Sequential Chained Video Studio](#1-google-veo-31-sequential-chained-video-studio)
+     - [2.39:1 Anamorphic Storyboard & Concept Art](#2-2391-anamorphic-storyboard--concept-art)
+     - [Director's Aesthetic Lookbook](#3-directors-aesthetic-lookbook)
+     - [AI Scene Score & Soundtrack Synthesizer](#4-ai-scene-score--soundtrack-synthesizer)
+     - [Multiverse Alternate Directorial Takes](#5-multiverse-alternate-directorial-takes)
+   - [Workspace 4: Showrunner AI Co-Pilot & Executive Automation (Shift+4)](#workspace-4-showrunner-ai-co-pilot--executive-automation-shift4)
+     - [Centralized Showrunner AI (mcp-clickhouse Grounded)](#1-centralized-showrunner-ai-mcp-clickhouse-grounded)
+     - [Studio AI Commander (Natural Language Action Runner)](#2-studio-ai-commander-natural-language-action-runner)
+     - [Script Supervisor & Continuity Inspector](#3-script-supervisor--continuity-inspector)
+     - [Film Fusion / Multiverse Crossover Engine](#4-film-fusion--multiverse-crossover-engine)
+     - [Studio Version Control & Takes VCS](#5-studio-version-control--takes-vcs)
+     - [Character Lab & Global Talent Vault](#6-character-lab--global-talent-vault)
+     - [Production Asset Hub & Supabase Storage](#7-production-asset-hub--supabase-storage)
+7. [ClickHouse Integration (Partner Track Centerpiece)](#-clickhouse-integration-partner-track-centerpiece)
+8. [Google Cloud AI & Gemini Multimodal Suite](#-google-cloud-ai--gemini-multimodal-suite)
+9. [Repository Structure](#-repository-structure)
+10. [Local Development & Quickstart](#-local-development--quickstart)
+11. [Docker Deployment](#-docker-deployment)
+12. [Environment Variables Reference](#-environment-variables-reference)
+13. [Benchmark Productions](#-benchmark-productions)
+14. [Keyboard Shortcuts Quick Reference](#-keyboard-shortcuts-quick-reference)
+15. [License & Acknowledgments](#-license--acknowledgments)
 
 ---
 
 ## ✅ Hackathon Submission Compliance
 
-| Requirement | Status |
-| :--- | :--- |
-| **Hosted, publicly reachable project** | [blendeye.harmanita.com](https://blendeye.harmanita.com) |
-| **Google Cloud AI used at runtime** | `google-genai` + `google-adk` imported and called in `app/routers/media.py`, `app/services/video_sequencer.py`, `app/agents/*.py` — real `client.models.generate_content(...)` / `generate_videos(...)` calls, not just a model name in config |
-| **ClickHouse used at runtime via `mcp-clickhouse`** | `app/services/clickhouse_mcp.py` launches the official `mcp-clickhouse` server and attaches it as a live `McpToolset` to the Showrunner agent (`app/agents/showrunner.py`) — see [§ ClickHouse Integration](#-clickhouse-integration-partner-track-centerpiece) |
-| **ClickHouse Cloud / self-hosted cluster** | Production deployment connects to **ClickHouse Cloud** |
-| **Runs on web** | Next.js 16 App Router, deployed and reachable above |
-| **Open-source license detectable in repo root** | [MIT License](LICENSE) |
-| **No non-Google-Cloud AI vendor at runtime** | Only `google-genai` / `google-adk` are called by the running application; no other AI SDK is imported or invoked anywhere in the codebase |
+| Requirement | Status | Verification Reference |
+| :--- | :--- | :--- |
+| **Hosted, publicly reachable project** | ✅ Deployed | [blendeye.harmanita.com](https://blendeye.harmanita.com) |
+| **Google Cloud AI used at runtime** | ✅ Active | `google-genai` + `google-adk` invoked across `app/routers/media.py`, `app/services/video_sequencer.py`, `app/agents/*.py` — real runtime calls to `gemini-3.7-flash`, `gemini-3.1-flash-tts-preview`, and `veo-3.1-fast-generate-preview`. |
+| **ClickHouse used at runtime via `mcp-clickhouse`** | ✅ Active | `app/services/clickhouse_mcp.py` runs the official `mcp-clickhouse` server as an `McpToolset` on the live Showrunner agent (`app/agents/showrunner.py`) for commercial comps. |
+| **ClickHouse Cloud / self-hosted cluster** | ✅ Active | Production deployment connects to **ClickHouse Cloud** with sub-3ms query latencies. |
+| **Runs on web** | ✅ Active | Next.js 16 App Router frontend with Tailwind CSS v4, Lucide icons, and `@xyflow/react`. |
+| **Open-source license detectable in repo root** | ✅ Active | [MIT License](LICENSE) |
+| **No non-Google-Cloud AI vendor at runtime** | ✅ Compliant | Exclusively Google Cloud AI SDKs (`google-genai`, `google-adk`); zero non-Google AI SDK imports. |
 
 📋 **[Judge Testing Guide (JUDGE_TESTING.md)](JUDGE_TESTING.md)** — a 5-minute, step-by-step walkthrough to verify the ClickHouse time-gate mechanic and Google Cloud AI integrations live on the hosted deployment, no code reading required.
 
 ---
 
-## 🌟 Executive Overview
+## 🌟 What is BlendEye? (The Director's Operating System)
 
-**BlendEye** is an interactive, multi-agent virtual writers' room and cinematic pre-production studio. Screenwriters, showrunners, and directors can map out complex screenplays on an infinite visual backlot canvas, scrub an interactive timeline to any minute of the story runtime, and **interrogate characters live in the "Hot Seat"** — where characters are bounded by strict, sub-millisecond **ClickHouse time-gated knowledge firewalls**.
+> **BlendEye is the flight simulator for film directors, screenwriters, and showrunners.**
 
-Ask a character where the missing vault keys are at **Minute 34**, and they answer with honest, believable ignorance. Scrub forward to **Minute 52** after a clandestine betrayal, and their entire worldview, emotional state, and testimony shift automatically.
+Commercial pilots log hundreds of hours in flight simulators before ever flying passengers. They test turbulence, engine stalls, and crosswinds in a risk-free environment.
 
-The entire experience combines **ClickHouse's ultra-low-latency temporal query capabilities** with **Google Cloud's bleeding-edge generative AI models** (Gemini 3.7 Flash, Gemini 3.1 Flash TTS multi-speaker audio, Veo 3.1 video generation, and Imagen 3 visual concept art).
+Filmmaking, by contrast, has historically had no flight simulator. Directors step onto multimillion-dollar sets with unproven dialogue, unverified spatial camera blocking, untested character chemistry, and fractured pre-production documentation. When pacing drags or a plot point falls apart, the only option has been the disastrous industry mantra: *"We'll fix it in post."*
+
+**BlendEye replaces guesswork with simulation.** It gives directors a unified, interactive digital studio to:
+1. **Plan** the entire film: scenes, sluglines, shooting schedules, location dossiers, and international box-office targets.
+2. **Simulate** the dramatic reality before cameras roll: interrogate characters under strict **ClickHouse time-gated knowledge firewalls**, pit actors in unscripted chemistry pressure-cookers, test 2D spatial camera sightlines, and listen to theatrical multi-speaker audio table reads with physical room acoustics.
+3. **Generate & Direct** high-fidelity cinematic pre-viz: sequential multi-shot **Google Veo 3.1** video sequences with frame-accurate pixel anchoring, 2.39:1 anamorphic storyboards, original scene scores, and 3 distinct directorial takes per scene.
 
 ---
 
-## 💡 Why BlendEye? (The Problem)
+## 💡 The Problem: The $100M "Fix It in Post" Fallacy
 
-In traditional screenwriting and filmmaking, writers constantly fight two pervasive problems:
-1. **Character Omniscience ("Writer Leakage")**: Characters often speak as if they've read the end of the script. They foreshadow twists they shouldn't know, fail to react with authentic paranoia, or lack the genuine blind spots of people acting in incomplete information environments.
-2. **Disconnected Pre-Production Workflows**: Screenplay drafting, character psychological profiles, 2D camera blocking, shooting schedules, location dossiers, and musical scoring happen in siloed tools, leading to continuity breaks and compromised pacing.
+Traditional pre-production is plagued by two fatal structural flaws:
 
-**BlendEye solves this** by treating character memory as a queryable, time-stamped temporal stream backed by a high-performance column database, surrounded by an end-to-end directorial workbench.
+1. **Character Omniscience ("Writer Leakage")**: Screenwriters write characters who have subconsciously read the end of the script. Characters fail to act with genuine paranoia, foreshadow twists they cannot know, or leak information they haven't learned yet.
+2. **Fragmented Directorial Tooling**: Screenplay drafts, 2D camera blocking schematics, location scouting dossiers, cast psychology profiles, and shooting schedules live in disconnected silos. By the time a continuity break or pacing lull is discovered during principal photography, reshoots cost hundreds of thousands of dollars per day.
+
+**BlendEye unifies planning, simulation, and generative directing into a single, cohesive Director's OS.**
+
+---
+
+## 🎯 The 3 Core Directorial Pillars
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                                 THE BLENDEYE DIRECTORIAL CYCLE                         │
+│                                                                                        │
+│     1. PLAN (The Blueprint)             2. SIMULATE (The Flight Sim)   3. DIRECT (The Set)     │
+│  ┌───────────────────────────┐       ┌──────────────────────────────┐  ┌────────────────────┐  │
+│  │ • Multi-Scene Sequencing  │       │ • ClickHouse Hot Seat        │  │ • Chained Veo 3.1  │  │
+│  │ • Visual Backlot Graph    │ ────► │ • Dynamic Chemistry Bench    │─►│ • Pixel Anchoring  │  │
+│  │ • Production Stripboard   │       │ • Multi-Speaker Audio Table  │  │ • 2.39:1 Stills    │  │
+│  │ • Google Search Scouting  │       │ • 2D Spatial Camera Blocking │  │ • AI Film Scoring  │  │
+│  │ • Territory Heatmaps      │       │ • 3-Act Tension Pacing Curve │  │ • Multiverse Takes │  │
+│  └───────────────────────────┘       └──────────────────────────────┘  └────────────────────┘  │
+│                                                     ▲                                          │
+│                                                     │ Feedback Loop                            │
+│                                                     └──────────────────────────────────────────┘
+└────────────────────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
@@ -103,12 +149,15 @@ flowchart TB
         HotSeat["Hot Seat Interrogation Chamber"]
         DirectorDeck["Director's Deck (Floor Plan, Curves, Heatmap)"]
         Inspector["ClickHouse Live Query Inspector"]
+        AudioStudio["Audio Studio & DSP Visualizer"]
+        GenStudio["Veo Chained Video Sequencer Studio"]
     end
 
     subgraph WebLayer ["Next.js Web Service (Port 3000)"]
         AppRouter["App Router & API Routes (/api/*)"]
         StudioCommander["Studio Commander Action Dispatcher"]
         AssetService["Asset Storage & Proxy Layer"]
+        ProjectStore["Project & Version Control Engine"]
     end
 
     subgraph Persistence ["PostgreSQL / Supabase Layer"]
@@ -124,6 +173,7 @@ flowchart TB
         Showrunner["Showrunner Co-Writer (MCP-Enabled)"]
         MediaGen["Media Engine (Veo 3.1, TTS, Imagen 3)"]
         Sequencer["Video Sequencer (Pixel Anchored Chaining)"]
+        FrameExtract["Frame Extractor (OpenCV / PIL)"]
     end
 
     subgraph GoogleAI ["Google Cloud AI Platform"]
@@ -146,6 +196,8 @@ flowchart TB
     HotSeat --> AppRouter
     DirectorDeck --> AppRouter
     Inspector --> AppRouter
+    AudioStudio --> AppRouter
+    GenStudio --> AppRouter
 
     AppRouter --> ProjectsDB
     AppRouter --> TalentDB
@@ -161,9 +213,24 @@ flowchart TB
 
 ---
 
-## 🎛️ Key Features & Studio Modules
+## 🎛️ The 4 Director Studio Workspaces
 
-### 1. Interactive Story Canvas (`@xyflow/react`)
+BlendEye organizes the directorial workflow into four specialized studio workspaces accessible via top-bar tabs or instant keyboard shortcuts:
+
+| Workspace | Shortcut | Focus Area |
+| :--- | :--- | :--- |
+| **Studio & Planning** | <kbd>Shift</kbd> + <kbd>1</kbd> | Visual node backlot, multi-scene timeline, stripboard, location scouting, 2D camera blocking, and pacing curves |
+| **Simulation Suite** | <kbd>Shift</kbd> + <kbd>2</kbd> | The Hot Seat (time-gated interrogation), unscripted character chemistry bench, and theatrical audio table reads |
+| **Generation Backlot** | <kbd>Shift</kbd> + <kbd>3</kbd> | Sequential chained Veo 3.1 video generation, 2.39:1 anamorphic storyboards, film scoring, and multiverse takes |
+| **Showrunner AI** | <kbd>Shift</kbd> + <kbd>4</kbd> | Omniscient AI co-director grounded via `mcp-clickhouse` for commercial comps, subtext analysis, and full studio action automation |
+
+---
+
+### Workspace 1: Studio & Scene Planning (<kbd>Shift</kbd> + <kbd>1</kbd>)
+
+The Director's central pre-production planning floor, linking high-level script architecture with boots-on-the-ground shooting logistics.
+
+#### 1. Interactive Story Canvas (`@xyflow/react`)
 - **Cinematic Visual Backlot**: A dark-mode, anamorphic-inspired node canvas built with React Flow.
 - **Specialized Node Graph Hierarchy**:
   - **Inspiration Node**: Project logline, genre tags, director style cues, and core story secrets.
@@ -173,82 +240,138 @@ flowchart TB
   - **Director's 2D Floor Plan Node**: Direct architectural blocking overlay linked to the scene.
   - **Bridge Scene Node**: Interstitial scene linking multiple narrative sequences together.
 - **Auto-Tidy Backlot**: Deterministic horizontal layout organizer keeping production nodes organized cleanly as projects scale.
+- **Studio Inspector Sidebar**: Resizable parameter inspector providing granular node configuration, cast assignments, and slugline overrides.
 
-### 2. The ClickHouse Time-Gate Engine & Timeline Scrubber
-- **Interactive Scrubber**: Drag through the 90-minute (or customized) runtime with precision timecode readout (`00:34:00`, `00:52:00`).
-- **Real-Time Knowledge Strip**:
-  - **Verified Known Facts**: What the character genuinely witnessed, heard, or possessed.
-  - **Critical Firewall Ignorance**: The deliberate secrets, unseen betrayals, and blind spots the character *cannot* know.
-- **Sub-millisecond Retrieval**: ClickHouse evaluates timeline bounds in 1–3ms, eliminating expensive LLM passes on simple timeline movement.
+#### 2. Multi-Scene Narrative Hierarchy & Sequencing
+- **Feature-Length Structure**: Organize entire feature films or episodic pilots into numbered scenes with sluglines (`INT. BANK VAULT - NIGHT`), summary beats, and runtime budgets.
+- **Timeline Canvas & Sequence Manager**: Interactive scene reordering, duration scaling, and timecode placement (`00:15:30`, `00:48:00`).
+- **Full Screenplay Viewer & Live Editor**: Industry-standard Hollywood formatted script editor with character POV tagging, dialogue formatting, and instant script saves.
 
-### 3. The Hot Seat (Interrogation Chamber)
+#### 3. AI Bridge Scene Architect
+- **Connective Tissue Synthesis**: Disconnected narrative sequences often cause jarring pacing drops. The Bridge Scene generator analyzes Scene $N$ and Scene $N+1$, detects emotional or logistical gaps, and drafts a seamless interstitial scene maintaining character voice and narrative momentum.
+
+#### 4. Hollywood Production Stripboard & Shooting Logistics
+- **Day/Night Production Strips**: Automatically parses screenplay text to classify scenes into standard Hollywood stripboard tags (`INT/EXT`, `DAY/NIGHT/DUSK/DAWN`).
+- **Shooting Day Breakdown**: Aggregates estimated page counts (eighths of a page), required cast IDs, location tags, and budget tier allocations.
+- **Production Efficiency Optimization**: Group scenes by location and cast availability to minimize company moves.
+
+#### 5. Global Location Scouting Board & Dossier Hub
+- **Real-World Grounding via Google Search Grounding**: Scout filming locations with Gemini connected live to Google Search.
+- **Architectural & Geospatial Dossiers**: Fetches real geographic coordinates, architectural style descriptions, sun angles / golden hour windows, and seasonal weather patterns.
+- **Permits & Logistics**: Summarizes filming permit requirements, sound ordinances, and equipment access.
+- **Multi-Currency Budget Calculator**: Compares location candidate daily rates across USD, EUR, GBP, CAD, and AUD with budget cap policy alerts.
+- **Interactive Location Q&A**: Chat directly with a specialized location scout agent to resolve venue feasibility questions.
+
+#### 6. 2D Spatial Camera Blocking & Floor Plan Engine
+- **Overhead Stage Schematic**: Draggable actor tokens and camera positions on a customizable 2D floor plan map.
+- **Camera Lens Presets**: Switch between Wide Master (35mm), Over-The-Shoulder (50mm), Intimate Close-Up (85mm), and High Suspense POV (24mm).
+- **Sightlines & Practical Lighting**: Visualizes actor sightline vectors, camera coverage cones, and directional practical lighting beams.
+- **Direct Veo 3.1 Dispatch**: Send camera focal length, motion path (Pan, Track, Crane, Push-in), and staging notes straight into the Google Veo video generation prompt with one click.
+
+#### 7. Dramatic Tension & Pacing Curve Visualizer
+- **Recharts 3-Act Tension Graph**: Continuous narrative tension visualizer plotting scene intensity against runtime seconds.
+- **Multi-POV Stakes Tracking**: Displays overall scene tension alongside individual character POV tension lines to reveal emotional asymmetry and identify structural narrative lag.
+
+#### 8. International Box Office & Territory Heatmap
+- **D3 Geo / TopoJSON Interactive Global Map**: Visualizes projected box-office appeal across North America, Europe, Asia-Pacific, Latin America, and MENA.
+- **ClickHouse Grounded Benchmarks**: Queries historical performance from ClickHouse's `cinematic_precedents` table (*Heat*, *Sicario*, *Alien*, *Blade Runner*) to project territorial audience retention percentages.
+
+---
+
+### Workspace 2: Pre-Shoot Simulation Suite (<kbd>Shift</kbd> + <kbd>2</kbd>)
+
+The Director's virtual rehearsal stage — test actors, dialogue, and dramatic friction under realistic psychological constraints before principal photography.
+
+#### 1. The Hot Seat: Time-Gated Character Interrogation
 - **Live Character Interrogation**: Chat directly with any character in Hollywood dialogue script format (`CHARACTER: Line`).
-- **Strict Knowledge Firewall**: The agent responds only using knowledge established up to that minute. If you try to bait them with future plot twists, they treat it as unfounded speculation, paranoia, or outright lies.
-- **"Insert into Script"**: Found an improvised line or confession that crackles with tension? Click the filmstrip button to insert the generated dialogue directly into the screenplay draft.
+- **ClickHouse Sub-Millisecond Knowledge Firewalls**: The interrogation agent evaluates the exact minute on the timeline (`WHERE event_timestamp <= '00:34:00'`). Characters answer with genuine ignorance of future plot twists, unseen betrayals, or hidden motives.
+- **Paranoia & Speculation Modeling**: If an interviewer baits a character with future facts, the character reacts authentically — dismissing it as absurd hearsay or mounting paranoia rather than breaking character.
+- **"Insert into Script" Micro-Interaction**: Discovered a spontaneous line of improvised dialogue that crackles with subtext? Click the filmstrip button to insert the dialogue directly into the screenplay draft.
 
-### 4. Centralized Showrunner AI & Script Supervisor
-- **Omniscient Creative Co-Pilot**: An AI executive showrunner analyzing dramatic subtext, pacing flaws, and narrative stakes.
-- **Grounding via `mcp-clickhouse`**: The showrunner queries ClickHouse's `cinematic_precedents` table to cite real commercial precedents (e.g. *Heat*, *Sicario*, *Alien*) and historical audience retention curves.
-- **Interactive Script Doctoring**: Apply targeted rewrites, heighten subtext, or inject narrative reversals directly through conversation.
+#### 2. Dynamic Friction & Chemistry Bench
+- **Unscripted Relational Stress-Testing**: Direct any two characters into a spontaneous pressure-cooker scenario (e.g., *"Stuck in a stalled service elevator with a 2-minute security countdown"* or *"Cornered in an interrogation room with one confession immunity deal"*).
+- **Conflict Simulation**: The simulation models psychological friction, clashing subtext, and competing character secrets in real time, helping directors discover genuine character chemistry before shooting.
 
-### 5. Studio AI Commander (Natural Language Director)
-- **Centralized Action Dispatcher**: Direct the entire studio with natural language commands (e.g., *"Add a corrupt security officer named Silas"*, *"Increase the dramatic tension in the third beat"*, *"Rearrange nodes and check continuity"*).
-- **Multi-Step CRUD Automation**: Automatically creates characters, edits scenes, spawns nodes, updates screenplay text, and dispatches version snapshots in one shot.
+#### 3. Audio Table Read Studio & DSP Room Acoustics
+- **Multi-Speaker Theatrical Table Reads**: Full script audio readouts synthesized using **Gemini 3.1 Flash TTS** with native `MultiSpeakerVoiceConfig`.
+- **Character Voice Timbre Mapping**: Automatically assigns distinct vocal personas (`Fenrir`, `Aoede`, `Charon`, `Kore`, `Puck`, `Zephyr`) to individual cast members.
+- **Directorial Vocal Controls**: Fine-tune speech delivery rate (0.8x to 1.3x), pitch shifting, and formant chest resonance.
+- **Acoustic Space Simulation (DSP)**: Simulate the acoustic environment of the scene:
+  - *Dry Soundstage*: Close-mic, zero room reflection.
+  - *Cathedral / Echo Chamber*: Cavernous reverberation and long acoustic decay.
+  - *Subterranean Metal Vault*: Cold, metallic reflections and tight acoustic slapback.
+- **Synchronized Visualizer**: Dual audio canvas visualization with synchronized line-by-line script highlighting as dialogue plays.
 
-### 6. Audio Table Read Simulation & DSP Studio
-- **Multi-Speaker Vocal Table Reads**: Synthesizes full script table reads using **Gemini 3.1 Flash TTS** with `MultiSpeakerVoiceConfig`.
-- **Character Voice Timbre Mapping**: Automatically maps characters to distinct vocal profiles (`Fenrir`, `Aoede`, `Charon`, `Kore`, `Puck`, `Zephyr`).
-- **Synchronized Visualizer**: Dual audio canvas visualization with synchronized line-by-line highlighting as dialogue plays.
-- **Audio DSP Controls**: Fine-tune character delivery style, playback speed (0.8x–1.3x), pitch shifting, formant chest resonance, and acoustic space reverb (Studio, Cathedral, Metal Vault).
+---
 
-### 7. The Director's Deck (Pre-Production Suite)
-- **2D Floor Plan & Spatial Camera Blocking**:
-  - Architectural stage schematic with draggable actor tokens and camera placements.
-  - Camera setup presets: Wide Master (35mm), Over-The-Shoulder (50mm), Intimate Close-Up (85mm), Suspense Overhead POV (24mm).
-  - Actor sightline vectors, practical lighting beams, and lens focal-length indicators.
-- **Dramatic Tension & Pacing Curve**:
-  - Recharts 3-act narrative tension visualizer.
-  - Plots scene intensity, overall dramatic stakes, and individual character POV tension against runtime seconds.
-- **Global Territory Heatmap & Box Office Intelligence**:
-  - Interactive D3 Geo / TopoJSON global market projection map.
-  - ClickHouse-queried commercial benchmarks and audience retention percentages across North America, Europe, Asia-Pacific, Latin America, and MENA.
-- **Production Stripboard & Shooting Logistics**:
-  - Hollywood standard day/night production strips with INT/EXT classification, page counts, cast numbers, and budget tier estimation.
-- **Location Scouting & Research Dossier**:
-  - Deep location scouting powered by Gemini with **Google Search Grounding**.
-  - Fetches real-world architectural descriptions, coordinates, sun angles, seasonal weather considerations, and filming permit notes.
-- **Director's Aesthetic Lookbook**:
-  - Visual styling reference board with color palettes, lighting cues, costume palettes, and atmospheric reference art.
+### Workspace 3: Generation Backlot (<kbd>Shift</kbd> + <kbd>3</kbd>)
 
-### 8. Multiverse Takes & Film Fusion Engine
-- **Multiverse Alternate Takes Studio**:
-  - Generate 3 radically different directorial takes per scene with one click:
-    - *Psychological Slow-Burn (A24 Style)*: Whispered subtext, negative space, agonizing pregnant pauses.
-    - *Neo-Noir Confrontation (Michael Mann / David Fincher)*: Razor-sharp dialogue, cold procedural calculation, rhythmic intensity.
-    - *Visceral Ticking Clock (Christopher Nolan / Denis Villeneuve)*: Urgent sensory pressure, breathless dialogue, relentless pacing.
-  - 1-click apply to the production screenplay.
-- **Film Fusion Engine (Multiverse Crossover)**:
-  - Reconciles two completely different screenplays, merges character casts, resolves contradictory timeline events, and synthesizes a unified, sharded ClickHouse story timeline.
+Transform director blocking and screenplay text into production-ready cinematic pre-viz assets.
 
-### 9. Veo 3.1 Cinematic Video Generation & Chained Shot Sequencer
-- **Veo 3.1 Fast Video Generation**: Direct renders of 4–8 second high-definition 2.39:1 / 16:9 cinematic video clips conditioned on storyboard prompts and character reference art.
-- **Sequential Chained Shot Studio (`services/video_sequencer.py`)**:
-  - Overcomes the single-shot 4–8s ceiling to generate continuous multi-shot scene sequences.
-  - **Pixel Anchoring**: Automatically extracts the last frame of Shot $N$ (`frame_extractor.py`) and feeds it into Veo 3.1 as the image-conditioning reference for Shot $N+1$, preventing visual drift.
-  - **Locked Continuity Bibles**: Per-shot prompt generation from a rigid continuity bible (lighting, wardrobe, blocking) to eliminate compounding hallucinations across long chains.
+#### 1. Google Veo 3.1 Sequential Chained Video Studio
+- **Veo 3.1 Cinematic Video Generation**: Direct renders of high-definition 2.39:1 / 16:9 cinematic video clips conditioned on storyboard prompts, character reference art, and camera blocking parameters.
+- **Chained Multi-Shot Sequencer (`services/video_sequencer.py`)**:
+  - Overcomes the single-shot 4–8 second duration ceiling to generate continuous multi-shot scene sequences.
+  - **Pixel Anchoring (`frame_extractor.py`)**: Automatically extracts the exact last frame of Shot $N$ via OpenCV/PIL and feeds it into Veo 3.1 as the image-conditioning reference for Shot $N+1$, preventing visual drift and character appearance distortion.
+  - **Locked Continuity Bibles**: Automatically generates rigid continuity bibles (wardrobe, key lighting angle, color palette, camera motion) across shot chains to prevent generative hallucination across long takes.
 
-### 10. Character Lab & Talent Vault
-- **Deep Character Architect**: Build rich character profiles with psychological archetypes, speech cadences, subtext ratios, and casting comps.
-- **Personality Dials**: Calibrate confidence, verbal pacing, emotional volatility, and unique quirks.
-- **Talent Vault Persistence**: Save created talent globally in Supabase for reuse across different productions.
+#### 2. 2.39:1 Anamorphic Storyboard & Concept Art
+- **Anamorphic Widescreen Keyframes**: Generates 2.39:1 widescreen storyboard stills with Imagen 3 / Gemini Image models.
+- **Cinematic Lighting & Lens Grading**: Prompts incorporate optical lens characteristics: subtle cyan anamorphic streak flares, shallow depth of field, natural halation, and organic 35mm film grain.
 
-### 11. Continuity Checker & Studio Version Control
-- **Deep Script Continuity Analysis**: An automated script supervisor detecting timeline paradoxes, unearned knowledge slips, character motivation contradictions, and missing props.
-- **Studio VCS (Version Control)**: Full project snapshots with undo/redo, revision summaries, and rollback capabilities.
+#### 3. Director's Aesthetic Lookbook
+- **Visual Styling Dossier**: Centralized moodboard housing color palettes, costume swatches, lighting reference schemes, and atmospheric concept art.
 
-### 12. Production Asset Hub & Media Storage
-- **Media Asset Library**: Central management for generated character portraits, storyboard stills, Veo video takes, floor plan schematics, and audio tracks.
-- **Supabase Storage Integration**: Assets are backed by the `cinema_assets` public storage bucket with CDN delivery and metadata tagging.
+#### 4. AI Scene Score & Soundtrack Synthesizer
+- **Context-Aware Score Prompting**: Analyzes scene emotional beats, dialogue intensity, and pacing to synthesize rich musical composition prompts.
+- **Score Take Auditioning**: Generates and manages multiple score takes per scene, allowing directors to audition different musical vibes (electronic pulse, orchestral dread, minimalist piano) and lock a "Master Score Take."
+- **Automatic Lyric & Motif Drafting**: Drafts atmospheric lyrics or vocal motifs tailored to the scene's emotional climax.
+
+#### 5. Multiverse Alternate Directorial Takes
+- **3-Director Take Generator**: Direct 3 radically distinct directorial visions per scene with one click:
+  - *Psychological Slow-Burn (A24 Style)*: Whispered subtext, negative space, pregnant pauses, and lingering camera setups.
+  - *Neo-Noir Confrontation (Michael Mann / David Fincher)*: Cold procedural calculation, razor-sharp dialogue, and relentless rhythmic intensity.
+  - *Visceral Ticking Clock (Christopher Nolan / Denis Villeneuve)*: Urgent sensory pressure, breathless dialogue delivery, and propulsive narrative drive.
+- **1-Click Production Apply**: Audition takes side-by-side and apply the winning cut directly into the master screenplay with one click.
+
+---
+
+### Workspace 4: Showrunner AI Co-Pilot & Executive Automation (<kbd>Shift</kbd> + <kbd>4</kbd>)
+
+The Director's autonomous executive partner — providing commercial market comps, subtext analysis, script doctoring, and natural language studio automation.
+
+#### 1. Centralized Showrunner AI (`mcp-clickhouse` Grounded)
+- **Omniscient Creative Co-Pilot**: An autonomous executive showrunner analyzing dramatic subtext, narrative pacing, and structural reversals.
+- **Live Tool Calling via `mcp-clickhouse`**: The Showrunner queries ClickHouse's `cinematic_precedents` table via the official Model Context Protocol (MCP) server mid-conversation, citing real commercial benchmarks and historical audience retention curves to ground creative recommendations.
+- **Interactive Script Doctoring**: Apply targeted rewrites, heighten conflict, or resolve third-act bottlenecks directly through natural conversation.
+
+#### 2. Studio AI Commander (Natural Language Action Runner)
+- **Voice / Text Executive Director**: Direct the entire studio with high-level natural language instructions:
+  - *"Add a corrupt security specialist named Silas with high emotional volatility"*
+  - *"Increase the dramatic tension in the vault confrontation scene"*
+  - *"Rearrange the sequence slates and run a continuity check"*
+- **Multi-Step CRUD Automation**: Automatically creates characters, edits scenes, spawns canvas nodes, updates screenplay text, and dispatches version snapshots in a single transactional pass.
+
+#### 3. Script Supervisor & Continuity Inspector
+- **Automated Script Supervisor**: Deep narrative analysis scanning for timeline paradoxes, unearned character knowledge leaks, contradictory character motivations, and missing physical props.
+- **Severity Classification**: Categorizes continuity issues into Critical Breaks, Character Inconsistencies, and Pacing Advisories with one-click fix recommendations.
+
+#### 4. Film Fusion / Multiverse Crossover Engine
+- **Narrative Reconciliation**: Reconciles two completely different screenplays or franchise storylines.
+- **Automated Timeline Merging**: Resolves character role overlaps, merges conflicting narrative events, and synthesizes a unified, sharded ClickHouse story timeline.
+
+#### 5. Studio Version Control & Takes VCS
+- **Studio VCS**: Full project snapshotting with commit messages, revision history, and instant rollback.
+- **Takes History**: Audition, compare, and restore earlier creative directions with non-destructive versioning.
+
+#### 6. Character Lab & Global Talent Vault
+- **Deep Character Architecture**: Design rich character profiles with psychological archetypes, speech cadences, subtext ratios, and casting comps.
+- **Personality Dials**: Calibrate confidence, verbal pacing, emotional volatility, and unique speech quirks.
+- **Global Talent Vault**: Persist characters globally in Supabase for reuse across different productions and franchise slates.
+
+#### 7. Production Asset Hub & Supabase Storage
+- **Media Asset Library**: Centralized asset manager for generated character portraits, storyboard stills, Veo video takes, floor plan schematics, and audio tracks.
+- **Cloud Delivery**: Backed by Supabase Storage (`cinema_assets` public bucket) with CDN caching and metadata tagging.
 
 ---
 
@@ -326,10 +449,10 @@ ORDER BY (genre, trope);
 ```
 
 ### 4. `mcp-clickhouse` Integration (Runtime Agent Tool-Use)
-BlendEye uses ClickHouse through **two real, runtime-invoked paths** — not a README-only mention:
+BlendEye uses ClickHouse through **two real, runtime-invoked paths**:
 
-- **Direct driver** (`clickhouse-connect`): `app/services/clickhouse_store.py` — the Story Event Engine's own reads/writes (timeline scrubbing, event sharding). This is application logic, not agent reasoning.
-- **Official MCP server** (`mcp-clickhouse`): `app/services/clickhouse_mcp.py` launches the official `mcp-clickhouse` console script as a stdio subprocess and wires it into Google ADK as an `McpToolset`. This toolset is attached directly to the **Showrunner agent** (`app/agents/showrunner.py`, `build_showrunner_agent`), so the agent can issue live, read-only ClickHouse queries as part of its own tool-calling loop mid-conversation — e.g. pulling `cinematic_precedents` rows to ground a script note in a real commercial comp — fulfilling the track's requirement that ClickHouse be used "via the official ClickHouse MCP server, connecting to a ClickHouse Cloud or self-hosted cluster" at runtime.
+- **Direct driver** (`clickhouse-connect`): `app/services/clickhouse_store.py` — handles high-throughput timeline scrubbing and perspective event sharding (application logic).
+- **Official MCP server** (`mcp-clickhouse`): `app/services/clickhouse_mcp.py` launches the official `mcp-clickhouse` console script as a stdio subprocess and wires it into Google ADK as an `McpToolset`. This toolset is attached directly to the **Showrunner agent** (`app/agents/showrunner.py`), allowing the agent to issue live, read-only ClickHouse queries during conversation to ground script notes in real commercial comps.
 
 ```python
 # app/services/clickhouse_mcp.py
@@ -348,14 +471,14 @@ tools.append(build_clickhouse_toolset())
 Agent(..., tools=tools)
 ```
 
-The production deployment connects to a **ClickHouse Cloud** cluster (not just local Docker), so both the direct-driver time-gate queries and the agent's MCP tool calls run against a real hosted instance at `blendeye.harmanita.com`.
+The production deployment connects to a **ClickHouse Cloud** cluster, ensuring both direct time-gate queries and MCP agent tool calls run against a real hosted instance.
 
-### 5. Live Query Inspector & Telemetry
-The frontend includes a real-time **ClickHouse Query Inspector** modal displaying:
-- Exact executed SQL strings
+### 5. Live Query Inspector & Telemetry (<kbd>Shift</kbd> + <kbd>C</kbd>)
+The frontend includes a real-time **ClickHouse Query Inspector** drawer displaying:
+- Exact executed SQL statements
 - Server response times (averaging 1–4ms)
-- Number of sharded events analyzed
-- Studio `/metrics` endpoint ready for Grafana Labs telemetry
+- Total sharded events analyzed
+- Studio `/metrics` endpoint ready for Prometheus and Grafana telemetry
 
 ---
 
@@ -365,8 +488,8 @@ BlendEye harnesses Google Cloud's multimodal model family:
 
 | Capability | Model | Role in Studio |
 | :--- | :--- | :--- |
-| **Reasoning & Agents** | `gemini-3.7-flash` | Master screenplay authoring, perspective sharding, Hot Seat interrogation, Showrunner script doctoring, continuity checking, and studio action orchestration |
-| **Multi-Speaker TTS** | `gemini-3.1-flash-tts-preview` | Theatrical multi-speaker audio table reads with native `MultiSpeakerVoiceConfig`, prebuilt actor timbres (`Fenrir`, `Aoede`, etc.), and DSP room acoustics |
+| **Reasoning & Agents** | `gemini-3.7-flash` | Master screenplay authoring, perspective sharding, Hot Seat interrogation, Showrunner script doctoring, continuity checking, bridge scene generation, and studio action orchestration |
+| **Multi-Speaker TTS** | `gemini-3.1-flash-tts-preview` | Theatrical multi-speaker audio table reads with native `MultiSpeakerVoiceConfig`, actor timbres (`Fenrir`, `Aoede`, etc.), and DSP room acoustics |
 | **Video Generation** | `veo-3.1-fast-generate-preview` | 2.39:1 widescreen video renders, camera motion control, and sequential multi-shot chained generation with last-frame pixel conditioning |
 | **Visual Concepts** | `gemini-3.1-flash-image` / `gemini-3-pro-image` | Anamorphic storyboard keyframes, character wardrobe portraits, and director lookbook moodboards |
 | **Grounding** | Google Search Grounding | Location scouting research fetching verified geographical coordinates, architectural details, and seasonal filming conditions |
@@ -378,6 +501,7 @@ BlendEye harnesses Google Cloud's multimodal model family:
 ```
 agentic_cinema/
 ├── README.md                          # Comprehensive project documentation
+├── JUDGE_TESTING.md                   # 5-minute hackathon evaluation guide
 ├── DEMO_VIDEO_SCRIPT.md               # 3-minute hackathon walkthrough video script
 ├── DEVPOST_SUBMISSION.md              # Official hackathon submission write-up
 ├── docker-compose.yml                 # Local ClickHouse & full-stack container profiles
@@ -411,7 +535,7 @@ agentic_cinema/
     ├── Dockerfile                     # Production Next.js container definition
     ├── app/                           # App router pages & API proxy routes
     │   ├── page.tsx                   # Studio Hub landing page
-    │   ├── studio/[projectId]/page.tsx# Main interactive writers' room canvas
+    │   ├── studio/[projectId]/page.tsx# Main interactive director's studio canvas
     │   └── api/                       # Next.js backend routes to Supabase & sidecar
     ├── components/
     │   ├── cinema/                    # Core Studio UI components
@@ -425,6 +549,9 @@ agentic_cinema/
     │   │   ├── territory-heatmap-view.tsx # Global box office D3 map
     │   │   ├── generation-studio-view.tsx # Chained Veo video sequence view
     │   │   ├── character-lab-dialog.tsx   # Character creator & talent vault
+    │   │   ├── location-board.tsx         # Location scouting & comparison matrix
+    │   │   ├── scene-score-view.tsx       # AI film score composer & takes
+    │   │   ├── stripboard-view.tsx        # Production shooting stripboard
     │   │   └── clickhouse-inspector.tsx   # Live SQL telemetry console
     │   └── ui/                        # shadcn/ui design primitives
     └── lib/                           # Stores, version control & client SDKs
@@ -597,6 +724,18 @@ BlendEye comes out of the box with curated benchmark productions ready for immed
 - **The Scrubbing Revelation**:
   - Interrogate Dr. Arlo before the quarantine seal breaches: Insists sample canisters are inert.
   - Interrogate Dr. Arlo post-breach: Confesses the biological organism reacts to electrical current.
+
+---
+
+## ⌨️ Keyboard Shortcuts Quick Reference
+
+| Shortcut | Action |
+| :--- | :--- |
+| <kbd>Shift</kbd> + <kbd>1</kbd> | Switch to **Studio & Scene Planning** Workspace |
+| <kbd>Shift</kbd> + <kbd>2</kbd> | Switch to **Pre-Shoot Simulation Suite** |
+| <kbd>Shift</kbd> + <kbd>3</kbd> | Switch to **Generation Backlot** (Veo 3.1 & Pre-viz) |
+| <kbd>Shift</kbd> + <kbd>4</kbd> | Switch to **Showrunner AI Co-Pilot** |
+| <kbd>Shift</kbd> + <kbd>C</kbd> | Toggle **ClickHouse Live Query Inspector** & Telemetry |
 
 ---
 

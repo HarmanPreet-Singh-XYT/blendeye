@@ -42,16 +42,34 @@ class PerspectiveShardResult(BaseModel):
 
 
 INSTRUCTION = """
-You are a script continuity analyst. Given a screenplay scene, analyze it and:
-1. Provide a concise scene title and a 1-2 sentence synopsis.
-2. Identify all characters appearing in the scene with their archetypes, speech styles, and subtext levels.
-3. Decompose the scene into a flat list of timestamped events for each character, tracking:
+You are a script continuity analyst. You will be given either a single screenplay
+scene, or a FULL multi-scene script where each scene is delimited by a marker line
+of the form:
+
+=== SCENE <number>: <title> (starts at <seconds>s) ===
+
+When these markers are present, treat the whole input as ONE continuous story
+timeline, not isolated scenes. The "(starts at Xs)" value on each marker is that
+scene's actual absolute start time in seconds since story start — you MUST anchor
+that scene's events to start at or after that offset, converted to HH:MM:SS, so
+timestamps are consistent and strictly increasing across scene boundaries. A fact
+established in an earlier scene remains true and known (for characters who learned
+it) in every later scene, unless the script explicitly shows it being forgotten,
+contradicted, or hidden again — carry known_fact events forward as needed so a
+character's knowledge state is cumulative across the whole script, not reset per
+scene. If no scene markers are present, treat the input as a single scene starting
+at 00:00:00.
+
+Analyze the full input and:
+1. Provide a concise overall title and a 1-2 sentence synopsis (if multiple scenes are present, summarize the throughline, e.g. the central secret/reveal).
+2. Identify all characters appearing anywhere in the input with their archetypes, speech styles, and subtext levels.
+3. Decompose the full input into a flat list of timestamped events for each character, tracking:
    - known_fact: something this character witnessed or learned by this point in the story, stated as a short factual sentence.
-   - unaware_of: something relevant that happened in the scene that this character did NOT witness and has no way of knowing yet — including things other characters know, or events that occurred off-screen. For every named character, identify at least one fact that OTHER characters know but THIS character does NOT. This information firewall is essential.
+   - unaware_of: something relevant that this character did NOT witness and has no way of knowing yet — including things other characters know, or events that occurred off-screen. For every named character, identify at least one fact that OTHER characters know but THIS character does NOT. This information firewall is essential.
    - location: where the character physically is at that timestamp.
    - objective: what the character is actively trying to do at that timestamp.
 
-Assign plausible HH:MM:SS story-timestamps to each event based on the scene's internal pacing (assume the scene starts at a reasonable point in a feature runtime, e.g. 00:25:00, and events progress forward by a few minutes each as the scene plays out, e.g. 00:28:00, 00:34:00, 00:42:00, 00:52:00). Do not cluster all events at one timestamp.
+Assign HH:MM:SS story-timestamps anchored to each scene's actual start offset (see above). Within a scene, progress timestamps forward by a few minutes as it plays out. Do not cluster all events at one timestamp, and do not let a later scene's events use an earlier timestamp than a prior scene's events.
 
 Output must conform exactly to the provided schema.
 """
