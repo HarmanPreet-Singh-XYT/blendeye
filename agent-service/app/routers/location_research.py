@@ -232,6 +232,7 @@ async def research_locations(req: LocationResearchRequest) -> LocationResearchRe
         )
 
         # Enrich fallback candidates with live Parallel Web Systems search
+        any_grounded = False
         try:
             for s_fall in fallback_data.get("scenes", []):
                 for c_fall in s_fall.get("candidates", []):
@@ -241,8 +242,13 @@ async def research_locations(req: LocationResearchRequest) -> LocationResearchRe
                         for p in p_res[:2]:
                             s_list.append({"title": f"Parallel Web: {p['title']}", "url": p["url"]})
                         c_fall["search_grounded"] = True
+                        any_grounded = True
         except Exception as p_err:  # noqa: BLE001
             logger.warning("Parallel fallback enrichment skipped: %s", p_err)
+
+        if any_grounded:
+            fallback_data["_fallback"] = False
+            fallback_data["_disclosure"] = None
 
         return LocationResearchResponse(**fallback_data)
 
@@ -309,7 +315,8 @@ async def ask_location_qa(req: LocationQARequest) -> LocationQAResponse:
         sources.extend(parallel_citations)
         if parallel_citations:
             fallback_data["search_grounded"] = True
-            fallback_data["_disclosure"] = "Resilient mode active: grounded with live Parallel Web Systems intelligence."
+            fallback_data["_fallback"] = False
+            fallback_data["_disclosure"] = None
         return LocationQAResponse(**fallback_data)
 
 

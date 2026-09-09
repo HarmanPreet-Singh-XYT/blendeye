@@ -292,34 +292,3 @@ def get_studio_health_status() -> dict[str, Any]:
     }
 
 
-def emit_grafana_annotation(text: str, tags: list[str] | None = None) -> None:
-    """Asynchronously pushes a production event annotation to Grafana Cloud.
-    Runs non-blocking in a daemon thread so it never adds latency to user requests.
-    """
-    import threading
-    import httpx
-    from app.config import get_settings
-
-    settings = get_settings()
-    if not (settings.grafana_url and settings.grafana_service_account_token):
-        return
-
-    def _send():
-        try:
-            url = f"{settings.grafana_url.rstrip('/')}/api/annotations"
-            headers = {
-                "Authorization": f"Bearer {settings.grafana_service_account_token}",
-                "Content-Type": "application/json",
-            }
-            payload = {
-                "dashboardUID": "blendeye-studio-observability",
-                "time": int(time.time() * 1000),
-                "text": text,
-                "tags": tags or ["blendeye", "cinema"],
-            }
-            httpx.post(url, headers=headers, json=payload, timeout=4.0)
-        except Exception:  # noqa: BLE001
-            pass
-
-    threading.Thread(target=_send, daemon=True).start()
-

@@ -152,15 +152,6 @@ IMPORTANT INSTRUCTIONS FOR YOUR RESPONSE:
             "Explore character conflict dynamics",
         ]
 
-    try:
-        from app.services.observability import emit_grafana_annotation
-        emit_grafana_annotation(
-            f"⚡ Lead Showrunner: Consulted on '{body.message[:45]}...'",
-            ["gemini-3.7", "showrunner"],
-        )
-    except Exception:  # noqa: BLE001
-        pass
-
     return ShowrunnerChatResponse(
         reply=reply,
         suggested_actions=suggestions,
