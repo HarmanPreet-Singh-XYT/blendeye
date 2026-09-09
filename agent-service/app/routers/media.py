@@ -607,46 +607,56 @@ def dispatch_veo_generation(
     return op.name
 
 
-def _upload_bytes_to_supabase(video_bytes: bytes, filename: str) -> str | None:
-    """Upload raw video bytes directly to Supabase Storage via REST API.
+def _upload_bytes_to_supabase(
+    media_bytes: bytes,
+    filename: str,
+    folder: str = "videos",
+    content_type: str = "video/mp4",
+) -> str | None:
+    """Upload raw media bytes directly to Supabase Storage via REST API.
     Returns the public URL on success, or None if Supabase is not configured.
     """
-    supabase_url = os.environ.get("SUPABASE_URL") or os.environ.get("NEXT_PUBLIC_SUPABASE_URL", "")
+    supabase_url = (
+        os.environ.get("SUPABASE_URL")
+        or os.environ.get("NEXT_PUBLIC_SUPABASE_URL", "")
+        or getattr(get_settings(), "supabase_url", "")
+    )
     supabase_key = (
         os.environ.get("SUPABASE_SECRET_KEY")
         or os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
         or os.environ.get("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY")
         or os.environ.get("NEXT_PUBLIC_SUPABASE_ANON_KEY", "")
+        or getattr(get_settings(), "supabase_secret_key", "")
     )
 
     if not supabase_url or not supabase_key:
-        logger.warning("[Veo] Supabase not configured in agent service — video will not be persisted to cloud")
+        logger.warning("[Supabase] Supabase not configured in agent service — media will be returned inline for cloud persistence")
         return None
 
     bucket = "cinema_assets"
-    storage_path = f"videos/{filename}"
-    upload_url = f"{supabase_url}/storage/v1/object/{bucket}/{storage_path}"
+    storage_path = f"{folder}/{filename}"
+    upload_url = f"{supabase_url.rstrip('/')}/storage/v1/object/{bucket}/{storage_path}"
 
     try:
         with httpx.Client(timeout=120) as http:
             resp = http.post(
                 upload_url,
-                content=video_bytes,
+                content=media_bytes,
                 headers={
                     "Authorization": f"Bearer {supabase_key}",
-                    "Content-Type": "video/mp4",
+                    "Content-Type": content_type,
                     "x-upsert": "true",
                 },
             )
             if resp.status_code in (200, 201):
-                public_url = f"{supabase_url}/storage/v1/object/public/{bucket}/{storage_path}"
-                logger.info("[Veo] Uploaded %s to Supabase: %s", filename, public_url)
+                public_url = f"{supabase_url.rstrip('/')}/storage/v1/object/public/{bucket}/{storage_path}"
+                logger.info("[Supabase] Uploaded %s to Supabase: %s", filename, public_url)
                 return public_url
             else:
-                logger.error("[Veo] Supabase upload failed (%s): %s", resp.status_code, resp.text[:300])
+                logger.error("[Supabase] Upload failed (%s): %s", resp.status_code, resp.text[:300])
                 return None
     except Exception as exc:
-        logger.error("[Veo] Supabase upload exception: %s", exc)
+        logger.error("[Supabase] Upload exception: %s", exc)
         return None
 
 
@@ -686,20 +696,28 @@ def poll_veo_operation(client: "genai.Client", operation_name: str) -> dict[str,
                         raise RuntimeError("Veo download returned empty buffer")
 
                     # Try Supabase first (works on Vercel / any serverless deploy)
-                    cloud_url = _upload_bytes_to_supabase(video_bytes, filename)
+                    cloud_url = _upload_bytes_to_supabase(video_bytes, filename, folder="videos", content_type="video/mp4")
                     if cloud_url:
                         video_url = cloud_url
                     else:
-                        # Fallback: write to local disk only if running locally
+                        # Fallback 1: write to local disk only if running locally and web directory exists
                         try:
                             target_dir = Path(__file__).resolve().parent.parent.parent.parent / "web" / "public" / "videos"
-                            target_dir.mkdir(parents=True, exist_ok=True)
-                            target_path = target_dir / filename
-                            target_path.write_bytes(video_bytes)
-                            video_url = f"/videos/{filename}"
-                            logger.info("[Veo] Saved locally (no Supabase): %s", video_url)
+                            if target_dir.parent.exists():
+                                target_dir.mkdir(parents=True, exist_ok=True)
+                                target_path = target_dir / filename
+                                target_path.write_bytes(video_bytes)
+                                video_url = f"/videos/{filename}"
+                                logger.info("[Veo] Saved locally (no Supabase): %s", video_url)
                         except OSError as write_err:
-                            logger.error("[Veo] Local disk write also failed: %s", write_err)
+                            logger.info("[Veo] Local disk write skipped: %s", write_err)
+
+                        # Fallback 2: Base64 data URI (guarantees video is NEVER dropped!)
+                        # Next.js on Vercel intercepts data URIs and persists them directly into Supabase Storage
+                        if not video_url:
+                            b64_vid = base64.b64encode(video_bytes).decode("utf-8")
+                            video_url = f"data:video/mp4;base64,{b64_vid}"
+                            logger.info("[Veo] Packaged %d bytes as base64 data URI for cloud persistence via Next.js proxy", len(video_bytes))
 
                 except Exception as dl_err:
                     logger.error("Could not retrieve Veo video: %s", dl_err)
@@ -955,7 +973,7 @@ async def generate_music(req: GenerateMusicRequest):
                 mime_for_upload = "audio/mpeg" if ext == "mp3" else "audio/wav"
 
                 # Try Supabase first (Vercel-safe, no disk needed)
-                cloud_url = _upload_bytes_to_supabase(audio_bytes, filename)
+                cloud_url = _upload_bytes_to_supabase(audio_bytes, filename, folder="audio/scores", content_type=mime_for_upload)
                 if cloud_url:
                     audio_url = cloud_url
                 else:
@@ -988,7 +1006,7 @@ async def generate_music(req: GenerateMusicRequest):
     filename = f"score_fallback_{file_id}.wav"
 
     # Try Supabase first (Vercel-safe)
-    cloud_url = _upload_bytes_to_supabase(fallback_wav, filename)
+    cloud_url = _upload_bytes_to_supabase(fallback_wav, filename, folder="audio/scores", content_type="audio/wav")
     if cloud_url:
         audio_url = cloud_url
     else:

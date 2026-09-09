@@ -21,18 +21,34 @@ class FrameExtractionError(RuntimeError):
     pass
 
 
-async def extract_last_frame(video_path: Path) -> bytes:
-    """Returns JPEG bytes of the final frame of the given video file.
+async def extract_last_frame(video_source: Path | str) -> bytes:
+    """Returns JPEG bytes of the final frame of the given video file, URL, or data URI.
 
     Uses ffmpeg's -sseof (seek from end-of-file) to grab the last frame
     without decoding the whole clip, which stays fast even as chains grow long.
     """
     if not _FFMPEG_BIN:
         raise FrameExtractionError("ffmpeg is not installed or not on PATH")
-    if not video_path.exists():
-        raise FrameExtractionError(f"video file not found: {video_path}")
 
     with tempfile.TemporaryDirectory() as tmpdir:
+        input_target: str
+        if isinstance(video_source, str) and video_source.startswith("data:"):
+            # Decode inline base64 data URI to a temp mp4 file
+            encoded = video_source.split(",", 1)[-1]
+            import base64
+            decoded_bytes = base64.b64decode(encoded)
+            temp_vid = Path(tmpdir) / "input.mp4"
+            temp_vid.write_bytes(decoded_bytes)
+            input_target = str(temp_vid)
+        elif isinstance(video_source, str) and (video_source.startswith("http://") or video_source.startswith("https://")):
+            # Direct HTTP URL streamable by ffmpeg
+            input_target = video_source
+        else:
+            path_obj = Path(video_source)
+            if not path_obj.exists():
+                raise FrameExtractionError(f"video file not found: {video_source}")
+            input_target = str(path_obj)
+
         out_path = Path(tmpdir) / "last_frame.jpg"
         cmd = [
             _FFMPEG_BIN,
@@ -40,7 +56,7 @@ async def extract_last_frame(video_path: Path) -> bytes:
             "-sseof",
             "-1",
             "-i",
-            str(video_path),
+            input_target,
             "-update",
             "1",
             "-q:v",

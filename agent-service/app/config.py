@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     google_cloud_location: str = "us-central1"
     gemini_model: str = "gemini-3.7-flash"
 
+    # Supabase — used to persist Veo videos and generated media directly to cloud storage
+    supabase_url: str = ""
+    supabase_secret_key: str = ""
+
     # ClickHouse — the required partner track integration. Story Event
     # Engine (see plan.md Layer 2) reads/writes here via mcp-clickhouse.
     # Defaults below target a local self-hosted container (see root

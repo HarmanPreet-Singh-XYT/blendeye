@@ -252,8 +252,11 @@ async def _run_sequence(
         # just continues without a reference image for the next shot, rather
         # than aborting a scene over a frame-grab hiccup.
         try:
-            local_path = _WEB_PUBLIC_DIR / video_url.lstrip("/")
-            previous_frame_bytes = await extract_last_frame(local_path)
+            if video_url.startswith("http://") or video_url.startswith("https://") or video_url.startswith("data:"):
+                video_source = video_url
+            else:
+                video_source = _WEB_PUBLIC_DIR / video_url.lstrip("/")
+            previous_frame_bytes = await extract_last_frame(video_source)
             import base64
             shot_state.last_frame_data_uri = (
                 f"data:image/jpeg;base64,{base64.b64encode(previous_frame_bytes).decode()}"
