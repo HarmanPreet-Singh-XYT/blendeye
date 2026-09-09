@@ -16,7 +16,7 @@ from app.agents.location_researcher import (
     compute_deterministic_rank_score,
     generate_fallback_location_research,
 )
-from app.agents.runner import run_agent_once
+from app.agents.runner import parse_json_from_llm, run_agent_once
 
 logger = logging.getLogger(__name__)
 
@@ -169,12 +169,7 @@ async def research_locations(req: LocationResearchRequest) -> LocationResearchRe
 
     try:
         raw_output = await run_agent_once(agent, prompt, app_name="location-researcher")
-        cleaned = raw_output.strip()
-        if cleaned.startswith("```"):
-            lines = cleaned.splitlines()
-            cleaned = "\n".join(lines[1:-1] if lines[-1].startswith("```") else lines[1:])
-
-        data = json.loads(cleaned)
+        data = parse_json_from_llm(raw_output)
 
         # Post-process: compute deterministic rank scores for each candidate
         scenes_res: list[SceneResearchResult] = []
@@ -238,12 +233,7 @@ async def ask_location_qa(req: LocationQARequest) -> LocationQAResponse:
 
     try:
         raw_output = await run_agent_once(agent, prompt, app_name="location-qa")
-        cleaned = raw_output.strip()
-        if cleaned.startswith("```"):
-            lines = cleaned.splitlines()
-            cleaned = "\n".join(lines[1:-1] if lines[-1].startswith("```") else lines[1:])
-
-        data = json.loads(cleaned)
+        data = parse_json_from_llm(raw_output)
         if isinstance(data.get("answer"), str):
             data["answer"] = normalize_bullet_markdown(data["answer"])
         return LocationQAResponse(**data)

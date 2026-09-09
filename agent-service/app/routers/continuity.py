@@ -8,7 +8,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from app.agents.continuity_checker import build_continuity_agent
-from app.agents.runner import run_agent_once
+from app.agents.runner import parse_json_from_llm, run_agent_once
 from app.services.clickhouse_store import get_clickhouse_store
 
 logger = logging.getLogger(__name__)
@@ -98,13 +98,8 @@ async def check_continuity(req: ContinuityCheckRequest) -> ContinuityCheckRespon
     agent = build_continuity_agent()
     raw_output = await run_agent_once(agent, prompt, app_name="continuity-auditor")
 
-    cleaned = raw_output.strip()
-    if cleaned.startswith("```"):
-        lines = cleaned.splitlines()
-        cleaned = "\n".join(lines[1:-1] if lines[-1].startswith("```") else lines[1:])
-
     try:
-        data = json.loads(cleaned)
+        data = parse_json_from_llm(raw_output)
         issues_raw = data.get("issues", [])
         parsed_issues = [ContinuityIssue(**i) for i in issues_raw]
         return ContinuityCheckResponse(

@@ -6,7 +6,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from app.agents.location_scout import build_location_scout_agent
-from app.agents.runner import run_agent_once
+from app.agents.runner import parse_json_from_llm, run_agent_once
 
 router = APIRouter(prefix="/location", tags=["location-scout"])
 
@@ -48,13 +48,9 @@ async def scout_location(req: LocationScoutRequest):
     )
 
     raw_output = await run_agent_once(agent, prompt, app_name="location-scout")
-    cleaned = raw_output.strip()
-    if cleaned.startswith("```"):
-        lines = cleaned.splitlines()
-        cleaned = "\n".join(lines[1:-1] if lines[-1].startswith("```") else lines[1:])
 
     try:
-        data = json.loads(cleaned)
+        data = parse_json_from_llm(raw_output)
         return LocationScoutResponse(**data)
     except (json.JSONDecodeError, KeyError, TypeError, ValueError):
         return LocationScoutResponse(

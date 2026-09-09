@@ -36,7 +36,7 @@ Produce 3-4 distinct real-world location candidates scored against:
 
 Also propose 1-3 cross-scene "Location Clusters" where multiple scenes can be consolidated into a single venue or adjacent block.
 
-Output strictly valid JSON matching this schema:
+Output strictly valid JSON matching this schema. Ensure all string values are strictly single-line with any line breaks properly escaped as \\n. Do not include raw control characters:
 {
   "scenes": [
     {
