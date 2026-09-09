@@ -175,6 +175,64 @@ export function shardScript(projectId: string, screenplayText: string) {
   });
 }
 
+export interface SequenceCharacter {
+  name: string;
+  role: string;
+  archetype: string;
+  speech_style?: string;
+  subtext_ratio?: string;
+  objective: string;
+  dials_summary?: string | null;
+  actor_comp?: string | null;
+}
+
+export interface SequenceCastRole {
+  character_name: string;
+  objective_in_scene: string;
+}
+
+export interface SequenceScene {
+  scene_number: number;
+  title: string;
+  slugline: string;
+  location: string;
+  summary: string;
+  start_seconds: number;
+  duration_seconds: number;
+  cast_present: string[];
+  // List of pairs, not a dict — see agent-service's SceneCastRole comment:
+  // Gemini's Developer API structured-output schema rejects free-form dict
+  // types (additionalProperties), which is Vertex-AI/Enterprise-mode only.
+  cast_roles: SequenceCastRole[];
+  screenplay_text: string;
+}
+
+export interface GenerateSequenceRequest {
+  title?: string;
+  logline?: string;
+  genre?: string;
+  director_style?: string;
+  core_secret?: string;
+  primary_location?: string;
+  target_runtime_minutes?: number;
+  narrative_format?: string;
+  characters?: Array<{ name: string; role?: string; archetype?: string }>;
+}
+
+export interface GenerateSequenceResponse {
+  title: string;
+  logline: string;
+  genre: string;
+  characters: SequenceCharacter[];
+  scenes: SequenceScene[];
+}
+
+export function generateSequence(req: GenerateSequenceRequest) {
+  // Longer timeout than the default: this generates a full 3-4 scene
+  // screenplay with dialogue in one call, not a quick single-field response.
+  return postJson<GenerateSequenceResponse>("/sequence/generate", req, 90_000);
+}
+
 export function getProjectEvents(projectId: string) {
   return getJson<StoryEvent[]>(`/sharding/events/${encodeURIComponent(projectId)}`);
 }

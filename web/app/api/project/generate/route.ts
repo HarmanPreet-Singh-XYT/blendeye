@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { FilmScene, ProjectCharacter } from "@/lib/project-store";
+import { generateSequence } from "@/lib/agent-service";
 
-const SYSTEM_PROMPT = `
-You are an elite Hollywood Showrunner, Master Screenwriter, and Narrative Architect.
-Your task is to take a director's pitch and autonomously architect the complete multi-scene screenplay sequence for this film project.
-Do NOT use generic placeholders like "Scene 1", "The Inciting Incident", or "Everything is about to change".
-Every scene must have vivid, story-specific titles, authentic Hollywood sluglines, distinct character roles for that beat, and gripping subtext-laden dialogue.
-`;
-
+// Proxies to agent-service's /sequence/generate (Gemini + Google ADK), the
+// same way every other generation path in this app does. This route used to
+// hold its own direct Gemini REST call with its own separate GOOGLE_API_KEY
+// requirement on the web deployment — when that key was missing here (even
+// though agent-service had a valid one), it silently returned a canned
+// template with no error surfaced, which is exactly the kind of failure
+// mode centralizing Gemini access in agent-service is meant to prevent.
 export async function POST(req: NextRequest) {
   let body: any;
   try {
@@ -25,7 +26,6 @@ export async function POST(req: NextRequest) {
   const targetRuntimeMinutes = Number(body.targetRuntimeMinutes) || 95;
   const narrativeFormat = (body.narrativeFormat || "feature").trim();
 
-  // Extract or synthesize characters
   let inputCharacters: any[] = [];
   if (Array.isArray(body.customCharacters) && body.customCharacters.length > 0) {
     inputCharacters = body.customCharacters;
@@ -41,164 +41,94 @@ export async function POST(req: NextRequest) {
       }));
   }
 
-  const charPrompt = inputCharacters.length > 0
-    ? inputCharacters.map((c) => `- ${c.name} (${c.role || c.archetype || "Character"})`).join("\n")
-    : "Synthesize 2-3 compelling lead characters appropriate for this premise.";
+  try {
+    const result = await generateSequence({
+      title,
+      logline,
+      genre,
+      director_style: directorStyle,
+      core_secret: coreSecret,
+      primary_location: primaryLocation,
+      target_runtime_minutes: targetRuntimeMinutes,
+      narrative_format: narrativeFormat,
+      characters: inputCharacters,
+    });
 
-  const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || "";
-
-  if (apiKey) {
-    try {
-      const userPrompt = `
-DIRECTOR'S PRODUCTION SPECIFICATION:
-Title: "${title}"
-Logline / Premise: "${logline}"
-Genre: ${genre}
-Target Runtime: ${targetRuntimeMinutes} minutes (${narrativeFormat})
-Director Tone & Style: Style of ${directorStyle}
-Core Dramatic Secret / Asymmetric Knowledge: ${coreSecret || "Critical secret is withheld until the midpoint"}
-Primary Setting / World: ${primaryLocation}
-Cast:
-${charPrompt}
-
-AUTONOMOUS MISSION:
-1. Synthesize 2 to 4 rich, three-dimensional characters (name, role, archetype, speechStyle, subtextRatio, objective, dialsSummary, actorComp).
-2. Autonomously architect a compelling 3 to 4 scene sequence reel that covers the narrative progression:
-   - Scene 1: The Inciting Collision / Setup (sets the stakes and character objectives)
-   - Scene 2: The Complication / Covert Agenda (hidden secret begins to manifest)
-   - Scene 3: The Point of No Return / Crisis (the major dramatic showdown or heist execution)
-   - Scene 4: The Climax / Fallout (the truth ruptures and consequences land)
-
-For each scene provide:
-- "sceneNumber": integer 1..N
-- "title": Specific dramatic title (e.g. "The Vault Infiltration", "The Encrypted Exchange", "The Helipad Reckoning")
-- "slugline": Standard Hollywood screenplay slugline (e.g. "INT. REINFORCED VAULT - NIGHT")
-- "location": Physical location
-- "summary": Detailed 2-3 sentence synopsis of what turns in this scene and what is withheld
-- "startSeconds": Timeline offset in seconds (proportioned across the ${targetRuntimeMinutes} min runtime)
-- "durationSeconds": Estimated duration in seconds (180 to 360)
-- "castPresent": Array of character names present in this scene
-- "castRoles": Object mapping character names to their specific objective/role in THIS scene
-- "screenplayText": Visceral, production-ready Hollywood screenplay draft with scene heading, action lines, character names in caps, parentheticals, and gripping dialogue full of subtext!
-
-Return strictly valid JSON matching this schema:
-{
-  "title": "${title}",
-  "logline": "${logline}",
-  "genre": "${genre}",
-  "characters": [
-    {
-      "name": "CharacterName",
-      "role": "Dramatic Role",
-      "archetype": "Character Archetype",
-      "speechStyle": "measured, guarded, rhythmic",
-      "subtextRatio": "high",
-      "objective": "Central dramatic desire",
-      "dialsSummary": "Confidence 90% · Subtext 85%",
-      "actorComp": "Actor Comp Reference"
+    if (!Array.isArray(result.scenes) || result.scenes.length === 0) {
+      throw new Error("agent-service returned no scenes");
     }
-  ],
-  "scenes": [
-    {
-      "sceneNumber": 1,
-      "title": "Specific Scene Title",
-      "slugline": "INT. LOCATION - TIME",
-      "location": "Location Name",
-      "summary": "Specific dramatic summary...",
-      "startSeconds": 0,
-      "durationSeconds": 240,
-      "castPresent": ["Name1", "Name2"],
-      "castRoles": {
-        "Name1": "Specific scene objective",
-        "Name2": "Specific scene objective"
-      },
-      "screenplayText": "INT. LOCATION - TIME\\n\\nAction lines...\\n\\nNAME1\\nDialogue line..."
-    }
-  ]
-}
-`;
 
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent?key=${apiKey}`;
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: `${SYSTEM_PROMPT}\n\n${userPrompt}` }] }],
-          generationConfig: {
-            temperature: 0.7,
-            responseMimeType: "application/json",
-            maxOutputTokens: 65536,
-          },
-        }),
-      });
+    const validatedScenes: FilmScene[] = result.scenes.map((sc, idx) => ({
+      id: `scene-gen-${Date.now()}-${idx + 1}`,
+      sceneNumber: sc.scene_number || idx + 1,
+      title: sc.title || `Scene ${idx + 1}`,
+      slugline: sc.slugline || `INT. ${primaryLocation.toUpperCase()} - NIGHT`,
+      summary: sc.summary || "Dramatic sequence.",
+      location: sc.location || primaryLocation,
+      startSeconds:
+        Number(sc.start_seconds) || Math.round((targetRuntimeMinutes * 60 * idx) / result.scenes.length),
+      durationSeconds: Number(sc.duration_seconds) || 240,
+      castPresent: Array.isArray(sc.cast_present) ? sc.cast_present : [],
+      castRoles: Array.isArray(sc.cast_roles)
+        ? Object.fromEntries(sc.cast_roles.map((r) => [r.character_name, r.objective_in_scene]))
+        : {},
+      screenplayText: sc.screenplay_text || `${sc.slugline || "INT. LOCATION - NIGHT"}\n\n[Action lines]`,
+    }));
 
-      if (res.ok) {
-        const data = await res.json();
-        const rawJson = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (rawJson) {
-          const parsed = JSON.parse(rawJson);
-          if (Array.isArray(parsed.scenes) && parsed.scenes.length > 0) {
-            // Guarantee scene ids and proper formatting
-            const validatedScenes: FilmScene[] = parsed.scenes.map((sc: any, idx: number) => ({
-              id: `scene-gen-${Date.now()}-${idx + 1}`,
-              sceneNumber: idx + 1,
-              title: sc.title || `Scene ${idx + 1}`,
-              slugline: sc.slugline || `INT. ${primaryLocation.toUpperCase()} - NIGHT`,
-              summary: sc.summary || "Dramatic sequence.",
-              location: sc.location || primaryLocation,
-              startSeconds: Number(sc.startSeconds) || Math.round((targetRuntimeMinutes * 60 * idx) / parsed.scenes.length),
-              durationSeconds: Number(sc.durationSeconds) || 240,
-              castPresent: Array.isArray(sc.castPresent) ? sc.castPresent : [],
-              castRoles: typeof sc.castRoles === "object" ? sc.castRoles : {},
-              screenplayText: sc.screenplayText || `${sc.slugline || "INT. LOCATION - NIGHT"}\n\n[Action lines]`,
-            }));
+    const characters: ProjectCharacter[] = (result.characters || []).map((c) => ({
+      name: c.name,
+      role: c.role,
+      archetype: c.archetype,
+      speechStyle: c.speech_style || "naturalistic",
+      subtextRatio: c.subtext_ratio || "moderate",
+      objective: c.objective,
+      dialsSummary: c.dials_summary || undefined,
+      actorComp: c.actor_comp || undefined,
+    }));
 
-            return NextResponse.json({
-              title: parsed.title || title,
-              logline: parsed.logline || logline,
-              genre: parsed.genre || genre,
-              characters: parsed.characters || inputCharacters,
-              scenes: validatedScenes,
-              _generatedBy: "gemini-3.7-flash",
-            });
-          }
-        }
-      }
-    } catch (apiErr) {
-      console.warn("Direct Gemini project generation error, using dynamic fallback:", apiErr);
-    }
+    return NextResponse.json({
+      title: result.title || title,
+      logline: result.logline || logline,
+      genre: result.genre || genre,
+      characters: characters.length > 0 ? characters : inputCharacters,
+      scenes: validatedScenes,
+      _generatedBy: "gemini-3.7-flash",
+    });
+  } catch (err) {
+    console.error("agent-service sequence generation failed, using fallback template:", err);
   }
 
-  // Dynamic Semantic Fallback (Story-specific, NOT static placeholders!)
-  const cleanTitle = title || "The Assignment";
+  // Dynamic Semantic Fallback (Story-specific, NOT static placeholders!) —
+  // only reached if agent-service itself is unreachable or errors, never
+  // due to a missing key on this deployment (there is none to be missing).
   const pLead = inputCharacters[0]?.name || "Elena";
   const pCounter = inputCharacters[1]?.name || "Marcus";
-  const pThird = inputCharacters[2]?.name || "Viktor";
 
-  const dynamicCharacters: ProjectCharacter[] = inputCharacters.length > 0
-    ? inputCharacters
-    : [
-        {
-          name: pLead,
-          role: "Protagonist / Mastermind",
-          archetype: "Calculated Infiltrator",
-          speechStyle: "measured, precise, guarded",
-          subtextRatio: "high",
-          objective: `Execute the central objective of ${logline || title}`,
-          dialsSummary: "Confidence 90% · Subtext 85%",
-          actorComp: "Florence Pugh",
-        },
-        {
-          name: pCounter,
-          role: "Key Counterpart / Specialist",
-          archetype: "Tactical Operator with hidden reservations",
-          speechStyle: "terse, defensive, urgent",
-          subtextRatio: "extreme",
-          objective: "Secure safety while guarding asymmetric knowledge",
-          dialsSummary: "Confidence 75% · Subtext 90%",
-          actorComp: "Oscar Isaac",
-        },
-      ];
+  const dynamicCharacters: ProjectCharacter[] =
+    inputCharacters.length > 0
+      ? inputCharacters
+      : [
+          {
+            name: pLead,
+            role: "Protagonist / Mastermind",
+            archetype: "Calculated Infiltrator",
+            speechStyle: "measured, precise, guarded",
+            subtextRatio: "high",
+            objective: `Execute the central objective of ${logline || title}`,
+            dialsSummary: "Confidence 90% · Subtext 85%",
+            actorComp: "Florence Pugh",
+          },
+          {
+            name: pCounter,
+            role: "Key Counterpart / Specialist",
+            archetype: "Tactical Operator with hidden reservations",
+            speechStyle: "terse, defensive, urgent",
+            subtextRatio: "extreme",
+            objective: "Secure safety while guarding asymmetric knowledge",
+            dialsSummary: "Confidence 75% · Subtext 90%",
+            actorComp: "Oscar Isaac",
+          },
+        ];
 
   const totalRuntimeSecs = targetRuntimeMinutes * 60;
   const dynScenes: FilmScene[] = [

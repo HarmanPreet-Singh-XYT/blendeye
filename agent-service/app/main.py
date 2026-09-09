@@ -26,6 +26,7 @@ from app.routers import (
     production,
     scene_rewrite,
     script,
+    sequence,
     sharding,
     shotlist,
     showrunner,
@@ -68,6 +69,7 @@ app.add_middleware(
 )
 
 app.include_router(script.router)
+app.include_router(sequence.router)
 app.include_router(multiverse.router)
 app.include_router(scene_rewrite.router)
 app.include_router(sharding.router)
