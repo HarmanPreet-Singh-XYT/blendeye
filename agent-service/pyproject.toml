@@ -24,6 +24,7 @@ dependencies = [
     # env_file loading does not export into os.environ, but google-genai's
     # Client reads GOOGLE_API_KEY straight from there.
     "python-dotenv>=1.2.3",
+    "parallel-web>=1.3.0",
 ]
 
 [dependency-groups]

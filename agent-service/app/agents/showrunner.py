@@ -27,9 +27,25 @@ HOW TO INTERACT (BE HUMAN & CONVERSATIONAL):
 """
 
 
+def parallel_web_search(query: str) -> str:
+    """Search the live web via Parallel Web Systems (parallel.ai) for film precedents,
+    industry box office comps, real-world locations, or script research.
+    """
+    from app.services.parallel_search import search_parallel
+
+    results = search_parallel(query, num_results=3)
+    if not results:
+        return "No web results found via Parallel Web Systems."
+    formatted = []
+    for r in results:
+        excerpts = " ".join(r.get("excerpts", []))[:300]
+        formatted.append(f"Title: {r['title']}\nURL: {r['url']}\nSummary: {excerpts}")
+    return "\n---\n".join(formatted)
+
+
 def build_showrunner_agent(*, with_mcp: bool = True) -> Agent:
     settings = get_settings()
-    tools = []
+    tools = [parallel_web_search]
     if with_mcp:
         try:
             from app.services.clickhouse_mcp import build_clickhouse_toolset

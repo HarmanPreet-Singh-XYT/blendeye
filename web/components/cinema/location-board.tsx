@@ -1535,7 +1535,7 @@ export function LocationBoard({
   const scoutingSteps = [
     "Grounding municipal film commission registries & permit portals...",
     "Calculating local zone day rates & parking fees...",
-    "Querying Google Search for production precedents & curfews...",
+    "Querying Parallel Web Systems for real-world production precedents & curfews...",
     "Optimizing multi-scene company move consolidation clusters...",
   ];
 
@@ -1552,9 +1552,12 @@ export function LocationBoard({
             <Badge variant="outline" className="border-accent/40 bg-accent/10 text-accent text-[10px] font-medium shrink-0">
               {productionBase} · {currency}
             </Badge>
+            <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-400 text-[10px] font-mono shrink-0 flex items-center gap-1">
+              <Zap className="h-3 w-3" /> Parallel Web Grounded
+            </Badge>
           </div>
           <p className="text-xs text-muted-foreground">
-            Municipal permit schedules, candidate day rates, and multi-scene consolidation grounded with live Google Search.
+            Municipal permit schedules, candidate day rates, and soundstage specs grounded live with Parallel Web Systems & Google Search.
           </p>
         </div>
 
@@ -1679,7 +1682,9 @@ export function LocationBoard({
               <span className="font-semibold text-accent">
                 {scoutingSteps[scoutingPhase]}
               </span>
-              <span className="text-[10px] font-medium text-muted-foreground">ADK Google Search Active</span>
+              <span className="text-[10px] font-medium text-emerald-400 flex items-center gap-1">
+                <Zap className="h-3 w-3" /> Parallel Web + Google Search Active
+              </span>
             </div>
             <div className="w-full bg-accent/20 h-1 rounded-full overflow-hidden">
               <div
@@ -2745,18 +2750,26 @@ export function LocationBoard({
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="text-[9px] text-muted-foreground font-medium">Sources:</span>
                               {cand.sources && cand.sources.length > 0 ? (
-                                cand.sources.slice(0, 2).map((src, sIdx) => (
-                                  <a
-                                    key={sIdx}
-                                    href={src.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-[9px] font-medium text-accent hover:underline flex items-center gap-0.5 bg-accent/5 px-1.5 py-0.5 rounded border border-accent/20"
-                                  >
-                                    <span className="truncate max-w-[140px]">{src.title}</span>
-                                    <ExternalLink className="h-2 w-2" />
-                                  </a>
-                                ))
+                                  cand.sources.slice(0, 3).map((src, sIdx) => {
+                                    const isParallel = src.title.toLowerCase().includes("parallel");
+                                    return (
+                                      <a
+                                        key={sIdx}
+                                        href={src.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className={cn(
+                                          "text-[9px] font-medium hover:underline flex items-center gap-0.5 px-1.5 py-0.5 rounded border",
+                                          isParallel
+                                            ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/30 font-mono"
+                                            : "text-accent bg-accent/5 border-accent/20"
+                                        )}
+                                      >
+                                        <span className="truncate max-w-[140px]">{src.title}</span>
+                                        <ExternalLink className="h-2 w-2" />
+                                      </a>
+                                    );
+                                  })
                               ) : (
                                 <span className="text-[9px] text-muted-foreground font-medium">
                                   Municipal Registry
@@ -4223,18 +4236,27 @@ export function LocationBoard({
                           Sources:
                         </span>
                         <div className="flex flex-wrap gap-1">
-                          {msg.sources.map((s, sIdx) => (
-                            <a
-                              key={sIdx}
-                              href={s.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-[10px] font-medium text-accent hover:underline flex items-center gap-0.5 bg-background/50 px-1.5 py-0.5 rounded border border-border"
-                            >
-                              <span className="truncate max-w-[150px]">{s.title}</span>
-                              <ExternalLink className="h-2 w-2" />
-                            </a>
-                          ))}
+                          {msg.sources.map((s, sIdx) => {
+                            const isParallel = s.title.toLowerCase().includes("parallel");
+                            return (
+                              <a
+                                key={sIdx}
+                                href={s.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={cn(
+                                  "text-[10px] font-medium hover:underline flex items-center gap-1 px-1.5 py-0.5 rounded border",
+                                  isParallel
+                                    ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/30 font-mono"
+                                    : "text-accent bg-background/50 border-border"
+                                )}
+                              >
+                                {isParallel && <Zap className="h-2.5 w-2.5 text-emerald-400" />}
+                                <span className="truncate max-w-[170px]">{s.title}</span>
+                                <ExternalLink className="h-2 w-2" />
+                              </a>
+                            );
+                          })}
                         </div>
                       </div>
                     )}

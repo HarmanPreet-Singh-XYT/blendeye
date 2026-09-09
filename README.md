@@ -81,6 +81,7 @@
 | **Google Cloud AI used at runtime** | ✅ Active | `google-genai` + `google-adk` invoked across `app/routers/media.py`, `app/services/video_sequencer.py`, `app/agents/*.py` — real runtime calls to `gemini-3.7-flash`, `gemini-3.1-flash-tts-preview`, and `veo-3.1-fast-generate-preview`. |
 | **ClickHouse used at runtime via `mcp-clickhouse`** | ✅ Active | `app/services/clickhouse_mcp.py` runs the official `mcp-clickhouse` server as an `McpToolset` on the live Showrunner agent (`app/agents/showrunner.py`) for commercial comps. |
 | **ClickHouse Cloud / self-hosted cluster** | ✅ Active | Production deployment connects to **ClickHouse Cloud** with sub-3ms query latencies. |
+| **Parallel Web Systems used at runtime** | ✅ Active | Official `parallel-web` Python SDK (v1.3.3) invoked in `app/services/parallel_search.py`, `app/routers/location_research.py`, and `app/agents/showrunner.py` for real-time location scouting and market comps. |
 | **Runs on web** | ✅ Active | Next.js 16 App Router frontend with Tailwind CSS v4, Lucide icons, and `@xyflow/react`. |
 | **Open-source license detectable in repo root** | ✅ Active | [MIT License](LICENSE) |
 | **No non-Google-Cloud AI vendor at runtime** | ✅ Compliant | Exclusively Google Cloud AI SDKs (`google-genai`, `google-adk`); zero non-Google AI SDK imports. |
