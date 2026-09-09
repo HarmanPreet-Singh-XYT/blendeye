@@ -282,9 +282,9 @@ export function ProjectTimeframeDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl bg-[#0b0c11] border border-border/70 shadow-[0_30px_90px_rgba(0,0,0,0.95)] p-0 overflow-hidden select-none rounded-2xl sm:rounded-3xl">
+      <DialogContent className="max-w-2xl max-h-[90vh] sm:max-h-[86vh] flex flex-col gap-0 bg-[#0b0c11] border border-border/70 shadow-[0_30px_90px_rgba(0,0,0,0.95)] p-0 overflow-hidden select-none rounded-2xl sm:rounded-3xl">
         {/* Header */}
-        <DialogHeader className="p-5 sm:p-6 pb-3 sm:pb-3 border-b border-border/50 bg-gradient-to-b from-[#131520]/90 to-[#0c0e14]/80 backdrop-blur-md rounded-t-2xl sm:rounded-t-3xl">
+        <DialogHeader className="p-5 sm:p-6 pb-3 sm:pb-3 border-b border-border/50 bg-gradient-to-b from-[#131520]/90 to-[#0c0e14]/80 backdrop-blur-md rounded-t-2xl sm:rounded-t-3xl shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="h-9 w-9 rounded-xl bg-accent/15 border border-accent/30 flex items-center justify-center text-accent shadow-xs">
@@ -304,7 +304,7 @@ export function ProjectTimeframeDialog({
               </div>
             </div>
 
-            <Badge variant="outline" className="font-mono text-xs px-2.5 py-1 rounded-full border-accent/40 bg-accent/10 text-accent font-semibold shadow-xs">
+            <Badge variant="outline" className="font-mono text-xs px-2.5 py-1 rounded-full border-accent/40 bg-accent/10 text-accent font-semibold shadow-xs mr-6">
               {runtimeMinutes}m · {selectedFormat}
             </Badge>
           </div>
@@ -338,7 +338,7 @@ export function ProjectTimeframeDialog({
           </div>
         </DialogHeader>
 
-        <div className="p-5 sm:p-6 space-y-5 max-h-[72vh] overflow-y-auto">
+        <div className="p-5 sm:p-6 space-y-5 flex-1 min-h-0 overflow-y-auto">
           {activeTab === "timeframe" ? (
             <>
               {/* Section 1: Narrative Format Selector */}
@@ -810,7 +810,7 @@ export function ProjectTimeframeDialog({
         </div>
 
         {/* Footer */}
-        <DialogFooter className="m-0 mx-0 mb-0 px-6 py-4.5 border-t border-border/40 bg-gradient-to-t from-[#08090d] to-[#12141d]/90 backdrop-blur-md flex flex-col sm:flex-row items-center justify-between gap-3 rounded-b-2xl sm:rounded-b-3xl">
+        <DialogFooter className="shrink-0 m-0 mx-0 mb-0 px-6 py-4.5 border-t border-border/40 bg-gradient-to-t from-[#08090d] to-[#12141d]/90 backdrop-blur-md flex flex-col sm:flex-row items-center justify-between gap-3 rounded-b-2xl sm:rounded-b-3xl">
           <div className="flex items-center gap-2 text-xs font-mono flex-wrap">
             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-secondary/40 border border-border/60 text-muted-foreground shadow-xs">
               <Clock className="h-3.5 w-3.5 text-accent" />

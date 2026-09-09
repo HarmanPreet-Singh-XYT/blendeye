@@ -18,6 +18,7 @@ from app.services.observability import (
     get_agentic_requests_summary,
     get_prometheus_metrics,
     get_studio_health_status,
+    measure_network_latencies,
 )
 
 router = APIRouter(prefix="/observability", tags=["observability"])
@@ -35,9 +36,9 @@ async def studio_observability_overview() -> dict[str, Any]:
     """Provides a unified observability snapshot for the studio's Grafana telemetry inspector."""
     HTTP_REQUESTS_TOTAL.labels(method="GET", endpoint="/observability/overview", status="200").inc()
 
-    ch_latency = 1.8
-    events_count = 142
-    precedents_count = 50
+    ch_latency = None
+    events_count = 0
+    precedents_count = 0
 
     try:
         store = get_clickhouse_store()
@@ -93,3 +94,53 @@ async def studio_observability_overview() -> dict[str, Any]:
             "mcp_clickhouse": "active (MergeTree story_events)",
         },
     }
+
+
+@router.post("/benchmark")
+async def run_studio_benchmark() -> dict[str, Any]:
+    """Runs a real live telemetry benchmark across ClickHouse and external network dependencies."""
+    t_start = time.perf_counter()
+
+    # 1. Real ClickHouse queries (5 executions)
+    ch_latencies: list[float] = []
+    store = get_clickhouse_store()
+    if store.is_connected and store.client is not None:
+        for _ in range(5):
+            t0 = time.perf_counter()
+            try:
+                store.client.query("SELECT 1")
+                elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
+                ch_latencies.append(elapsed_ms)
+                CLICKHOUSE_QUERY_LATENCY_MS.observe(elapsed_ms)
+            except Exception:  # noqa: BLE001
+                pass
+
+    if ch_latencies:
+        avg_ch = round(sum(ch_latencies) / len(ch_latencies), 2)
+        sorted_lat = sorted(ch_latencies)
+        p95_ch = sorted_lat[int(len(sorted_lat) * 0.95)] if len(sorted_lat) > 1 else sorted_lat[0]
+        ch_status = "PASSED (< 4.0ms target)" if avg_ch < 4.0 else "DEGRADED (> 4.0ms target)"
+    else:
+        avg_ch = None
+        p95_ch = None
+        ch_status = "DISCONNECTED (ClickHouse store offline)"
+
+    # 2. Real network latency probes
+    network_latencies = measure_network_latencies()
+
+    # 3. Overall benchmark duration
+    bench_duration_ms = round((time.perf_counter() - t_start) * 1000, 2)
+
+    return {
+        "status": "success",
+        "benchmark_duration_ms": bench_duration_ms,
+        "clickhouse": {
+            "queries_executed": len(ch_latencies),
+            "avg_latency_ms": avg_ch,
+            "p95_latency_ms": p95_ch,
+            "slo_status": ch_status,
+        },
+        "network_latencies": network_latencies,
+        "grafana_cloud_status": "telemetry_emitted",
+    }
+

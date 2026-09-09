@@ -1,0 +1,53 @@
+// Grafana Alloy — BlendEye Studio Observability Pipeline
+//
+// Scrapes the FastAPI agent-service Prometheus endpoint every 15 s and
+// remote_writes all blendeye_* metrics to Grafana Cloud.
+//
+// Environment variables (injected by docker compose or Cloud Run):
+//   METRICS_TARGET                — host:port to scrape
+//   METRICS_SCHEME                — "http" (local) or "https" (Cloud Run)
+//   GRAFANA_PROMETHEUS_URL        — Grafana Cloud remote_write push URL
+//   GRAFANA_PROMETHEUS_USERNAME   — Numeric Prometheus instance ID (e.g. 3571839)
+//   GRAFANA_SERVICE_ACCOUNT_TOKEN — glsa_... token with Metrics Publisher role
+
+// ---------------------------------------------------------------------------
+// Scrape: agent-service /observability/metrics
+// ---------------------------------------------------------------------------
+prometheus.scrape "blendeye_agent_service" {
+  targets = [{"__address__" = sys.env("METRICS_TARGET")}]
+
+  scheme          = sys.env("METRICS_SCHEME")
+  metrics_path    = "/observability/metrics"
+  scrape_interval = "15s"
+  scrape_timeout  = "10s"
+
+  forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+}
+
+
+// ---------------------------------------------------------------------------
+// Remote Write: Grafana Cloud Prometheus
+// ---------------------------------------------------------------------------
+prometheus.remote_write "grafana_cloud" {
+  endpoint {
+    url = sys.env("GRAFANA_PROMETHEUS_URL")
+
+    basic_auth {
+      username = sys.env("GRAFANA_PROMETHEUS_USERNAME")
+      password = sys.env("GRAFANA_SERVICE_ACCOUNT_TOKEN")
+    }
+
+    // Tune queue to avoid dropping bursts during media-render spikes.
+    queue_config {
+      capacity             = 2500
+      max_samples_per_send = 1000
+      max_shards           = 200
+    }
+  }
+
+  // Static label so every metric is identifiable as BlendEye in Grafana.
+  external_labels = {
+    service = "blendeye-agent-service",
+    env     = "production",
+  }
+}

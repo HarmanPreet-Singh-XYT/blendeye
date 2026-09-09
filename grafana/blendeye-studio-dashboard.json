@@ -43,13 +43,13 @@
         "y": 0
       },
       "id": 100,
-      "title": "\ud83c\udfac Studio Executive Overview & Throughput",
+      "title": "Studio Executive Overview & Production Health",
       "type": "row"
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "grafanacloud-infinity"
       },
       "fieldConfig": {
         "defaults": {
@@ -61,25 +61,25 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "#10B981",
                 "value": null
               },
               {
-                "color": "yellow",
-                "value": 50
+                "color": "#3B82F6",
+                "value": 250
               },
               {
-                "color": "red",
-                "value": 100
+                "color": "#8B5CF6",
+                "value": 750
               }
             ]
           },
-          "unit": "reqps"
+          "unit": "short"
         }
       },
       "gridPos": {
         "h": 4,
-        "w": 6,
+        "w": 4,
         "x": 0,
         "y": 1
       },
@@ -87,7 +87,7 @@
       "options": {
         "colorMode": "value",
         "graphMode": "area",
-        "justifyMode": "auto",
+        "justifyMode": "center",
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [
@@ -101,18 +101,34 @@
       "pluginVersion": "10.4.0",
       "targets": [
         {
-          "expr": "sum(rate(blendeye_http_requests_total[1m])) or vector(18.4)",
-          "legendFormat": "Total HTTP Req/s",
-          "refId": "A"
+          "columns": [
+            {
+              "selector": "agentic_request_distribution.total_requests",
+              "text": "Total Calls",
+              "type": "number"
+            }
+          ],
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "grafanacloud-infinity"
+          },
+          "parser": "backend",
+          "refId": "A",
+          "source": "url",
+          "type": "json",
+          "url": "https://agent-service-369992010022.us-central1.run.app/observability/overview",
+          "url_options": {
+            "method": "GET"
+          }
         }
       ],
-      "title": "Studio API Throughput",
+      "title": "Total Dispatched Calls",
       "type": "stat"
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "grafanacloud-infinity"
       },
       "fieldConfig": {
         "defaults": {
@@ -120,7 +136,7 @@
             "mode": "thresholds"
           },
           "mappings": [],
-          "max": 10,
+          "max": 15,
           "min": 0,
           "thresholds": {
             "mode": "absolute",
@@ -131,11 +147,11 @@
               },
               {
                 "color": "#F59E0B",
-                "value": 4
+                "value": 8
               },
               {
                 "color": "#EF4444",
-                "value": 10
+                "value": 12
               }
             ]
           },
@@ -144,8 +160,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 6,
-        "x": 6,
+        "w": 4,
+        "x": 4,
         "y": 1
       },
       "id": 2,
@@ -164,18 +180,34 @@
       "pluginVersion": "10.4.0",
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(blendeye_clickhouse_query_latency_ms_bucket[1m])) by (le)) or vector(1.82)",
-          "legendFormat": "p95 Query Latency (ms)",
-          "refId": "A"
+          "columns": [
+            {
+              "selector": "telemetry.clickhouse_latency_ms",
+              "text": "Latency",
+              "type": "number"
+            }
+          ],
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "grafanacloud-infinity"
+          },
+          "parser": "backend",
+          "refId": "A",
+          "source": "url",
+          "type": "json",
+          "url": "https://agent-service-369992010022.us-central1.run.app/observability/overview",
+          "url_options": {
+            "method": "GET"
+          }
         }
       ],
-      "title": "ClickHouse Time-Gate Latency (p95)",
+      "title": "ClickHouse Query Latency",
       "type": "gauge"
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "grafanacloud-infinity"
       },
       "fieldConfig": {
         "defaults": {
@@ -187,8 +219,12 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "blue",
+                "color": "#3B82F6",
                 "value": null
+              },
+              {
+                "color": "#8B5CF6",
+                "value": 100
               }
             ]
           },
@@ -197,15 +233,15 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 6,
-        "x": 12,
+        "w": 4,
+        "x": 8,
         "y": 1
       },
       "id": 3,
       "options": {
         "colorMode": "value",
         "graphMode": "none",
-        "justifyMode": "auto",
+        "justifyMode": "center",
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [
@@ -213,23 +249,40 @@
           ],
           "fields": "",
           "values": false
-        }
+        },
+        "textMode": "auto"
       },
       "pluginVersion": "10.4.0",
       "targets": [
         {
-          "expr": "blendeye_story_events_total or vector(48)",
-          "legendFormat": "Tuples Tracked",
-          "refId": "A"
+          "columns": [
+            {
+              "selector": "telemetry.clickhouse_events_sharded",
+              "text": "Events",
+              "type": "number"
+            }
+          ],
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "grafanacloud-infinity"
+          },
+          "parser": "backend",
+          "refId": "A",
+          "source": "url",
+          "type": "json",
+          "url": "https://agent-service-369992010022.us-central1.run.app/observability/overview",
+          "url_options": {
+            "method": "GET"
+          }
         }
       ],
-      "title": "ClickHouse Active Story Events",
+      "title": "Active Story Events (MergeTree)",
       "type": "stat"
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "grafanacloud-infinity"
       },
       "fieldConfig": {
         "defaults": {
@@ -241,7 +294,82 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "purple",
+                "color": "#10B981",
+                "value": null
+              },
+              {
+                "color": "#8B5CF6",
+                "value": 5
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 1
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.4.0",
+      "targets": [
+        {
+          "columns": [
+            {
+              "selector": "telemetry.cinematic_precedents_rows",
+              "text": "Precedents",
+              "type": "number"
+            }
+          ],
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "grafanacloud-infinity"
+          },
+          "parser": "backend",
+          "refId": "A",
+          "source": "url",
+          "type": "json",
+          "url": "https://agent-service-369992010022.us-central1.run.app/observability/overview",
+          "url_options": {
+            "method": "GET"
+          }
+        }
+      ],
+      "title": "Cinematic Precedents Indexed",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "grafanacloud-infinity"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#10B981",
                 "value": null
               }
             ]
@@ -251,15 +379,15 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 6,
-        "x": 18,
+        "w": 4,
+        "x": 16,
         "y": 1
       },
-      "id": 4,
+      "id": 7,
       "options": {
         "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
+        "graphMode": "none",
+        "justifyMode": "center",
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [
@@ -267,38 +395,144 @@
           ],
           "fields": "",
           "values": false
-        }
+        },
+        "textMode": "auto"
       },
       "pluginVersion": "10.4.0",
       "targets": [
         {
-          "expr": "sum(rate(blendeye_parallel_search_queries_total[5m])) or vector(14)",
-          "legendFormat": "Live Grounding Queries",
-          "refId": "A"
+          "columns": [
+            {
+              "selector": "agentic_request_distribution.status_classes.2xx",
+              "text": "Success Calls",
+              "type": "number"
+            }
+          ],
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "grafanacloud-infinity"
+          },
+          "parser": "backend",
+          "refId": "A",
+          "source": "url",
+          "type": "json",
+          "url": "https://agent-service-369992010022.us-central1.run.app/observability/overview",
+          "url_options": {
+            "method": "GET"
+          }
         }
       ],
-      "title": "Parallel Web Grounding Searches",
+      "title": "Successful Invocations (2xx)",
       "type": "stat"
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": ""
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "grafanacloud-infinity"
       },
-      "description": "Real-time HTTP requests categorized by agentic role and status code (200 OK, 4xx Client, 5xx Server).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#EF4444",
+                "value": null
+              },
+              {
+                "color": "#F59E0B",
+                "value": 90
+              },
+              {
+                "color": "#10B981",
+                "value": 95
+              }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
+      "id": 8,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "pluginVersion": "10.4.0",
+      "targets": [
+        {
+          "columns": [
+            {
+              "selector": "agentic_request_distribution.success_rate_percent",
+              "text": "SLO",
+              "type": "number"
+            }
+          ],
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "grafanacloud-infinity"
+          },
+          "parser": "backend",
+          "refId": "A",
+          "source": "url",
+          "type": "json",
+          "url": "https://agent-service-369992010022.us-central1.run.app/observability/overview",
+          "url_options": {
+            "method": "GET"
+          }
+        }
+      ],
+      "title": "Pipeline SLO Compliance",
+      "type": "gauge"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "id": 101,
+      "title": "Active Pipelines Workload & Engine Health",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "grafanacloud-infinity"
+      },
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
           "custom": {
-            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
-            "axisLabel": "Total Invocations",
+            "axisLabel": "Invocations",
             "axisPlacement": "auto",
             "fillOpacity": 85,
-            "gradientMode": "hue",
+            "gradientMode": "opacity",
             "hideFrom": {
               "legend": false,
               "tooltip": false,
@@ -314,47 +548,23 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "#10B981",
+                "color": "green",
                 "value": null
-              },
-              {
-                "color": "#F59E0B",
-                "value": 50
-              },
-              {
-                "color": "#EF4444",
-                "value": 100
               }
             ]
-          },
-          "unit": "short"
+          }
         },
         "overrides": [
           {
             "matcher": {
-              "id": "byRegexp",
-              "options": ".*4xx.*"
+              "id": "byName",
+              "options": "Invocations"
             },
             "properties": [
               {
                 "id": "color",
                 "value": {
-                  "fixedColor": "#F59E0B",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": ".*5xx.*"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "#EF4444",
+                  "fixedColor": "#10B981",
                   "mode": "fixed"
                 }
               }
@@ -364,105 +574,95 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 24,
+        "w": 16,
         "x": 0,
-        "y": 5
+        "y": 6
       },
       "id": 14,
       "options": {
-        "barRadius": 0.15,
-        "barWidth": 0.75,
-        "groupWidth": 0.7,
+        "barRadius": 0.2,
+        "barWidth": 0.65,
+        "groupWidth": 0.75,
         "legend": {
           "calcs": [
-            "lastNotNull"
+            "sum"
           ],
-          "displayMode": "list",
+          "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
         },
-        "orientation": "auto",
+        "orientation": "horizontal",
         "showValue": "auto",
-        "stacking": "normal",
+        "stacking": "none",
         "tooltip": {
           "mode": "single",
           "sort": "none"
         },
-        "xTickLabelRotation": 0,
-        "xTickLabelSpacing": 0
+        "xField": "Agent Role"
       },
       "pluginVersion": "10.4.0",
       "targets": [
         {
-          "expr": "sum(blendeye_agentic_requests_total{agentic_use=\"showrunner_copilot\",status_code=\"200\"}) or vector(42)",
-          "legendFormat": "Showrunner Co-Pilot [200 OK]",
-          "refId": "A"
-        },
-        {
-          "expr": "sum(blendeye_agentic_requests_total{agentic_use=\"perspective_sharding\",status_code=\"200\"}) or vector(47)",
-          "legendFormat": "Perspective Sharding [200 OK]",
-          "refId": "B"
-        },
-        {
-          "expr": "sum(blendeye_agentic_requests_total{agentic_use=\"continuity_supervisor\",status_code=\"200\"}) or vector(35)",
-          "legendFormat": "Script Continuity Supervisor [200 OK]",
-          "refId": "C"
-        },
-        {
-          "expr": "sum(blendeye_agentic_requests_total{agentic_use=\"audio_dialogue_tts\",status_code=\"200\"}) or vector(31)",
-          "legendFormat": "Gemini 3.1 Flash TTS [200 OK]",
-          "refId": "D"
-        },
-        {
-          "expr": "sum(blendeye_agentic_requests_total{agentic_use=\"location_scouting\",status_code=\"200\"}) or vector(28)",
-          "legendFormat": "Location Scout Researcher [200 OK]",
-          "refId": "E"
-        },
-        {
-          "expr": "sum(blendeye_agentic_requests_total{agentic_use=\"storyboard_artist_imagen\",status_code=\"200\"}) or vector(24)",
-          "legendFormat": "Imagen 3 Storyboards [200 OK]",
-          "refId": "F"
-        },
-        {
-          "expr": "sum(blendeye_agentic_requests_total{agentic_use=\"video_sequencer_veo\",status_code=\"200\"}) or vector(19)",
-          "legendFormat": "Google Veo 3.1 Sequencer [200 OK]",
-          "refId": "G"
-        },
-        {
-          "expr": "sum(blendeye_agentic_requests_total{agentic_use=\"character_actor_hotseat\",status_code=\"200\"}) or vector(18)",
-          "legendFormat": "Hot-Seat Actor [200 OK]",
-          "refId": "H"
-        },
-        {
-          "expr": "sum(blendeye_agentic_requests_total{status_code=~\"4..\"}) or vector(5)",
-          "legendFormat": "Client Validation Guards [4xx]",
-          "refId": "I"
-        },
-        {
-          "expr": "sum(blendeye_agentic_requests_total{status_code=~\"5..\"}) or vector(1)",
-          "legendFormat": "Server Exceptions [5xx]",
-          "refId": "J"
+          "columns": [
+            {
+              "selector": "label",
+              "text": "Agent Role",
+              "type": "string"
+            },
+            {
+              "selector": "total_calls",
+              "text": "Invocations",
+              "type": "number"
+            }
+          ],
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "grafanacloud-infinity"
+          },
+          "parser": "backend",
+          "refId": "A",
+          "root_selector": "agentic_request_distribution.roles",
+          "source": "url",
+          "type": "json",
+          "url": "https://agent-service-369992010022.us-central1.run.app/observability/overview",
+          "url_options": {
+            "method": "GET"
+          }
         }
       ],
-      "title": "\ud83e\udd16 Agentic Request Distribution by Role & HTTP Status Code",
+      "transformations": [
+        {
+          "id": "filterByValue",
+          "options": {
+            "filters": [
+              {
+                "config": {
+                  "id": "equal",
+                  "options": {
+                    "value": "Grafana Studio Telemetry"
+                  }
+                },
+                "fieldName": "Agent Role"
+              }
+            ],
+            "match": "any",
+            "type": "exclude"
+          }
+        },
+        {
+          "id": "limit",
+          "options": {
+            "limitField": 7
+          }
+        }
+      ],
+      "title": "Top Active Studio Agents",
       "type": "barchart"
     },
     {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 13
-      },
-      "id": 101,
-      "title": "\ud83c\udfa5 Google Veo 3.1 & Pixel-Anchored Video Sequencing Pipeline",
-      "type": "row"
-    },
-    {
       "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "grafanacloud-infinity"
       },
       "fieldConfig": {
         "defaults": {
@@ -470,108 +670,106 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "Latency (s)",
-            "axisPlacement": "auto",
-            "fillOpacity": 20,
-            "gradientMode": "opacity",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "showPoints": "auto",
-            "spanNulls": false
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
           },
-          "unit": "s"
-        }
+          "mappings": []
+        },
+        "overrides": []
       },
       "gridPos": {
-        "h": 7,
-        "w": 12,
-        "x": 0,
-        "y": 14
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 6
       },
-      "id": 5,
+      "id": 18,
       "options": {
+        "displayLabels": [
+          "percent"
+        ],
         "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "values": [
+            "value"
+          ]
+        },
+        "pieType": "donut",
+        "reduceOptions": {
           "calcs": [
-            "mean",
-            "max"
+            "lastNotNull"
           ],
-          "displayMode": "table",
-          "placement": "bottom"
+          "fields": "",
+          "values": true
         },
         "tooltip": {
           "mode": "single",
           "sort": "none"
         }
       },
+      "pluginVersion": "10.4.0",
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(blendeye_veo_generation_seconds_bucket{shot_type=\"cinematic_establishing\"}[5m])) by (le)) or vector(22.4)",
-          "legendFormat": "Cinematic Establishing (2.39:1 Anamorphic)",
-          "refId": "A"
-        },
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(blendeye_veo_generation_seconds_bucket{shot_type=\"close_up_dialogue\"}[5m])) by (le)) or vector(18.1)",
-          "legendFormat": "Close-Up Dialogue",
-          "refId": "B"
-        },
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(blendeye_veo_generation_seconds_bucket{shot_type=\"tracking_action\"}[5m])) by (le)) or vector(26.8)",
-          "legendFormat": "Tracking Action Gantry",
-          "refId": "C"
-        }
-      ],
-      "title": "Google Veo 3.1 Video Render Duration (p95)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisLabel": "Duration (ms)",
-            "fillOpacity": 25,
-            "lineWidth": 2
-          },
-          "unit": "ms"
-        }
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 12,
-        "x": 12,
-        "y": 14
-      },
-      "id": 6,
-      "options": {
-        "legend": {
-          "calcs": [
-            "mean",
-            "max"
+          "columns": [
+            {
+              "selector": "label",
+              "text": "Agent Role",
+              "type": "string"
+            },
+            {
+              "selector": "total_calls",
+              "text": "Invocations",
+              "type": "number"
+            }
           ],
-          "displayMode": "table",
-          "placement": "bottom"
-        }
-      },
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(blendeye_pixel_anchoring_latency_ms_bucket[5m])) by (le)) or vector(28.4)",
-          "legendFormat": "OpenCV Anchor Extraction (ms)",
-          "refId": "A"
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "grafanacloud-infinity"
+          },
+          "parser": "backend",
+          "refId": "A",
+          "root_selector": "agentic_request_distribution.roles",
+          "source": "url",
+          "type": "json",
+          "url": "https://agent-service-369992010022.us-central1.run.app/observability/overview",
+          "url_options": {
+            "method": "GET"
+          }
         }
       ],
-      "title": "Sequential Video Pixel Anchoring Latency (OpenCV)",
-      "type": "timeseries"
+      "transformations": [
+        {
+          "id": "filterByValue",
+          "options": {
+            "filters": [
+              {
+                "config": {
+                  "id": "equal",
+                  "options": {
+                    "value": "Grafana Studio Telemetry"
+                  }
+                },
+                "fieldName": "Agent Role"
+              }
+            ],
+            "match": "any",
+            "type": "exclude"
+          }
+        },
+        {
+          "id": "limit",
+          "options": {
+            "limitField": 6
+          }
+        }
+      ],
+      "title": "Workload Share",
+      "type": "piechart"
     },
     {
       "collapsed": false,
@@ -579,377 +777,457 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 21
+        "y": 14
       },
       "id": 102,
-      "title": "\ud83c\udf99\ufe0f Audio Table Read & Multi-Speaker Voice DSP Performance",
+      "title": "Latency Profiler & Multi-Cloud Infrastructure Round-Trip Time",
       "type": "row"
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "unit": "s"
-        }
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 12,
-        "x": 0,
-        "y": 22
-      },
-      "id": 7,
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(blendeye_audio_tts_synthesis_seconds_bucket{voice_count=\"2\"}[5m])) by (le)) or vector(1.85)",
-          "legendFormat": "2-Speaker Scene Dialogue",
-          "refId": "A"
-        },
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(blendeye_audio_tts_synthesis_seconds_bucket{voice_count=\"4\"}[5m])) by (le)) or vector(3.12)",
-          "legendFormat": "Ensemble Cast Table Read (4+ voices)",
-          "refId": "B"
-        }
-      ],
-      "title": "Gemini 3.1 Flash TTS Multi-Speaker Synthesis Duration",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "unit": "s"
-        }
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 12,
-        "x": 12,
-        "y": 22
-      },
-      "id": 8,
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(blendeye_agent_inference_duration_seconds_bucket{agent_name=\"writers_room_showrunner\"}[5m])) by (le)) or vector(3.2)",
-          "legendFormat": "Writers Room Showrunner",
-          "refId": "A"
-        },
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(blendeye_agent_inference_duration_seconds_bucket{agent_name=\"continuity_supervisor\"}[5m])) by (le)) or vector(1.7)",
-          "legendFormat": "Continuity Supervisor",
-          "refId": "B"
-        },
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(blendeye_agent_inference_duration_seconds_bucket{agent_name=\"location_scout\"}[5m])) by (le)) or vector(4.1)",
-          "legendFormat": "Location Scout Researcher",
-          "refId": "C"
-        }
-      ],
-      "title": "Gemini Multimodal Agent Execution Duration",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "grafanacloud-infinity"
       },
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
+          "mappings": [],
+          "max": 1000,
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "#10B981",
                 "value": null
               },
               {
-                "color": "yellow",
-                "value": 1
+                "color": "#3B82F6",
+                "value": 250
               },
               {
-                "color": "red",
-                "value": 5
+                "color": "#F59E0B",
+                "value": 500
+              },
+              {
+                "color": "#EF4444",
+                "value": 800
               }
             ]
           },
-          "unit": "short"
-        }
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 12,
-        "x": 0,
-        "y": 28
-      },
-      "id": 9,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
+          "unit": "ms"
         },
-        "textMode": "auto"
-      },
-      "targets": [
-        {
-          "expr": "sum(rate(blendeye_continuity_paradoxes_total[5m])) or vector(0)",
-          "legendFormat": "Paradox Blocks",
-          "refId": "A"
-        }
-      ],
-      "title": "\ud83d\udee1\ufe0f ClickHouse Knowledge Firewall Blocks & Paradox Prevention",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisLabel": "Latency (seconds)",
-            "fillOpacity": 20,
-            "lineWidth": 2
-          },
-          "unit": "s"
-        }
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 12,
-        "x": 12,
-        "y": 28
-      },
-      "id": 10,
-      "options": {
-        "legend": {
-          "calcs": [
-            "mean",
-            "max"
-          ],
-          "displayMode": "table",
-          "placement": "bottom"
-        }
-      },
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(blendeye_parallel_search_latency_seconds_bucket[5m])) by (le)) or vector(0.46)",
-          "legendFormat": "Parallel Search Roundtrip (s)",
-          "refId": "A"
-        }
-      ],
-      "title": "\ud83c\udf10 Parallel Web Location Scouting Latency & Comps",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisLabel": "Tokens / sec",
-            "fillOpacity": 25,
-            "lineWidth": 2
-          },
-          "unit": "short"
-        }
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 12,
-        "x": 0,
-        "y": 35
-      },
-      "id": 11,
-      "options": {
-        "legend": {
-          "calcs": [
-            "mean",
-            "max"
-          ],
-          "displayMode": "table",
-          "placement": "bottom"
-        }
-      },
-      "targets": [
-        {
-          "expr": "sum(rate(blendeye_gemini_tokens_total[5m])) or vector(168.4)",
-          "legendFormat": "Tokens / sec",
-          "refId": "A"
-        }
-      ],
-      "title": "\u26a1 Gemini 3.7 Multimodal Token Throughput",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "max": 100,
-          "min": 90,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 98
-              },
-              {
-                "color": "green",
-                "value": 99.5
-              }
-            ]
-          },
-          "unit": "percent"
-        }
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 12,
-        "x": 12,
-        "y": 35
-      },
-      "id": 12,
-      "options": {
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true
-      },
-      "targets": [
-        {
-          "expr": "blendeye_pipeline_slo_ratio or vector(99.8)",
-          "legendFormat": "SLO Compliance (%)",
-          "refId": "A"
-        }
-      ],
-      "title": "\ud83c\udfaf Studio Pipeline SLO Compliance (Target: 99.5%)",
-      "type": "gauge"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisLabel": "Latency (seconds)",
-            "fillOpacity": 15,
-            "lineWidth": 2
-          },
-          "unit": "s"
-        }
+        "overrides": []
       },
       "gridPos": {
         "h": 8,
-        "w": 24,
+        "w": 12,
         "x": 0,
-        "y": 42
+        "y": 15
       },
-      "id": 13,
+      "id": 5,
       "options": {
-        "legend": {
+        "displayMode": "gradient",
+        "minVizHeight": 10,
+        "minVizWidth": 0,
+        "orientation": "horizontal",
+        "reduceOptions": {
           "calcs": [
-            "mean",
-            "max"
+            "lastNotNull"
           ],
-          "displayMode": "table",
-          "placement": "bottom"
-        }
+          "fields": "",
+          "values": true
+        },
+        "showUnfilled": true,
+        "valueMode": "color"
       },
+      "pluginVersion": "10.4.0",
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(blendeye_network_rtt_seconds_bucket{service=\"clickhouse_cloud\"}[5m])) by (le)) or vector(0.028)",
-          "legendFormat": "ClickHouse Cloud (TCP/TLS)",
-          "refId": "A"
-        },
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(blendeye_network_rtt_seconds_bucket{service=\"google_vertex_ai\"}[5m])) by (le)) or vector(0.021)",
-          "legendFormat": "Google Vertex AI (gRPC)",
-          "refId": "B"
-        },
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(blendeye_network_rtt_seconds_bucket{service=\"parallel_web_api\"}[5m])) by (le)) or vector(0.062)",
-          "legendFormat": "Parallel Web Search API",
-          "refId": "C"
-        },
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(blendeye_network_rtt_seconds_bucket{service=\"nextjs_to_fastapi\"}[5m])) by (le)) or vector(0.0034)",
-          "legendFormat": "Next.js <-> FastAPI IPC",
-          "refId": "D"
-        },
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(blendeye_network_rtt_seconds_bucket{service=\"supabase_cloud\"}[5m])) by (le)) or vector(0.019)",
-          "legendFormat": "Supabase PostgreSQL & CDN",
-          "refId": "E"
-        },
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(blendeye_network_rtt_seconds_bucket{service=\"grafana_cloud\"}[5m])) by (le)) or vector(0.034)",
-          "legendFormat": "Grafana Cloud Telemetry Gateway",
-          "refId": "F"
+          "columns": [
+            {
+              "selector": "label",
+              "text": "Agent Role",
+              "type": "string"
+            },
+            {
+              "selector": "avg_latency_ms",
+              "text": "Avg Latency (ms)",
+              "type": "number"
+            }
+          ],
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "grafanacloud-infinity"
+          },
+          "parser": "backend",
+          "refId": "A",
+          "root_selector": "agentic_request_distribution.roles",
+          "source": "url",
+          "type": "json",
+          "url": "https://agent-service-369992010022.us-central1.run.app/observability/overview",
+          "url_options": {
+            "method": "GET"
+          }
         }
       ],
-      "title": "\ud83c\udf10 Multi-Cloud Network Ingress & Inter-Service IPC Latencies (p95)",
-      "type": "timeseries"
+      "transformations": [
+        {
+          "id": "filterByValue",
+          "options": {
+            "filters": [
+              {
+                "config": {
+                  "id": "equal",
+                  "options": {
+                    "value": "Grafana Studio Telemetry"
+                  }
+                },
+                "fieldName": "Agent Role"
+              }
+            ],
+            "match": "any",
+            "type": "exclude"
+          }
+        },
+        {
+          "id": "limit",
+          "options": {
+            "limitField": 7
+          }
+        }
+      ],
+      "title": "Active Agents Execution Latency (Avg ms)",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "grafanacloud-infinity"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#10B981",
+                "value": null
+              },
+              {
+                "color": "#F59E0B",
+                "value": 100
+              },
+              {
+                "color": "#EF4444",
+                "value": 250
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Latency (ms)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "color-background",
+                  "type": "color-background"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Status"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 15
+      },
+      "id": 6,
+      "options": {
+        "cellHeight": "md",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "10.4.0",
+      "targets": [
+        {
+          "columns": [
+            {
+              "selector": "service",
+              "text": "Service",
+              "type": "string"
+            },
+            {
+              "selector": "destination",
+              "text": "Destination",
+              "type": "string"
+            },
+            {
+              "selector": "protocol",
+              "text": "Protocol",
+              "type": "string"
+            },
+            {
+              "selector": "latency_ms",
+              "text": "Latency (ms)",
+              "type": "number"
+            },
+            {
+              "selector": "status",
+              "text": "Status",
+              "type": "string"
+            }
+          ],
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "grafanacloud-infinity"
+          },
+          "parser": "backend",
+          "refId": "A",
+          "root_selector": "network_latencies",
+          "source": "url",
+          "type": "json",
+          "url": "https://agent-service-369992010022.us-central1.run.app/observability/overview",
+          "url_options": {
+            "method": "GET"
+          }
+        }
+      ],
+      "title": "Multi-Cloud Network Round-Trip Latency (ClickHouse, Parallel, Grafana)",
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 23
+      },
+      "id": 103,
+      "title": "Complete Agentic Roster Performance Matrix (All 21 Agents)",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "grafanacloud-infinity"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#EF4444",
+                "value": null
+              },
+              {
+                "color": "#F59E0B",
+                "value": 90
+              },
+              {
+                "color": "#10B981",
+                "value": 95
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Success Rate %"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "basic",
+                  "type": "gauge"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Avg Latency (ms)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "color-background",
+                  "type": "color-background"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Category"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 180
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "id": 15,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": true,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": true
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Invocations"
+          }
+        ]
+      },
+      "pluginVersion": "10.4.0",
+      "targets": [
+        {
+          "columns": [
+            {
+              "selector": "label",
+              "text": "Agent Role",
+              "type": "string"
+            },
+            {
+              "selector": "category",
+              "text": "Category",
+              "type": "string"
+            },
+            {
+              "selector": "total_calls",
+              "text": "Invocations",
+              "type": "number"
+            },
+            {
+              "selector": "avg_latency_ms",
+              "text": "Avg Latency (ms)",
+              "type": "number"
+            },
+            {
+              "selector": "success_rate",
+              "text": "Success Rate %",
+              "type": "number"
+            },
+            {
+              "selector": "last_status",
+              "text": "Last Status",
+              "type": "number"
+            }
+          ],
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "grafanacloud-infinity"
+          },
+          "parser": "backend",
+          "refId": "A",
+          "root_selector": "agentic_request_distribution.roles",
+          "source": "url",
+          "type": "json",
+          "url": "https://agent-service-369992010022.us-central1.run.app/observability/overview",
+          "url_options": {
+            "method": "GET"
+          }
+        }
+      ],
+      "title": "Full Agentic Roster Performance Matrix",
+      "type": "table",
+      "transformations": [
+        {
+          "id": "filterByValue",
+          "options": {
+            "filters": [
+              {
+                "config": {
+                  "id": "equal",
+                  "options": {
+                    "value": "Grafana Studio Telemetry"
+                  }
+                },
+                "fieldName": "Agent Role"
+              }
+            ],
+            "match": "any",
+            "type": "exclude"
+          }
+        }
+      ]
     }
   ],
-  "refresh": "",
+  "refresh": "10s",
   "schemaVersion": 39,
   "tags": [
     "blendeye",

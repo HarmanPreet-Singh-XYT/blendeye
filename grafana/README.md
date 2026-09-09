@@ -35,3 +35,46 @@ Configure in `.env`:
 GRAFANA_URL=https://<your-stack>.grafana.net
 GRAFANA_SERVICE_ACCOUNT_TOKEN=glsa_...
 ```
+
+---
+
+## 📡 Metrics Push to Grafana Cloud (Grafana Alloy)
+
+The Prometheus metrics accumulating at `/observability/metrics` are forwarded to Grafana Cloud
+via **Grafana Alloy**, which runs as a Docker sidecar defined in `docker-compose.yml`.
+
+### Setup (one-time)
+
+1. Find your Prometheus remote_write credentials in Grafana Cloud:
+   - **Home → Connections → Add new connection → Prometheus**
+   - Copy the **Remote Write URL** (`https://prometheus-prod-XX-....grafana.net/api/prom/push`)
+   - Copy the **numeric Username / Instance ID** (e.g. `3571839`)
+
+2. Add to your root `.env`:
+   ```env
+   GRAFANA_PROMETHEUS_URL=https://prometheus-prod-32-prod-ca-east-0.grafana.net/api/prom/push
+   GRAFANA_PROMETHEUS_USERNAME=3571839
+   GRAFANA_SERVICE_ACCOUNT_TOKEN=glsa_...   # needs Metrics Publisher role
+   ```
+
+### Running Alloy
+
+**Native dev** (agent-service runs on host with `uv run uvicorn ...`):
+```bash
+docker compose up alloy
+# Alloy scrapes host.docker.internal:8000 by default
+```
+
+**Full docker stack** (all services in containers):
+```bash
+METRICS_TARGET=agent-service:8000 docker compose --profile full up --build
+```
+
+Alloy UI is available at **http://localhost:12345** for live pipeline debugging.
+
+### Verifying data arrives in Grafana Cloud
+
+After ~30 seconds:
+1. Grafana Cloud → **Explore** → select your Prometheus datasource
+2. Query: `blendeye_http_requests_total`
+3. You should see time-series data labelled `service="blendeye-agent-service"`

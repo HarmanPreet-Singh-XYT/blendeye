@@ -453,186 +453,47 @@ def map_endpoint_to_agentic(path: str) -> dict[str, str]:
 
 
 _AGENTIC_CATALOG: list[dict[str, Any]] = [
-    {
-        "agentic_use": "showrunner_copilot",
-        "label": "Writers' Room Showrunner",
-        "category": "Creative Development",
-        "baseline_calls": 42,
-        "baseline_latency_ms": 340.5,
-    },
-    {
-        "agentic_use": "location_scouting",
-        "label": "Location Scout & Precedent Researcher",
-        "category": "Research & Grounding",
-        "baseline_calls": 28,
-        "baseline_latency_ms": 612.0,
-    },
-    {
-        "agentic_use": "continuity_supervisor",
-        "label": "Script Continuity Supervisor",
-        "category": "Quality & Continuity",
-        "baseline_calls": 35,
-        "baseline_latency_ms": 280.2,
-    },
-    {
-        "agentic_use": "video_sequencer_veo",
-        "label": "Google Veo 3.1 Video Sequencer",
-        "category": "Generative Media",
-        "baseline_calls": 19,
-        "baseline_latency_ms": 1840.0,
-    },
-    {
-        "agentic_use": "storyboard_artist_imagen",
-        "label": "Imagen 3 Storyboard Artist",
-        "category": "Generative Media",
-        "baseline_calls": 24,
-        "baseline_latency_ms": 950.0,
-    },
-    {
-        "agentic_use": "audio_dialogue_tts",
-        "label": "Gemini 3.1 Flash Multi-Speaker TTS",
-        "category": "Generative Media",
-        "baseline_calls": 31,
-        "baseline_latency_ms": 420.0,
-    },
-    {
-        "agentic_use": "cinematic_music_composer",
-        "label": "Lyria Film Score Composer",
-        "category": "Generative Media",
-        "baseline_calls": 12,
-        "baseline_latency_ms": 780.0,
-    },
-    {
-        "agentic_use": "character_actor_hotseat",
-        "label": "Hot-Seat Character Actor",
-        "category": "Interactive Acting",
-        "baseline_calls": 18,
-        "baseline_latency_ms": 215.0,
-    },
-    {
-        "agentic_use": "perspective_sharding",
-        "label": "Perspective Sharding Engine",
-        "category": "Temporal Memory",
-        "baseline_calls": 47,
-        "baseline_latency_ms": 118.0,
-    },
-    {
-        "agentic_use": "screenplay_generator",
-        "label": "Screenplay Generator & Scene Architect",
-        "category": "Creative Development",
-        "baseline_calls": 15,
-        "baseline_latency_ms": 520.0,
-    },
-    {
-        "agentic_use": "sequence_director",
-        "label": "Sequence Structure Director",
-        "category": "Creative Development",
-        "baseline_calls": 14,
-        "baseline_latency_ms": 310.0,
-    },
-    {
-        "agentic_use": "cross_scene_bridge",
-        "label": "Cross-Scene Narrative Bridge",
-        "category": "Creative Development",
-        "baseline_calls": 11,
-        "baseline_latency_ms": 290.0,
-    },
-    {
-        "agentic_use": "multiverse_takes",
-        "label": "Multiverse Alternate Takes",
-        "category": "Creative Development",
-        "baseline_calls": 16,
-        "baseline_latency_ms": 410.0,
-    },
-    {
-        "agentic_use": "scene_rewriter",
-        "label": "Scene Polisher & Dialog Doctor",
-        "category": "Creative Development",
-        "baseline_calls": 22,
-        "baseline_latency_ms": 245.0,
-    },
-    {
-        "agentic_use": "film_fusion_crossover",
-        "label": "Film Fusion Multiverse Co-Pilot",
-        "category": "Creative Development",
-        "baseline_calls": 9,
-        "baseline_latency_ms": 480.0,
-    },
-    {
-        "agentic_use": "character_chemistry_lab",
-        "label": "Character Chemistry Lab",
-        "category": "Creative Development",
-        "baseline_calls": 13,
-        "baseline_latency_ms": 320.0,
-    },
-    {
-        "agentic_use": "style_director",
-        "label": "Cinematic Style Director",
-        "category": "Creative Development",
-        "baseline_calls": 10,
-        "baseline_latency_ms": 360.0,
-    },
-    {
-        "agentic_use": "shot_planner",
-        "label": "Cinematographer Shot Planner",
-        "category": "Production & Planning",
-        "baseline_calls": 17,
-        "baseline_latency_ms": 390.0,
-    },
-    {
-        "agentic_use": "market_predictor",
-        "label": "Box Office & Territory Forecaster",
-        "category": "Production & Planning",
-        "baseline_calls": 8,
-        "baseline_latency_ms": 450.0,
-    },
-    {
-        "agentic_use": "production_manager",
-        "label": "Stripboard & Production Scheduler",
-        "category": "Production & Planning",
-        "baseline_calls": 11,
-        "baseline_latency_ms": 295.0,
-    },
-    {
-        "agentic_use": "studio_observability",
-        "label": "Grafana Studio Telemetry",
-        "category": "Telemetry & Ops",
-        "baseline_calls": 65,
-        "baseline_latency_ms": 15.0,
-    },
+    {"agentic_use": "showrunner_copilot", "label": "Writers' Room Showrunner", "category": "Creative Development"},
+    {"agentic_use": "location_scouting", "label": "Location Scout & Precedent Researcher", "category": "Research & Grounding"},
+    {"agentic_use": "continuity_supervisor", "label": "Script Continuity Supervisor", "category": "Quality & Continuity"},
+    {"agentic_use": "video_sequencer_veo", "label": "Google Veo 3.1 Video Sequencer", "category": "Generative Media"},
+    {"agentic_use": "storyboard_artist_imagen", "label": "Imagen 3 Storyboard Artist", "category": "Generative Media"},
+    {"agentic_use": "audio_dialogue_tts", "label": "Gemini 3.1 Flash Multi-Speaker TTS", "category": "Generative Media"},
+    {"agentic_use": "cinematic_music_composer", "label": "Lyria Film Score Composer", "category": "Generative Media"},
+    {"agentic_use": "character_actor_hotseat", "label": "Hot-Seat Character Actor", "category": "Interactive Acting"},
+    {"agentic_use": "perspective_sharding", "label": "Perspective Sharding Engine", "category": "Temporal Memory"},
+    {"agentic_use": "screenplay_generator", "label": "Screenplay Generator & Scene Architect", "category": "Creative Development"},
+    {"agentic_use": "sequence_director", "label": "Sequence Structure Director", "category": "Creative Development"},
+    {"agentic_use": "cross_scene_bridge", "label": "Cross-Scene Narrative Bridge", "category": "Creative Development"},
+    {"agentic_use": "multiverse_takes", "label": "Multiverse Alternate Takes", "category": "Creative Development"},
+    {"agentic_use": "scene_rewriter", "label": "Scene Polisher & Dialog Doctor", "category": "Creative Development"},
+    {"agentic_use": "film_fusion_crossover", "label": "Film Fusion Multiverse Co-Pilot", "category": "Creative Development"},
+    {"agentic_use": "character_chemistry_lab", "label": "Character Chemistry Lab", "category": "Creative Development"},
+    {"agentic_use": "style_director", "label": "Cinematic Style Director", "category": "Creative Development"},
+    {"agentic_use": "shot_planner", "label": "Cinematographer Shot Planner", "category": "Production & Planning"},
+    {"agentic_use": "market_predictor", "label": "Box Office & Territory Forecaster", "category": "Production & Planning"},
+    {"agentic_use": "production_manager", "label": "Stripboard & Production Scheduler", "category": "Production & Planning"},
+    {"agentic_use": "studio_observability", "label": "Grafana Studio Telemetry", "category": "Telemetry & Ops"},
 ]
 
 _AGENTIC_STATS: dict[str, dict[str, Any]] = {}
 
 
 def _init_agentic_stats():
-    now_iso = datetime.now(timezone.utc).isoformat()
     for item in _AGENTIC_CATALOG:
         use = item["agentic_use"]
-        calls = item["baseline_calls"]
-        lat = item["baseline_latency_ms"]
         _AGENTIC_STATS[use] = {
             "agentic_use": use,
             "label": item["label"],
             "category": item["category"],
-            "total_calls": calls,
-            "status_codes": {"200": calls},
-            "status_classes": {"2xx": calls, "4xx": 0, "5xx": 0},
-            "last_status": 200,
-            "last_latency_ms": lat,
-            "avg_latency_ms": lat,
-            "last_request_at": now_iso,
+            "total_calls": 0,
+            "status_codes": {},
+            "status_classes": {"2xx": 0, "4xx": 0, "5xx": 0},
+            "last_status": None,
+            "last_latency_ms": None,
+            "avg_latency_ms": None,
+            "last_request_at": None,
         }
-        # Pre-seed Prometheus counter for the role
-        try:
-            HTTP_AGENTIC_REQUESTS_TOTAL.labels(
-                agentic_use=use,
-                status_code="200",
-                status_class="2xx",
-                method="POST" if use != "studio_observability" else "GET",
-            ).inc(calls)
-        except Exception:
-            pass
 
 
 _init_agentic_stats()
@@ -683,10 +544,12 @@ def record_agentic_request(endpoint: str, method: str, status_code: int, duratio
         entry["last_status"] = status_code
         entry["last_latency_ms"] = duration_ms
         prev_calls = entry["total_calls"] - 1
-        if entry["total_calls"] > 0:
+        if prev_calls > 0 and entry.get("avg_latency_ms") is not None:
             entry["avg_latency_ms"] = round(
                 (entry["avg_latency_ms"] * prev_calls + duration_ms) / entry["total_calls"], 2
             )
+        else:
+            entry["avg_latency_ms"] = duration_ms
         entry["last_request_at"] = now_iso
 
 

@@ -51,6 +51,14 @@ def test_record_agentic_request_and_summary():
 def test_observability_api_endpoints():
     client = TestClient(app)
 
+    # Pre-record an actual showrunner request to test Prometheus label export
+    record_agentic_request(
+        endpoint="/showrunner/chat",
+        method="POST",
+        status_code=200,
+        duration_sec=0.25,
+    )
+
     # 1. Test /observability/overview
     res = client.get("/observability/overview")
     assert res.status_code == 200
@@ -66,3 +74,10 @@ def test_observability_api_endpoints():
     text = res_metrics.text
     assert "blendeye_agentic_requests_total" in text
     assert 'agentic_use="showrunner_copilot"' in text
+
+    # 3. Test /observability/benchmark
+    res_bench = client.post("/observability/benchmark")
+    assert res_bench.status_code == 200
+    bench_data = res_bench.json()
+    assert bench_data["status"] == "success"
+    assert "network_latencies" in bench_data

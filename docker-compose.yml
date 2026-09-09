@@ -83,5 +83,36 @@ services:
       agent-service:
         condition: service_healthy
 
+  # Grafana Alloy — scrapes /observability/metrics and remote_writes to Grafana Cloud.
+  # Runs by default (no profile) alongside ClickHouse so it works for both native dev
+  # and the full docker stack.
+  #
+  # Native dev (agent-service runs on host):
+  #   docker compose up alloy          ← uses METRICS_TARGET=host.docker.internal:8000
+  #
+  # Full docker stack:
+  #   METRICS_TARGET=agent-service:8000 docker compose --profile full up --build
+  alloy:
+    image: grafana/alloy:latest
+    volumes:
+      - ./grafana/alloy/config.alloy:/etc/alloy/config.alloy:ro
+    command: run --server.http.listen-addr=0.0.0.0:12345 /etc/alloy/config.alloy
+    environment:
+      # Default targets the natively-running agent-service on the host machine.
+      # Override to `agent-service:8000` when running via --profile full.
+      METRICS_TARGET: ${METRICS_TARGET:-host.docker.internal:8000}
+      METRICS_SCHEME: ${METRICS_SCHEME:-http}
+      GRAFANA_PROMETHEUS_URL: ${GRAFANA_PROMETHEUS_URL}
+      GRAFANA_PROMETHEUS_USERNAME: ${GRAFANA_PROMETHEUS_USERNAME}
+      GRAFANA_SERVICE_ACCOUNT_TOKEN: ${GRAFANA_SERVICE_ACCOUNT_TOKEN}
+    ports:
+      - "12345:12345"   # Alloy built-in UI + self-metrics
+    # Needed on Linux so host.docker.internal resolves to the host machine.
+    # On macOS Docker Desktop this is automatically available; the extra_hosts
+    # entry is a no-op there.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
 volumes:
   clickhouse-data:

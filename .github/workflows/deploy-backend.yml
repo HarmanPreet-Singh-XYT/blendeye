@@ -120,6 +120,7 @@ jobs:
           echo "- **Region**: \`${{ env.REGION }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Live URL**: [${{ env.SERVICE_URL }}](${{ env.SERVICE_URL }})" >> $GITHUB_STEP_SUMMARY
           echo "- **Docs (OpenAPI)**: [${{ env.SERVICE_URL }}/docs](${{ env.SERVICE_URL }}/docs)" >> $GITHUB_STEP_SUMMARY
-          echo "- **Telemetry**: [${{ env.SERVICE_URL }}/metrics](${{ env.SERVICE_URL }}/metrics)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Metrics**: [${{ env.SERVICE_URL }}/observability/metrics](${{ env.SERVICE_URL }}/observability/metrics)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "> **Next Step**: Add \`AGENT_SERVICE_URL=${{ env.SERVICE_URL }}\` to your Vercel Project Environment Variables." >> $GITHUB_STEP_SUMMARY
+          echo "> **Grafana**: Add \`${{ env.SERVICE_URL }}/observability/metrics\` as a Metrics Endpoint scrape job in Grafana Cloud → Connections → Add new connection → Metrics Endpoint." >> $GITHUB_STEP_SUMMARY
