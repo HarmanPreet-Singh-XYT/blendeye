@@ -233,6 +233,29 @@ export function generateSequence(req: GenerateSequenceRequest) {
   return postJson<GenerateSequenceResponse>("/sequence/generate", req, 90_000);
 }
 
+export interface BridgeSceneRequest {
+  premise?: string;
+  prev_scene: { title: string; slugline: string; summary: string; screenplay_text?: string; cast_present?: string[] };
+  next_scene: { title: string; slugline: string; summary: string; screenplay_text?: string; cast_present?: string[] };
+  characters?: Array<{ name: string; archetype?: string }>;
+  user_prompt?: string;
+  target_duration_seconds?: number;
+}
+
+export interface BridgeSceneResponse {
+  title: string;
+  slugline: string;
+  location: string;
+  summary: string;
+  cast_present: string[];
+  duration_seconds: number;
+  screenplay_text: string;
+}
+
+export function generateBridgeScene(req: BridgeSceneRequest) {
+  return postJson<BridgeSceneResponse>("/bridge/generate", req, 60_000);
+}
+
 export function getProjectEvents(projectId: string) {
   return getJson<StoryEvent[]>(`/sharding/events/${encodeURIComponent(projectId)}`);
 }

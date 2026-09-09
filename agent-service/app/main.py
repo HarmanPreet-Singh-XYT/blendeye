@@ -14,6 +14,7 @@ except Exception:
 
 from app.config import get_settings
 from app.routers import (
+    bridge,
     character_lab,
     continuity,
     fusion,
@@ -70,6 +71,7 @@ app.add_middleware(
 
 app.include_router(script.router)
 app.include_router(sequence.router)
+app.include_router(bridge.router)
 app.include_router(multiverse.router)
 app.include_router(scene_rewrite.router)
 app.include_router(sharding.router)

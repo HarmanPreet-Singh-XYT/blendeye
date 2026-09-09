@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { generateBridgeScene } from "@/lib/agent-service";
 
 interface BridgeRequestBody {
   projectId?: string;
@@ -22,6 +23,11 @@ interface BridgeRequestBody {
   targetDurationSeconds?: number;
 }
 
+// Proxies to agent-service's /bridge/generate, same pattern as every other
+// generation path — this route used to hold its own direct Gemini REST call
+// with no agent-service fallback at all, so a missing GOOGLE_API_KEY on the
+// web deployment meant silently returning a hardcoded "Marcus"/"Elena"
+// bridge scene regardless of the actual project.
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as BridgeRequestBody;
@@ -34,82 +40,47 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || "";
-    const castNames = characters.map((c) => c.name).join(", ") || "Core Crew";
+    try {
+      const result = await generateBridgeScene({
+        premise,
+        prev_scene: {
+          title: prevScene.title,
+          slugline: prevScene.slugline,
+          summary: prevScene.summary,
+          screenplay_text: prevScene.screenplayText,
+          cast_present: prevScene.castPresent,
+        },
+        next_scene: {
+          title: nextScene.title,
+          slugline: nextScene.slugline,
+          summary: nextScene.summary,
+          screenplay_text: nextScene.screenplayText,
+          cast_present: nextScene.castPresent,
+        },
+        characters,
+        user_prompt: userPrompt,
+        target_duration_seconds: targetDurationSeconds,
+      });
 
-    if (apiKey) {
-      try {
-        const prompt = `You are an elite Hollywood script supervisor and screenwriter.
-We have two disconnected scenes in a feature screenplay:
-
-PREVIOUS SCENE:
-Title: ${prevScene.title}
-Slugline: ${prevScene.slugline}
-Summary: ${prevScene.summary}
-
-NEXT SCENE:
-Title: ${nextScene.title}
-Slugline: ${nextScene.slugline}
-Summary: ${nextScene.summary}
-
-OVERALL FILM PREMISE:
-${premise}
-
-AVAILABLE CAST:
-${castNames}
-${userPrompt?.trim() ? `\nDIRECTOR'S SPECIFIC GUIDANCE / PROMPT:
-"${userPrompt.trim()}"
-CRITICAL: You must realize and reflect the director's specific creative direction above while bridging the scenes.\n` : ""}
-TASK:
-Write a transitional "Bridge Scene" that logically and dramatically connects the previous scene to the next scene${userPrompt?.trim() ? ` following the director's creative guidance` : ""}.
-It should solve narrative logistics (e.g. travel, preparation, surveillance, close call, or escalating tension).
-
-Return pure valid JSON with this exact schema:
-{
-  "title": "Short punchy title (e.g. Infiltration Transit)",
-  "slugline": "Standard screenplay slugline (e.g. INT. SERVICE CORRIDOR - NIGHT)",
-  "location": "Location name",
-  "summary": "2-3 sentence synopsis of the bridge moment",
-  "castPresent": ["Names of characters in this bridge scene"],
-  "durationSeconds": ${targetDurationSeconds && targetDurationSeconds > 0 ? targetDurationSeconds : 180},
-  "screenplayText": "Formatted screenplay with slugline, action lines, and dialogue"
-}`;
-
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent?key=${apiKey}`;
-        const res = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ role: "user", parts: [{ text: prompt }] }],
-            generationConfig: {
-              temperature: 0.7,
-              responseMimeType: "application/json",
-            },
-          }),
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "{}";
-          const parsed = JSON.parse(rawText);
-
-          return NextResponse.json({
-            title: parsed.title || "The Connecting Beat",
-            slugline: parsed.slugline || "INT. TRANSIT CORRIDOR - NIGHT",
-            location: parsed.location || "Transit Corridor",
-            summary: parsed.summary || "A transitional beat connecting the sequences.",
-            castPresent: Array.isArray(parsed.castPresent) ? parsed.castPresent : [characters[0]?.name || "Lead"],
-            durationSeconds: parsed.durationSeconds || 180,
-            screenplayText: parsed.screenplayText || `${parsed.slugline || "INT. TRANSIT CORRIDOR - NIGHT"}\n\nThe crew navigates the tight corridor in silence.`,
-            isBridge: true,
-          });
-        }
-      } catch (aiErr) {
-        console.warn("[BridgeSceneAPI] Gemini call error, falling back to procedural bridge:", aiErr);
-      }
+      return NextResponse.json({
+        title: result.title || "The Connecting Beat",
+        slugline: result.slugline || "INT. TRANSIT CORRIDOR - NIGHT",
+        location: result.location || "Transit Corridor",
+        summary: result.summary || "A transitional beat connecting the sequences.",
+        castPresent: Array.isArray(result.cast_present) && result.cast_present.length > 0
+          ? result.cast_present
+          : [characters[0]?.name || "Lead"],
+        durationSeconds: result.duration_seconds || 180,
+        screenplayText:
+          result.screenplay_text ||
+          `${result.slugline || "INT. TRANSIT CORRIDOR - NIGHT"}\n\nThe crew navigates the tight corridor in silence.`,
+        isBridge: true,
+      });
+    } catch (agentErr) {
+      console.error("[BridgeSceneAPI] agent-service call failed, using fallback:", agentErr);
     }
 
-    // Smart Fallback when offline or no API key
+    // Smart Fallback when agent-service is unreachable
     const fallbackTitle = userPrompt?.trim()
       ? userPrompt.trim().length > 35
         ? `${userPrompt.trim().slice(0, 32)}...`
