@@ -13,6 +13,7 @@ except Exception:
     pass
 
 from app.config import get_settings
+from app.middleware.telemetry import StudioTelemetryMiddleware
 from app.routers import (
     bridge,
     character_lab,
@@ -33,6 +34,7 @@ from app.routers import (
     showrunner,
     style_extractor,
     video_sequence,
+    observability,
 )
 from app.services.clickhouse_store import get_clickhouse_store
 
@@ -68,6 +70,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(StudioTelemetryMiddleware)
 
 app.include_router(script.router)
 app.include_router(sequence.router)
@@ -88,6 +91,7 @@ app.include_router(market_viability.router)
 app.include_router(production.router)
 app.include_router(media.router)
 app.include_router(video_sequence.router)
+app.include_router(observability.router)
 
 
 @app.get("/health")

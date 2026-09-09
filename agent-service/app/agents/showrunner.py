@@ -52,6 +52,12 @@ def build_showrunner_agent(*, with_mcp: bool = True) -> Agent:
             tools.append(build_clickhouse_toolset())
         except Exception:  # noqa: BLE001, S110
             pass
+        try:
+            from app.services.grafana_mcp import build_grafana_toolset
+            tools.append(build_grafana_toolset())
+        except Exception:  # noqa: BLE001, S110
+            pass
+
 
     return Agent(
         name="writers_room_showrunner",

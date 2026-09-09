@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     # Parallel Web Systems — Partner Track Integration (Search & Web Grounding)
     parallel_api_key: str = ""
 
+    # Grafana Labs — Partner Track Integration (Observability & MCP)
+    grafana_url: str = "https://blendeye.grafana.net"
+    grafana_service_account_token: str = ""
+
     # ClickHouse — the required partner track integration. Story Event
     # Engine (see plan.md Layer 2) reads/writes here via mcp-clickhouse.
     # Defaults below target a local self-hosted container (see root

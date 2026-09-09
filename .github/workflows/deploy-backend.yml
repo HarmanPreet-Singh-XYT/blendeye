@@ -59,10 +59,28 @@ jobs:
           ENV_VARS="${ENV_VARS},CLICKHOUSE_SECURE=${{ secrets.CLICKHOUSE_SECURE || 'true' }}"
           ENV_VARS="${ENV_VARS},ALLOWED_ORIGINS=${{ secrets.ALLOWED_ORIGINS || '*' }}"
           ENV_VARS="${ENV_VARS},GOOGLE_API_KEY=${{ secrets.GOOGLE_API_KEY }}"
+          if [ -n "${{ secrets.PARALLEL_API_KEY }}" ]; then
+            ENV_VARS="${ENV_VARS},PARALLEL_API_KEY=${{ secrets.PARALLEL_API_KEY }}"
+          fi
 
           if [ -n "${{ secrets.GOOGLE_CLOUD_PROJECT }}" ]; then
             ENV_VARS="${ENV_VARS},GOOGLE_CLOUD_PROJECT=${{ secrets.GOOGLE_CLOUD_PROJECT }}"
           fi
+          if [ -n "${{ secrets.SUPABASE_URL }}" ]; then
+            ENV_VARS="${ENV_VARS},SUPABASE_URL=${{ secrets.SUPABASE_URL }}"
+          fi
+          if [ -n "${{ secrets.SUPABASE_SECRET_KEY }}" ]; then
+            ENV_VARS="${ENV_VARS},SUPABASE_SECRET_KEY=${{ secrets.SUPABASE_SECRET_KEY }}"
+          fi
+          if [ -n "${{ secrets.GRAFANA_URL }}" ]; then
+            ENV_VARS="${ENV_VARS},GRAFANA_URL=${{ secrets.GRAFANA_URL }}"
+          else
+            ENV_VARS="${ENV_VARS},GRAFANA_URL=https://fearlessimpatiens433.grafana.net"
+          fi
+          if [ -n "${{ secrets.GRAFANA_SERVICE_ACCOUNT_TOKEN }}" ]; then
+            ENV_VARS="${ENV_VARS},GRAFANA_SERVICE_ACCOUNT_TOKEN=${{ secrets.GRAFANA_SERVICE_ACCOUNT_TOKEN }}"
+          fi
+
 
           # Deploy using Cloud Run source deployment (builds Dockerfile via Cloud Build)
           gcloud run deploy ${{ env.SERVICE_NAME }} \

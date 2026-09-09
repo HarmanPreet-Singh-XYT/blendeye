@@ -18,7 +18,9 @@ dependencies = [
     { name = "httpx" },
     { name = "mcp" },
     { name = "mcp-clickhouse" },
+    { name = "mcp-grafana" },
     { name = "parallel-web" },
+    { name = "prometheus-client" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "python-dotenv" },
@@ -41,7 +43,9 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "mcp", specifier = ">=1.9,<2.0" },
     { name = "mcp-clickhouse", specifier = "==0.5.0" },
+    { name = "mcp-grafana", specifier = ">=1.3.0" },
     { name = "parallel-web", specifier = ">=1.3.0" },
+    { name = "prometheus-client", specifier = ">=0.20.0" },
     { name = "pydantic", specifier = ">=2.13.5" },
     { name = "pydantic-settings", specifier = ">=2.15.0" },
     { name = "python-dotenv", specifier = ">=1.2.3" },
@@ -1364,6 +1368,21 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/9b/fd/b8ed19060e681ee10399bc06d7dcc74b2c4cc78289d59d6802a79946c6a4/mcp_clickhouse-0.5.0.tar.gz", hash = "sha256:fa6ac3bcf3d52d8500c53eb11d57992f74d8213d4b520199ae1d073db6b6607e", size = 242859, upload-time = "2026-09-01T20:16:45.2Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a2/f4/3b0b5cb7247941f0ff0905435ef56051d0035e7956ce310a9dba1ac33a35/mcp_clickhouse-0.5.0-py3-none-any.whl", hash = "sha256:775673c43c64475beeef1400d68065d3b3502bf95f055a9edcc97072c52998e6", size = 47683, upload-time = "2026-09-01T20:16:43.775Z" },
+]
+
+[[package]]
+name = "mcp-grafana"
+version = "1.3.0"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f5/ec/adeae72be332df6d094af254bf2649162e9a7aea640d1cfe7cc3ab6c6db7/mcp_grafana-1.3.0-py3-none-macosx_10_9_x86_64.whl", hash = "sha256:98b9cc38705886a9ce3c4723d190d2f9fe9e6b9e182a7cbf08e4ee4f3ebeb488", size = 54571370, upload-time = "2026-08-28T16:07:13.884Z" },
+    { url = "https://files.pythonhosted.org/packages/4c/eb/0d9a32f6b7fc2b35e506405523319fa791ae21c3c227db172412372a4a8b/mcp_grafana-1.3.0-py3-none-macosx_11_0_arm64.whl", hash = "sha256:245037386443379f1b6441a15f8630def77b131fd9ab3591be1a3a1e84076ade", size = 51210063, upload-time = "2026-08-28T16:07:18.117Z" },
+    { url = "https://files.pythonhosted.org/packages/af/98/9fac490b1ed5a86d02df6da32dcf8f9c1b1fb3d273574172d775ff2acc4f/mcp_grafana-1.3.0-py3-none-manylinux_2_17_aarch64.whl", hash = "sha256:51510d4d6857e66e21fd4e4b8092f494e6a508a110531f68c1b45f535391fb9d", size = 49573073, upload-time = "2026-08-28T16:07:22.016Z" },
+    { url = "https://files.pythonhosted.org/packages/fa/d7/e638b373642ecac53ec943b7bebd0c6dbd194ac4fb6b9ec2df8cd8d13baa/mcp_grafana-1.3.0-py3-none-manylinux_2_17_x86_64.whl", hash = "sha256:757fcd534396781e4155fb63895631b484bc982a7201cea713d9d1f85d478ac5", size = 53214415, upload-time = "2026-08-28T16:07:26.305Z" },
+    { url = "https://files.pythonhosted.org/packages/69/92/ea485928f09937abf748e3d3117fc90d62f2021535d61f9a4968bc62cb3c/mcp_grafana-1.3.0-py3-none-musllinux_1_2_aarch64.whl", hash = "sha256:da53ca7cda47cf194c21dc636598d7516ed82a58c0fbc1bc6422037a94f3f781", size = 49573072, upload-time = "2026-08-28T16:07:30.233Z" },
+    { url = "https://files.pythonhosted.org/packages/89/15/4d64ab639740284ed8401f86a34aa6917ea9b4fd8e9aa422e7454fd4428e/mcp_grafana-1.3.0-py3-none-musllinux_1_2_x86_64.whl", hash = "sha256:a989166b6d12a5b8ab1ffec772a0455834b7ac86666d8739305db4beba29057a", size = 53214413, upload-time = "2026-08-28T16:07:34.531Z" },
+    { url = "https://files.pythonhosted.org/packages/16/1a/c7fe296ed207288a2dae65b27318681ae7e01a827bfb355e6a9a81ec7d51/mcp_grafana-1.3.0-py3-none-win_amd64.whl", hash = "sha256:36cc2aca91a73bdfe53a5b4eb034d33e664f57ce746f52770f842070be3f393b", size = 54437938, upload-time = "2026-08-28T16:07:38.68Z" },
+    { url = "https://files.pythonhosted.org/packages/e5/25/16911f3dbc1da7efe2eb00491395699186e07d9f7027e11ebb0ff89982da/mcp_grafana-1.3.0-py3-none-win_arm64.whl", hash = "sha256:b46f510aedf7d90e5dab598fe096fa032b9f854d5f2637aae72eadea2efaac0f", size = 50092590, upload-time = "2026-08-28T16:07:43.285Z" },
 ]
 
 [[package]]

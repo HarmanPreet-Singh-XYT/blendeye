@@ -1,7 +1,7 @@
 # Devpost Submission — BlendEye
 
 > **Hackathon:** Google Cloud Agentic Cinema Hackathon  
-> **Partner Tracks:** **ClickHouse Track** & **Parallel Web Systems Track**  
+> **Partner Tracks:** **ClickHouse Track**, **Parallel Web Systems Track**, & **Grafana Labs Track**  
 > **Project Name (under 60 chars):** `BlendEye — AI Film Director Studio & Pre-Shoot Simulator`  
 > **Elevator Pitch (under 200 chars):** `The flight simulator for film directors. Plan scenes, block cameras, and interrogate characters under ClickHouse time-gated knowledge firewalls powered by Gemini & Veo.`  
 > **Live Production Studio:** https://blendeye.harmanita.com  
@@ -10,7 +10,7 @@
 ---
 
 ### 🏷️ Built With Tags
-`gemini-3.7-flash`, `google-veo-3.1`, `gemini-3.1-flash-tts`, `imagen-3`, `google-search-grounding`, `google-adk`, `clickhouse`, `mcp-clickhouse`, `parallel-web`, `parallel-search-api`, `next.js-16`, `react-19`, `xyflow-react`, `tailwind-css-v4`, `fastapi`, `python-3.12`, `supabase`, `postgresql`, `opencv`, `d3-geo`, `recharts`
+`gemini-3.7-flash`, `google-veo-3.1`, `gemini-3.1-flash-tts`, `imagen-3`, `google-search-grounding`, `google-adk`, `clickhouse`, `mcp-clickhouse`, `parallel-web`, `parallel-search-api`, `grafana`, `mcp-grafana`, `prometheus`, `opentelemetry`, `next.js-16`, `react-19`, `xyflow-react`, `tailwind-css-v4`, `fastapi`, `python-3.12`, `supabase`, `postgresql`, `opencv`, `d3-geo`, `recharts`
 
 
 ---
@@ -90,6 +90,21 @@ BlendEye actively integrates **Parallel's Search API at runtime** using the offi
 
 ---
 
+## 📊 Grafana Labs Partner Track Integration
+
+High-end digital film production and virtual studios depend on high-throughput, latency-sensitive pipelines: generating chained Google Veo 3.1 video takes, executing sub-millisecond ClickHouse timeline knowledge queries, and orchestrating multi-speaker audio synthesis. BlendEye integrates the **Grafana Labs stack meaningfully at runtime** to give directors and showrunners total operational visibility:
+
+1. **Official `mcp-grafana` MCP Server Integration**: BlendEye launches the official `grafana/mcp-grafana` server (`app/services/grafana_mcp.py`) exposing 60+ observability tools directly to Google ADK agents. Attached to the Showrunner / Studio Supervisor agent, it allows the agent to inspect Prometheus metrics, Loki logs, and active alerts to ensure rendering pipelines remain healthy.
+2. **OpenTelemetry / Prometheus Metrics Exporter**: The agent service exposes native Prometheus metrics at `/observability/metrics` and `/metrics` via `prometheus_client`:
+   - `blendeye_http_requests_total`: Tracks studio API throughput across script generation, media rendering, and chat endpoints.
+   - `blendeye_clickhouse_query_latency_ms`: Real-time histogram monitoring sub-millisecond timeline scrubbing performance against our 4ms SLO.
+   - `blendeye_story_events_total`: Live gauge of temporal character knowledge tuples sharded in ClickHouse.
+   - `blendeye_veo_video_renders_total`: Monitors multi-shot chained video pipeline throughput.
+3. **Interactive Grafana Studio Observability Console**: Built directly into the Director's Deck (`Shift` + `C`), allowing judges and directors to toggle between the **ClickHouse SQL Stream** and **Grafana Observability Console** to inspect real-time PromQL targets, pipeline operational states, and firing health alerts.
+4. **Hosted Production Grafana Dashboard**: Deployed live on Grafana Cloud at [https://fearlessimpatiens433.grafana.net/d/blendeye-studio-observability/0c416a4](https://fearlessimpatiens433.grafana.net/d/blendeye-studio-observability/0c416a4), featuring pre-configured dark-mode cinematic panels for studio throughput, ClickHouse time-gate latency gauges, Veo 3.1 video render duration, and active alert monitors.
+
+---
+
 ## 🛠️ How We Built It
 
 * **Frontend**: Next.js 16 (App Router, Turbopack, React 19), Tailwind CSS v4, `@xyflow/react` (React Flow), Recharts, D3-Geo, and Lucide Icons. Designed with custom cinema aesthetics (2.39:1 letterbox scope, sprocket borders, and SMPTE timecode displays).
@@ -138,5 +153,6 @@ BlendEye actively integrates **Parallel's Search API at runtime** using the offi
 
 ## 🔗 Try It Out
 * 🌐 **Live Studio**: [https://blendeye.harmanita.com](https://blendeye.harmanita.com)
+* 📊 **Grafana Cloud Live Dashboard**: [https://fearlessimpatiens433.grafana.net/d/blendeye-studio-observability/0c416a4](https://fearlessimpatiens433.grafana.net/d/blendeye-studio-observability/0c416a4)
 * 💻 **GitHub Repo**: [https://github.com/HarmanPreet-Singh-XYT/blendeye](https://github.com/HarmanPreet-Singh-XYT/blendeye)
 * 📋 **Judge Walkthrough**: [JUDGE_TESTING.md](https://github.com/HarmanPreet-Singh-XYT/blendeye/blob/main/JUDGE_TESTING.md)
